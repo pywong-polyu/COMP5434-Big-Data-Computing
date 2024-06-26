@@ -8,9 +8,9 @@ import pandas as pd
 from langdetect import detect
 from langdetect import DetectorFactory
 from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import TfidfTransformer
-from transformers import pipeline
 
+import warnings
+warnings.filterwarnings('ignore')
 
 
 def load_meta_data_from_local(data_root):
@@ -180,12 +180,12 @@ def detect_language(df):
         languages.append(lang)
         
         
-    languages_dict = {}
-    for lang in set(languages):
-        languages_dict[lang] = languages.count(lang)
+    # languages_dict = {}
+    # for lang in set(languages):
+    #     languages_dict[lang] = languages.count(lang)
 
-    print("Total: {}\n".format(len(languages)))
-    print(languages_dict)
+    # print("Total: {}\n".format(len(languages)))
+    # print(languages_dict)
         
     return languages
 
@@ -203,17 +203,14 @@ def load_data_from_local(data_root):
     
     df = get_full_data_df(meta_df,json_files)
     
-    return df
-
-def clean_data(df):
     # Filter English paper only
     languages = detect_language(df)
     df = filter_languages_by_eng(df,languages)
     
     # Text processing
     df = remove_stopwords(df)
-    df = tokenize_text(df)
     
+    df = df.reset_index()
     return df
 
 
@@ -227,18 +224,17 @@ def remove_stopwords(df):
     stopwords = load_stopword()
     
     for word in stopwords:
-        df['processed_text'] = df['body_text'].str.replace(word,'')
+        df['processed_text'] = df['body_text'].str.lower().str.replace(word,'')
         df['processed_text'] = df['processed_text'].str.replace('  ',' ')
     
     return df
 
-def tokenize_text(df):
-    # Tokenize body text
-    vectorizer = TfidfTransformer.CountVectorizer()
-    # df['tokenized_text'] = df['processed_text'].apply(lambda x: vectorizer.fit_transform(x))
-    df['tokenized_text'] = vectorizer.fit_transform(df['processed_text'])
+# def tokenize_text(df):
+#     # Tokenize body text
+#     # df['tokenized_text'] = df['processed_text'].apply(lambda x: vectorizer.fit_transform(x))
+#     df['tokenized_text'] = TfidfVectorizer.fit_transform(df['processed_text'].values)
 
-    return df
+#     return df
 
 class FileReader:
     def __init__(self, file_path):
