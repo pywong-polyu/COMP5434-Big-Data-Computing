@@ -1,0 +1,1925 @@
+{
+    "paper_id": "92acea9bf40cfc33b1bc58983d9a3f024f9ab6a4",
+    "metadata": {
+        "title": "Imputing Missing Observations with Time Sliced Synthetic Minority Oversampling Technique",
+        "authors": [
+            {
+                "first": "Andrew",
+                "middle": [],
+                "last": "Baumgartner",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Sevda",
+                "middle": [],
+                "last": "Molani",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Wei",
+                "middle": [],
+                "last": "",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Jennifer",
+                "middle": [],
+                "last": "Hadlock",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We present a simple yet novel time series imputation technique with the goal of constructing an irregular time series that is uniform across every sample in a data set. Specifically, we fix a grid defined by the midpoints of non-overlapping bins (dubbed \"slices\") of observation times and ensure that each sample has values for all of the features at that given time. This allows one to both impute fully missing observations to allow uniform time series classification across the entire data and, in special cases, to impute individually missing features. To do so, we slightly generalize the well-known class imbalance algorithm SMOTE [4] to allow component wise nearest neighbor interpolation that preserves correlations when there are no missing features. We visualize the method in the simplified setting of 2-dimensional uncoupled harmonic oscillators. Next, we use tSMOTE to train an Encoder/Decoder long-short term memory (LSTM) model with Logistic Regression for predicting and classifying distinct trajectories of different 2D oscillators. After illustrating the the utility of tSMOTE in this context, we use the same architecture to train a clinical model for COVID-19 disease severity on an imputed data set. Our experiments show an improvement over standard mean and median imputation techniques by allowing a wider class of patient trajectories to be recognized by the model, as well as improvement over aggregated classification models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In this work we address common issues which are present in problems involving time series data sets: 1) individual samples can have a different number of observations, 2) the time between consecutive observations is not uniform across the data set, 3) the time between consecutive observations is not uniform across each sample and 4) each observation may not contain values for every feature. See Fig. 1 for a visual schematic. These issues make it difficult to infer the trajectory of samples in feature space, an important component for being able to predict the outcome of a given classification scheme to an arbitrary (but bounded) time in the future. To address these issues, we developed a time series imputation technique known as time sliced minority oversampling technique, or tSMOTE. The idea is to partition a time interval (depending on the problem at hand) into a fixed number of subintervals, dubbed \"time slices\". These time slices are of varying length and contain an approximately equal number of observations from at least two different samples. We then perform SMOTE [4] on each feature in a time slice and impute these new samples into the trajectories of those that are missing it. Additionally, when the variables are uncorrelated, we can impute the values of individually missing null features at a given time point. The details of our technique are presented in Results and Methods.",
+            "cite_spans": [
+                {
+                    "start": 1087,
+                    "end": 1090,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 398,
+                    "end": 404,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Treating irregularly sampled time series as a missing data problem is not a new idea. To date there have been many approaches to solving some subset of the issues stated above. A majority of them are similar, but different in aim. Most existing techniques impute missing features of existing observations. This can be done both through classical imputation techniques like k-nearest neighbor (KNN) imputation [2] , matrix approaches such as singular value decomposition (SVD) [16] , principle component analysis (PCA) [8] or matrix factorization [10] , and chain equations [1] . When applied to time series, these approaches do not fully leverage time dependent information and may not be applicable given the distribution of observations. To address these issues, more recent attempts have leveraged neural network architectures which were developed for sequence-to-sequence learning tasks. These include recurrent neural networks (RNN) [17, 12, 13, 5, 9] and their generalizations such as biand multi-directional RNNs [3, 24] , Long Short-Term Memory (LSTMs) [25, 26] , attention networks [22, 18] , generative adversarial networks (GAN) [14] and gated recurrent units (GRU) [5] , sometimes with the addition of global interpolation layers [21] . These approaches use the time dependent structure and frequency of the missing data as features in the models to help facilitate the learning process. These approaches also have the advantage of being able to impute the data and perform classification or regression tasks within the same architecture which is useful for streamlining analysis. However, extracting the fully imputed data set is not straightforward, making their use in studying individual trajectories limited. Other approaches to the problem are more probabilistic in nature, treating the time series as a Gaussian process and employing kernel techniques [7, 11, 15] . This particular set, while powerful, does not give you a fully imputed time series as an output but instead performs the required task directly on the sparse data set.",
+            "cite_spans": [
+                {
+                    "start": 409,
+                    "end": 412,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 476,
+                    "end": 480,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 518,
+                    "end": 521,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 546,
+                    "end": 550,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 573,
+                    "end": 576,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 938,
+                    "end": 942,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 943,
+                    "end": 946,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 947,
+                    "end": 950,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 951,
+                    "end": 953,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 954,
+                    "end": 956,
+                    "text": "9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1020,
+                    "end": 1023,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1024,
+                    "end": 1027,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1061,
+                    "end": 1065,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1066,
+                    "end": 1069,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1091,
+                    "end": 1095,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1096,
+                    "end": 1099,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1140,
+                    "end": 1144,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1177,
+                    "end": 1180,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1242,
+                    "end": 1246,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1871,
+                    "end": 1874,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1875,
+                    "end": 1878,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1879,
+                    "end": 1882,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Below we present tSMOTE and illustrate its use in a variety of settings. First, we look at a toy model and use tSMOTE to impute missing observations from a 2D simple harmonic oscillator. We illustrate here explicitly how the time slices show up, how they change size depending on the distribution of samples, and examine the similarity between the synthetic data and the original data. Next we use tSMOTE to build and train two models for classification tasks: one model to distinguish trajectories of two distinct 2D harmonic oscillators, where we compare our technique to imputing the mean and median of each time slice, and one on electronic health records (EHRs) of patients with COVID-19 to build a severity prediction model, where we compare to models in which time series information has been aggregated. Once the full trajectory of each sample has been imputed, we train an Encoder-Decoder LSTM model [23, 6] to predict trajectories of new samples and classify their endpoints using logistic regression. We conclude with a discussion as well as ideas for future work.",
+            "cite_spans": [
+                {
+                    "start": 909,
+                    "end": 913,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 914,
+                    "end": 916,
+                    "text": "6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "As stated in the introduction our algorithm leverages the well known SMOTE algorithm [4] developed for class imbalance problems to generate new samples in each time slice. The idea is to use linear interpolation between a sample and its n nearest neighbors to generate synthetic data points. Linear interpolation may not be appropriate for samples which lie on a low dimensional, non-Euclidean subspace of R n F , but if the distance from xi to its neighbor xj is small compared to the scale set by the intrinsic curvature of the data manifold, the approximation can be reliable.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 88,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "One important thing to remember is that our data is no longer organized as a typical 2-dimensional matrix of samples and features, but instead becomes a three-dimensional tensor of samples, features and time, as illustrated in Fig. 1 . Throughout, we use the term \"observation\" when referring the individual time points within a given sample. The goal of tSMOTE is to give each sample the same number of observations at the same times. tSMOTE is concerned with data sets in which each sample is a time series of the form",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 227,
+                    "end": 233,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "where xi(t i \u00b5 ) denotes the feature vector of sample i at time t i \u00b5 , with component xi(t i \u00b5 ) k . Here, the i superscript ties the observation to the corresponding sample , while the subscript \u00b5 denotes where on the trajectory it lies. Let the size of the data set be nD and the number of time slices be nT . We denote the number of observations associated to xi as mi, and the dimension of xi (equivalently the number of features) as nF . With this notation, the issues mentioned in the introduction can be formalized in the following way: Figure 1 : Rough visualization of our data set before and after tSMOTE has been applied. Colored dots represent non-null entries, which can occur across all features at a given time, or some subset of the features. Each color represents a different feature in the data set. The goal is to ensure each sample has the same features observed at the same times.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 545,
+                    "end": 553,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "2. The time elapsed between consecutive observations is non-uniform across the data set:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "The time elapsed between consecutive observations is non-uniform across each data point:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Null for some i. tSMOTE was designed to solve issues 1) and 2) with this approach, leaving issues 3) as a feature, not an issue. The irregularity of the time intervals is of secondary concern, since one can always compute what the time interval is from the initial slicing procedure and supplement any analysis with this information. As for issue 4), tSMOTE can be applied reliably if the features are known to be independent. The addition of nulls will destroy the correlations between variables, since the nearest neighbors along each feature direction will generally be different.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "The tSMOTE algorithm works in three steps:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tSMOTE"
+        },
+        {
+            "text": "1. Partition the time interval such that every time slice has an (approximately) equal number of points.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tSMOTE"
+        },
+        {
+            "text": "2. Generate synthetic samples within each time slice using SMOTE [4] along each feature direction individually.",
+            "cite_spans": [
+                {
+                    "start": 65,
+                    "end": 68,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "tSMOTE"
+        },
+        {
+            "text": "3. Sample (with or without replacement) from synthetic samples and impute synthetic observations into samples which do not have observations at that time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tSMOTE"
+        },
+        {
+            "text": "The result of this procedure is a data set in which every sample has each observation at each time. There is an optional fourth step wherein one applies a smoothing filter, such as a nonuniform Savitzky-Golay filter [20] , to each sample to further reduce the noise and isolate the signal. This may not be preferable depending on the problem at hand, but is easily accommodated in our code. There are three important things to keep in mind when preparing a data set for classification using tSMOTE: 1) the time slices themselves must be constructed on the entire data set, so that each class has their time series defined at the same time points, 2) tSMOTE must be performed on each class separately so that the resulting imputed time series behaves like others in the class and 3) when sampling without replacement, one must generate enough synthetic samples to impute all the data, i.e. one needs greater than num samples \u2212 num. tot. obs/num slices samples in each slice.",
+            "cite_spans": [
+                {
+                    "start": 216,
+                    "end": 220,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "tSMOTE"
+        },
+        {
+            "text": "This approach is not without it's limitations. First and foremost the whole procedure relies on assuming the dynamics of the system is ergodic, so that we may determine the time-dependent behavior of the system via ensemble averages. This may not be the case in many real world data sets, but is a reasonable approximation for systems which can be described by deterministic dynamical systems.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tSMOTE"
+        },
+        {
+            "text": "Additionally, interpolating along each axis individually can destroy correlations between variables when null values are present. To see this, consider this procedure as a non-parametric sampling technique within each time slice. By interpolating along each direction individually, you are picking each component from it's marginal distribution. This will wash out any correlation among the variables. However, when there are no nulls present, the resulting distribution can still preserve correlations since the nearest neighbors along each feature direction will likely be contained in the same small neighborhood surrounding the initial point from which they were created. By reassembling these samples from the marginal distributions in such a way that each individual variable is drawn from the same neighborhood, correlations will still be preserved in the final synthetic set. On the other hand, when nulls are present, one is required sample from beyond these nearest neighborhoods in each direction, since the would-be nearest neighbors may not have a component in that slice. As such, the resulting vectors are reassembled using components from neighborhoods of different data points, thus destroying the correlations. If your variables are independent, then this is a perfectly valid procedure and tSMOTE can be applied to data with nulls without worry.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tSMOTE"
+        },
+        {
+            "text": "We now turn to some experiments which demonstrate the utility to tSMOTE. First, we start with toy examples of uncoupled 2D oscillators. This example is meant to help visualize the synthetic data generated by tSMOTE and how the sampling distribution affects the size and location of these slices. Next we use an Encoder-Decoder LSTM [23, 6] coupled with logistic regression in the 2D oscillator setting to discriminate between oscillators with a different ratio of frequencies. We show a large improvement with tSMOTE over naive mean and median imputation of each slice, as well as over an aggregate classification model. We then apply this model to COVID-19 severity prediction, where we again show improved accuracy and area under the receiver operating characteristic curve (AUC) an aggregated model.",
+            "cite_spans": [
+                {
+                    "start": 332,
+                    "end": 336,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 337,
+                    "end": 339,
+                    "text": "6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "As a toy example let us see how well tSMOTE can impute in a simple case: a 2D harmonic oscillator. This is a system defined by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reconstructing Trajectories of 2D Harmonic Oscillators"
+        },
+        {
+            "text": "where represents noise drawn from a Gaussian distribution with \u00b5 = 0 and \u03c3 = .05 . For simplicity, we take \u03b4 = 0 and \u03c9x/\u03c9y = 1/2. To simulate the irregularity of observations present in real world data, we randomly sample a number of times from various distributions and plug them into x(t). Our resulting data set has 100 samples, with anywhere from 5 to 20 observations per sample at irregularly spaced intervals. Our goal is to see how well our interpolation and nearest neighbor imputation preserves the structure of the original data, and how time slice size affects the synthetic data. The original and synthetic data are shown in Fig. 2 for observations drawn from a uniform distribution and exponential distribution,respectively. In both figures, we display both the original and synthetically generated data, as well as the data set after imputation. The observations are calculated to be the midpoints of the appropriate time slice. As can be seen, the synthetically generated data very much resembles the initial data set for both the uniform and exponentially distributed observations.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 637,
+                    "end": 643,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Reconstructing Trajectories of 2D Harmonic Oscillators"
+        },
+        {
+            "text": "We compare our tSMOTE imputation to two obvious alternatives-imputing with the mean and median of each time slice. To make such a comparison, we use an Encoder-Decoder LSTM [23, 6] to predict the latter part of the trajectory from the initial portion, and use logistic regression to differentiate two curves using the endpoint. These curves are defined by eq. (1) \u03c9y = 2\u03c9x and \u03c9y = 4\u03c9x (see Fig. 4 ). We generated our samples in the same was as the previous example, except with \u03c3 = .1, 270 and 180 samples on each curve respectively, and between 5 and 20 time points sampled from both the uniform and exponential distribution. We used tSMOTE, mean and median imputation to bring each of these trajectories onto an irregular grid with 50 times points, where the median time of each slice is used as the grid point. After this, we generated 30 and 20 samples on the entire grid to use as the test set, so that we may compare each imputation method in a controlled way. The structure of the model itself is shown in Fig. 3 . The error metrics averaged over 100 runs are displayed in Fig. 4 . Additionally, we z-normalize the data prior to training, using the mean and standard deviation of the training set when normalizing the test set. We note that when using the exponential distribution for sampling our time points, the tSMOTE imputation error metrics are comparable to the other two approaches. This is because the last time slice becomes parametrically larger than the other time slices due to the tails in the exponential distribution. This effect can be seen in Fig. 2 , where the light blue points from the final time slice span the entirety of the 2D oscillator curve. As such, it makes it difficult for the classifier to accurately discriminate between the curves since last observation on each curve occurs in the time interval [ 49 i=1 \u03b4ti, \u221e), thus placing it anywhere along the curve. Figure 3 : Schematic of our prediction model. We input the first k times points, and predict the next n T \u2212 k time points. We then use a classifier (logistic regression for this work) to classify the end point.",
+            "cite_spans": [
+                {
+                    "start": 173,
+                    "end": 177,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 178,
+                    "end": 180,
+                    "text": "6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 391,
+                    "end": 397,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 1014,
+                    "end": 1020,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1081,
+                    "end": 1087,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 1569,
+                    "end": 1575,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1899,
+                    "end": 1907,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Differentiating 2D oscillators"
+        },
+        {
+            "text": "To further illustrate the power of tSMOTE, we use our procedure to impute missing observations to improve prediction of COVID-19 disease severity. In particular, we take as input a time series from the first 12 hours of a patient's hospital stay and attempt to predict the severity outcome over the next 7 days. Our definition of severity is based on the WHO Ordinal Score (WOS) [19] , which assigned a number from 1 (healthy) to 8 (dead) based primarily on the need for respiratory assistance. For our model, we stratify our cohort into \"moderate\" (WOS < 5) and \"severe\" (WOS \u2265 5), where moderate patients are hospitalized and require either no breathing assistance, or a nasal canula, while severe patients have either a high flow nasal canula, or require mechanical ventilation, extracorporeal membrane oxygenation (ECMO), vasopressor or some combination thereof. To make our prediction, we restrict to patients with moderate COVID-19 in the first 12 hours of their hospital stay, and predict their maximum WHO score over the next week. We base these predictions on features which are readily available to clinicians upon admittance to the hospital. These include age, vital signs (SpO2, systolic/diastolic blood pressure, temperature, pulse), complete blood count (white/red blood cells, lymphocytes, neutrophils, hemoglobin, platelets) and the basic metabolic panel (sodium, potassium, creatinine, alt, ast). To ensure the validity of tSMOTE, we took only patients who had these three sets of features measured within 1 hour before or after the others. This allows us to both ensure the disparate tests were taken at approximately at the same time, as well as ensuring tSMOTE can be readily applied without destroying correlations between the variables. Once the samples have been fully imputed using tSMOTE, we apply a nonuniform Savitzky-Golay filter [20] to smooth the trajectories before training the model. The ensemble of trajectories for the vital signs and labs after the smoothing has been applied are displayed in To train the model, we split our data using a 90-10 training-test split and z-normalize all of the data, using the mean and standard deviation of only the training set. We then use 10-fold cross-validation to train both the LSTM and logistic regression models simultaneously. We partition our time interval into 100 time slices of (a) Figure 4 : The 2D oscillator curves used for testing tSMOTE against mean and median imputation using the model shown in Fig. 3 , and the resulting metrics compared to mean and median imputation.",
+            "cite_spans": [
+                {
+                    "start": 379,
+                    "end": 383,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1858,
+                    "end": 1862,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 2364,
+                    "end": 2372,
+                    "text": "Figure 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 2484,
+                    "end": 2490,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Application to COVID Severity Prediction"
+        },
+        {
+            "text": "varying length. Given the density of samples for times directly after admission, the first 46 points in the time series correspond to the behavior over the first 12 hours of a patient's stay, while the next 30 give us the behavior over the next seven days. Once this is done, we use logistic regression on the final observation to classify into one \"moderate\" or \"severe\" COVID patients based on their max WHO score over that time. One can adjust the length of the input and output sequences to give any desired prediction model, although the accuracy of the result will diminish with the size of the final time slices. We note that other classifiers can be used aside from logistic regression. Another obvious choice would be to have a dense neural network layer as the classifier. We only choose logistic regression since it is widely used in the medical community and offers an example of nice integration of our method with those which are commonly used. We compare our model with tSMOTE data to classical logistic regression, random forest and XGBoost models with aggregated data. Some error metrics for all three are shown in . As you can see, the accuracy, and AUC are all higher for our model with tSMOTE, showing a marked improvement over aggregated data for time forecasting. Figure 5 : IQR (filled) and median (dashed) of features (excluding age) included in our COVID severity prediction model after tSMOTE and smoothing has been applied. Blue: patients with initial and WHO score < 5. Red: patients with initial WHO score < 5 with max WHO score >= 5.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1286,
+                    "end": 1294,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Application to COVID Severity Prediction"
+        },
+        {
+            "text": "Here we presented a novel imputation technique which can help turn sparse and irregular time series data into uniform, albeit still irregular time series data. By slicing our time interval into irregularly sized, non-overlapping bins, and by performing linear interpolation along each feature direction independently, we are able to generate new, synthetic observations which mimic those of the original data set, but are different enough to capture the diversity of real world time series data. This procedure allowed us to both impute missing observations in their entirety and impute individual features (when the variables are independent). To our knowledge this is the first time series analysis technique which allows one to do both of those things simultaneously. We illustrated our technique in a number of examples. First we showed how well we could reproduce a well known and well studied time series in two dimensions-the 2D uncoupled harmonic oscillator. This allowed for a controlled comparison where the shape of the time series is known a priori. Additionally, this is a natural setting for comparing tSMOTE against two obvious alternatives: imputing the mean and median of each time slice into missing observations. To make this comparison, we use an Encoder-Decoder LSTM model and a logistic regression model to distinguish between the trajectories of two 2D harmonic oscillators with different ratios of frequencies. There we saw a large improvement over the mean and median alternatives for classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Next, we applied tSMOTE to vital signs and lab results of COVID-19 positive patients to predict maixmum COVID severity after seven days based on the first twelve hours of patient data. We used the same model as in the 2D oscillator example, and again found a large improvement over models where time series data is aggregated. Additionally, this model lets us easily chose the time frame which we wish to use as input data (e.g. first twelve hours of hospital stay) and output (e.g. seven days after admission). We also bypass the need for special RNN architectures which may be difficult for non-machine learning specialists to employ or interpret.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "There are a number of aspects of tSMOTE we wish to improve on future. Chief among them is a general strategy for choosing missing observations for imputation, such as a variational principle. Additionally, we would like to be able to more faithfully represent the distribution of samples by carefully choosing missing observations which maximally preserves the initial probability distribution. Both of these will allow us to apply our procedure to a wider class of data where predefined classes are not necessary for accurate imputation, and give more confidence in the analysis and interpretation performed on the imputed data set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Here we expand upon the steps involved in using tSMOTE presented in the main text.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Building tSMOTE"
+        },
+        {
+            "text": "We start by constructing the time slices. For classification problems, this should be done before the data has been sorted into classification classes to ensure the number of time slices, as well as their lengths, are equal across all the classes. Once the slices have been made, the tSMOTE procedure should be performed within each class, so that the resulting observations look like other observations in the class. The pseudocode is presented below as Algorithm 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing and Assigning the Time Slices"
+        },
+        {
+            "text": "First, we must pick a relevant starting point. This is highly dependent on the problem at hand, but should be computable, or at least inferable, from the data directly. Next, we must pick a maximum endpoint. The most straight forward approach is to chose the following:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing and Assigning the Time Slices"
+        },
+        {
+            "text": "although one could pick a smaller value for tmax if it suits the problem (for instance if the largest time window is parametrically larger than the next largest one). Similarly, one may wish to choose a different start time, such as symptom onset (for medical diagnosis/prognosis problems). We caution against picking a larger tmax since there will be no data present in the time slices larger than tmax. Once these parameters have been found, we compute the elapsed time since the given start time as an array \u2206T . Once we have obtained \u2206T , we tag each observation with both it's \u00b5 and i indices and flatten the array. We then sort the resulting flat list by the observation and partition the list such that there exist nT slices (nT being specified by the user) with an equal number of observations in each slice. We can then use the tags to go back to the original data set and assign to each sample xi(t) a vector of integers which represent the time slices to which this sample belongs. This leads to the following definition of a time slice:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing and Assigning the Time Slices"
+        },
+        {
+            "text": "Definition. The n th time slice \u03b4T n is defined as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing and Assigning the Time Slices"
+        },
+        {
+            "text": "where \u03b4ti is the size of the i th slice calculated from the initial partitioning procedure.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing and Assigning the Time Slices"
+        },
+        {
+            "text": "In this definition we take the lower bound to be closed so that the sample from which tmin was obtained belongs to the first time slice, while we leave the upper bound open to ensure a given observation does not exist in more than one time slice.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing and Assigning the Time Slices"
+        },
+        {
+            "text": "After the time slices have been assigned and sorted, we are ready to employ the SMOTE algorithm. To do so, we rephrase this imputation problem into a class imbalance problem:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Generation"
+        },
+        {
+            "text": "Definition. The k th component of the sample xi(t) belongs to \u03b4T n if i) xi(t i \u00b5 ) k is not NULL and ii) t i \u00b5 \u2212 tmin \u2208 \u03b4T n for at least one \u00b5 \u2208 {1, 2, ..., mi} .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Generation"
+        },
+        {
+            "text": "In other words, the k th component must have been measured in the appropriate time range for it to belong to the slice.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Generation"
+        },
+        {
+            "text": "A sample xi(t) belongs to \u03b4T n if all of its components belong to \u03b4T n . If this condition is met for more than one \u00b5, we call the sample xi(t) degenerate in \u03b4T n or degenerate in n.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition."
+        },
+        {
+            "text": "The idea now is to \"balance\" these classes in such a way that each sample belongs to each time slice. This means two things: 1) ensure each component xi(t i \u00b5 ) belongs to the time slice, and 2) ensure each xi(t) belongs to every time slice. Before we do this, however, we must sort the samples into their classification classes to ensure we are drawing synthetic data from samples which belong to the same class. This is absolutely crucial for tSMOTE to approximate real trajectories in a manner that preserves the distinct behavior between the different classes. After this has been done, we generate a surplus of synthetic samples for each class using SMOTE within each time slice.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition."
+        },
+        {
+            "text": "To address problems 1), 2) and 4) simultaneously we slightly generalize the SMOTE algorithm by performing the data generation along each feature direction individually. This is not possible using the original SMOTE procedure, since it necessarily requires all the individual features to be present. In particular, we first generate individual features in the following way: given an individual feature of a particular sample in the first time slice, [x(\u03b4T 1 )] k , we first find its nearest neighbor along the k th direction in that slice [y(\u03b4T 1 )] k , and generate a new sample by computing:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition."
+        },
+        {
+            "text": "where \u03bb \u2208 (0, 1) is a random number. It is interesting to note that the nearest neighbors along each direction may not be the same sample. As a result, we are not simply picking a point on a straight line connecting two existing points, as in SMOTE, but instead generating a new sample at an arbitrary location within the nearest neighborhood. This procedure works well for samples in which all the components are presents, i.e. data sets which do not satisfy issue 4). However, as we will discuss below, this will destroy correlations between features when samples have individual features missing. If correlations between features is small or zero, then this procedure still works well. The pseudocode for this portion of the algorithm can be found below as Algorithm 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition."
+        },
+        {
+            "text": "Once we have generated our synthetic time slice data, we can choose new observations from these time slices and impute them into the samples which do not belong to that time slice. First, we go through each sample and replace their null values with the appropriate values from a randomly selected synthetic sample. Then, we fill out the full sample's trajectory by randomly sampling feature vectors from our synthetically generated samples, within the appropriate class and time slice. To define this latter process, we reshape our initial samples from an array of shape (mi, nF ) to an an array of shape (nT , nF ) leaving nulls when the sample does not belong to a given slice. Specifically, we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Imputation"
+        },
+        {
+            "text": "where V is the nF -dimensional vector space on which our data is defined, likely some combination of R and {0, 1}. By the nature of this problem, this map is not surjective (unless we are extremely lucky). However, it is also not injective, since a data point might be degenerate in some subset of time slices. This is bad because we are implicitly trying to construct an injective map, so that we may obtain one single, unique trajectory for each sample. To deal with this, we take the average of degenerate samples in a given slice. This ensures our imputation map is injective. Once this map has been applied, we randomly sample from our surplus of synthetic data to replace the nulls with these synthetic samples. The pseudocode for this portion of our method is presented below as Algorithm 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Imputation"
+        },
+        {
+            "text": "To illustrate the imputation step, consider the following example.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Imputation"
+        },
+        {
+            "text": "Example. Consider a sample x(t) = (x(t1), x(t2), ..., x(tm)) where each x(ti) contains no null components. Suppose we find that t1 \u2208 \u03b4T 1 while t2 \u2208 \u03b4T 4 . At the moment, sample x(t) does not belong to \u03b4T 2 and \u03b4T 3 . By the imputation map above, we obtain (x(t1), x(t2), ..., x(tm) \u2192 (x(\u03b4T 1 ), \u00b7 , \u00b7 , x(\u03b4T 4 ), ..., x(\u03b4T n T )).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Imputation"
+        },
+        {
+            "text": "Next, we find the position of the NULL entries, and draw a random sample from the corresponding synthetically generated time slices. For slices \u03b4T 2 and \u03b4T 3 our sampling gives y(\u03b4T 2 ) and z(\u03b4T 3 ) . The final trajectory of our sample will then look like",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Imputation"
+        },
+        {
+            "text": "There is one small subtlety that needs to be addressed in the process above. There could be some features that do not change over time. These could be fixed physical characteristics (e.g. height), preexisting conditions (e.g. asthma), long term medications, etc.... In this case, we would need to be sure that the resulting synthetic sample fixes these particular features. This can be achieved in one of two way: do SMOTE on the time varying features only or simply replace these fixed features with the correct ones after drawing new samples.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Imputation"
+        },
+        {
+            "text": "As a final step, we apply a smoothing filter to the fully imputed time series. For this we use a non-uniform Savitzky-Golay filter [20] , which works by fitting a low degree polynomial to successive subsets of the data and replacing the midpoint by value of the polynomial at that time point. Specifically, we use a window size of twenty-five and a polynomial of order five. We note that other smoothing kernels could also work here, such as Gaussian or kernel average smoothing. The main purpose is to reduce high frequency in the resulting imputed time series without distorting the signal. This step is not completely necessary, but it improves performance on models such as those discussed in the main text. As an example, Fig. 6 displays some of the features used in our COVID-19 prediction model before and after smoothing was applied to each trajectory. Figure 6 : IQR (filled) and median (dashed) of selected features before (blue) and after (red) a non-uniform Savitzky-Golay filter has been applied.",
+            "cite_spans": [
+                {
+                    "start": 131,
+                    "end": 135,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 727,
+                    "end": 733,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 861,
+                    "end": 869,
+                    "text": "Figure 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Smoothing"
+        },
+        {
+            "text": "Let's consider the case of mean imputation (the same calculation applies to median imputation without significant alteration) and see why tSMOTE is preferred. The mean of each time slice is not significantly altered by any of these imputation procedures (see below for details in the tSMOTE case), but let us consider the second moments of the data. Prior to imputation each time slice has n points in it and the variance of the slice is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvement Over Mean and Median Time Slice Imputation"
+        },
+        {
+            "text": "After imputing the mean of the time slice for each sample which are not in the slice, the time slice now contains all N samples. The new variance is\u03c3",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvement Over Mean and Median Time Slice Imputation"
+        },
+        {
+            "text": "and since n = N/nT , with nT being the number of time slices, we hav\u1ebd",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvement Over Mean and Median Time Slice Imputation"
+        },
+        {
+            "text": "which is a significant reduction for most reasonable values of nT . On the other hand, if we instead added samples from our set of tSMOTE generated data, we would find:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvement Over Mean and Median Time Slice Imputation"
+        },
+        {
+            "text": "As we will show below, the variance of the tSMOTE generated data \u03c3 2 tS , while not exactly equal to the variance of the original set, is of comparable magnitude. We can write \u03c3 2 tS = \u03c3 2 \u2212 , for some error term . 1 . Plugging this in, we have\u03c3",
+            "cite_spans": [
+                {
+                    "start": 215,
+                    "end": 216,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Improvement Over Mean and Median Time Slice Imputation"
+        },
+        {
+            "text": "So while the in-slice variance of the imputed data is not necessarily equal to the initial data, it is a marked improvement over eq. (3).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvement Over Mean and Median Time Slice Imputation"
+        },
+        {
+            "text": "Preserving the variance of imputed data is an important part of an imputation process for many reasons. Firstly, it is important for discriminant analyses such as classification because classifiers require a large range of training examples to accurately assign new samples to their predicted class. If the variance of the data is too small, the classifier will only be able to accurate classify a very small range of samples. On the other hand, if it is too big, the classification regions may overlap and it will be difficult to discriminate between classes. Given this view, it may be beneficial to slightly decrease the variance, as shown in eq. (4). Second, the variance of the data may itself contain pertinent information. If the goal of the analysis is to characterize the probability distribution, it would be important to preserve the moments of the distribution, otherwise the inference will not be accurate. Third, the variance of, the trajectory itself may contain important information. For instance, if a patient has a large variance of their BMI, or blood pressure, it could be indication of increased risk for certain diseases 2 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvement Over Mean and Median Time Slice Imputation"
+        },
+        {
+            "text": "In addition to the usual considerations about the validity of statistical methods (more data=better!), tSMOTE will perform best if i) nD \u00b7 i mi nT and ii) t i \u00b5 is generated via a Poisson process. Condition i) states that the total number of observations across each class must be sufficiently large in order to trust the accuracy of the resulting imputation. For it to even work in the first place we would need at least two points in each time slice, leading to the lower bound nD \u2265 2nT . Still, to saturate this bound we would need the samples to be evenly distributed among the time slices, which is not always guaranteed. In order to ensure each time slice contains the minimum allowable number of samples, and to allow for the irregularity of the time series data, we must have nD \u00b7 i mi nT . Of course, one could always decrease the number of time slice present, but ideally one would like to have as many time slices as allowed by the data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Limitations"
+        },
+        {
+            "text": "Condition ii) says that each observation should be randomly picked from a uniform interval, defined by our start and end time. This condition will ensure that the resulting observations are reasonably well distributed across the entire interval, so that each time slice will be approximately the same length. Moreover, this will help to minimize degeneracies which requires averaging over the values in a time slice of a given sample, and replace the missing observations with synthetic data. This is not ideal, since we should be using as much of the original data as possible. By averaging, we are throwing away important information about the data in that slice. Additionally, having equal-sized time slices allows one to more consistently reconstruct the true trajectories of the time slice data alone. Together with condition i) we could choose sufficiently fine-grained time slices which will allow for the best possible trajectory reconstruction.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Limitations"
+        },
+        {
+            "text": "The primary advantage to interpolating along each axis individually is to utilize the totality of the data, including samples which have null entries for features at sporadic observations. However, there may be cases where the nearest neighbors, as defined by the Euclidean distance between the samples, actually gives a worse approximation for a point in the true data subspace in the neighborhood of xi compared to our method. For instance, consider a case where our data lives on a Riemannian manifold embedded in R n f with the curvature along one direction much larger than the curvature along the others. If the true nearest neighbor has a large projection along the highly curved direction and a small projection along the other directions, then simple interpolation to that point might not yield a point which well approximates the manifold in that neighborhood. However, if there is another point which has a larger Euclidean distance, but which has a smaller projection along the highly curved direction, first projecting and then interpolating will yield a point which better approximates the true data manifold. We should note that we do not yet have a rigorous proof of this fact, and so the claim should only serve as a heuristic explanation into a potential improvement.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Limitations"
+        },
+        {
+            "text": "The biggest room for improvement in tSMOTE comes in the imputation step. Currently our imputation step relies on the prior stratification of the data rather than on some selection criterion. For example, we split our COVID cohort into moderate and severe cases so that we may impute observations which were made from synthetic data within that class. This works well for training classifiers or increasing sample sizes, but does not allow for a good interpretation of the individual trajectories themselves. Nevertheless, this is sufficient for training an RNN, or analyzing an ensemble of trajectories as opposed to individual ones. We hope to improve this step so more interpretable conclusions can be drawn from the imputed trajectories.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Limitations"
+        },
+        {
+            "text": "Here we present the pseudocode for the algorithms invloved in tSMOTE.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pseudocode"
+        },
+        {
+            "text": "Algorithm 1 contains the pseudocode for our initial assignment of the time slices. Algorithm 2 describes our slightly modified SMOTE algorithm, which allows us to use samples where individual nulls are present. Finally, algorithm 3 is how we impute the synthetic data into the initial data. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pseudocode"
+        },
+        {
+            "text": "Here we calculate some theoretical properties of tSMOTE within each slice. Similar calculations are done in [4] . Here we provide explicit formulas for the sample mean and covariance, and show that they reduce to the calculations in [4] when taking the expected value. Before we do this, we must introduce some new notation. Throughout, we consider operations only a single feature for notational ease. Additionally, we assume all of our data points x \u00b5 are i.i.d.",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 233,
+                    "end": 236,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "We start with synthetic data of the form",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "where ynn is a nearest neighbor of x old . Before we start, we need a better way to format this equation so that it can be easily manipulated. First, let superscript greek letters index the data points like x \u00b5 . Next, let \u2126(x \u00b5 ) denote the set of K nearest neighbors of x \u00b5 . We then index elements of this nearest neighbor set with capital Latin letters such as I: x I \u2208 \u2126(x \u00b5 ) . The above equation can be then written as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "where we have the vector \u03bb \u00b5I is a random variable drawn from an arbitrary distribution over the unit interval.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "In this form, we can attempt to write our new data set as a matrix equation. To do this, we have to form a D(K + 1) vector of each data point and it's nearest neighbors. We do this by sequentially putting in a data point, followed by it's K nearest neighbors, then another data point and it's K nearest neighbors and so on. Let us call this data vector of data points and their nearest neighbors X. This is an extended data matrix where each data point is duplicated k\u00b5 + 1 times. We are then interested in the generation of D \u00b7 M ( with M \u2265 K) new synthetic data points Y . We can write the new data points as the following matrix equation",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "Algorithm 3 Implementation of The Imputation Map where \u039b is a matrix of size D \u00b7 M \u00d7 D \u00b7 (K + 1) and is of the form",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "where each individual \u039b \u00b5 is an M \u00d7 (K + 1) matrix which acts on x \u00b5 and it's neighbors in \u2126(x \u00b5 ). Each \u039b \u00b5 is of the form",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "We now want to calculate the mean of Y and find its relation to the mean of X. To make things easier for now, we will take R = 1. In component notation, we can write eq. (??)as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "where the Einstein summation convention is used.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical Properties of SMOTE"
+        },
+        {
+            "text": "Lets start by calculating the first moment of the elements of the vector Y , with R = 1. This makes \u039b a DK \u00d7 D(K + 1) matrix. We have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mean"
+        },
+        {
+            "text": "where we redefined the sum over the entries \u03b1 to a double sum over the entries \u00b5 and their corresponding neighbors. Since each data point x \u00b5 is in k\u00b5 other nearest neighbors of some other data points, we can rearrange the terms in this sum to group together the data points x \u00b5 . This gives",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mean"
+        },
+        {
+            "text": "where the last sum here is over the neighborhoods \u2126(x \u03bd ) such that x \u00b5 \u2208 \u2126(x \u03bd ), with corresponding Latin index J\u03bd . Dividing both sides of this equation by 1/DK, we find",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mean"
+        },
+        {
+            "text": "where and overbar denotes sample mean (or sample variance/covariance below) and E is an \"error term\" given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mean"
+        },
+        {
+            "text": "Here we can see that the sample mean of the synthetic data can be written as the sample mean of the original data with an induced error which explicitly depends on the choice of \u03bb's, and implicitly depends on how many neighborhoods each x \u00b5 belongs to. Now we can take the expected value of both sides with respect to both the distribution of \u03bb's and the distribution from which the x's are draw, and using the fact that the expected value of the sample mean is equal to the expected value of the random variable, we find",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mean"
+        },
+        {
+            "text": "where we have introduced k\u00b5 as the number of nearest neighborhoods to which x \u00b5 belongs. To see why the expected error is zero, consider a directed nearest neighbor graph on the data, where edges point from a data point to each of it's K nearest neighbors. On this graph, K represents the number of arrows exiting x \u00b5 while k\u00b5 represents the number of arrows entering x \u00b5 . When summed over all nodes, these two quantities are equivalent, as they are both different ways of enumerating the edges of the graph. This result differs from the analogous result in [4] . There the authors found",
+            "cite_spans": [
+                {
+                    "start": 559,
+                    "end": 562,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Mean"
+        },
+        {
+            "text": "There they argue that for \"symmetric\" distributions, E(x nn ) = E(x), yielding eq. (15). Here we show that this result holds regardless of the distribution, so long as the data points are i.i.d. This is a reasonable assumption for many data sets, such as those studied in the main text.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mean"
+        },
+        {
+            "text": "The calculation of covariance is more involved, so we will leave out most of the algebra. For this we let lower case Latin subscripts such as i and k denote individual features of a sample. The sample covariance can be written as cov",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "In eq. (13) we showed that\u0232 i =xi + Ei (21) where Ei is the relevant component of the error term eq. (14) . Plugging in eq. (10) and expanding, we find cov (YiY k ) = cov (xixj) + \u03a3",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 105,
+                    "text": "(14)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "is the \"error term\". This equation, while far more opaque than it's counter part in eq. (14) , but things simplify when we take the expected value. Let's start with the last line in the equation above:",
+            "cite_spans": [
+                {
+                    "start": 88,
+                    "end": 92,
+                    "text": "(14)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "where we used the fact that cov(xi,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "when the samples x \u00b5 and x \u03bd are independent. We can apply this same logic to the first term along with eq. (15) to obtain",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 112,
+                    "text": "(15)",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "which yields",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "The calculation of E(xiE k ) and E(EiE k ) in this same way also yield zero. The only thing left to do is to calculate the first and second terms in \u03a3. For the first term we have x I i x \u00b5 k \u03bb \u00b5I i \u2212 \u03bb \u00b5I k \u03bb \u00b5I",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "where we used the fact that x \u00b5 and it's nearest neighbors are independent since they are independent samples. All together, we have E(\u03a3) = 2cov(xix k ) var(\u03bb) + E(\u03bb) 2 \u2212 E(\u03bb)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "which, along with eq. (15) gives the final result:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "cov (Yi, Y k ) = 2cov(xi, x k ) var(\u03bb) + E(\u03bb) 2 \u2212 E(\u03bb) .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "If \u03bb is drawn from I [0,1] , then we obtain the result cov (Yi, Y k ) = 2 3 cov(xi, x k )",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Covariance"
+        },
+        {
+            "text": "which agrees with the result of [4] when the distribution is symmetric and/or high dimensional. Here, as in eq. (15), we show that this result holds when the data points are i.i.d regardless of dimensionality and symmetry properties.",
+            "cite_spans": [
+                {
+                    "start": 32,
+                    "end": 35,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Covariance"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Multiple imputation by chained equations: what is it and how does it work? International journal of methods in psychiatric research",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Melissa",
+                    "suffix": ""
+                },
+                {
+                    "first": "Elizabeth",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Azur",
+                    "suffix": ""
+                },
+                {
+                    "first": "Constantine",
+                    "middle": [],
+                    "last": "Stuart",
+                    "suffix": ""
+                },
+                {
+                    "first": "Philip",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Frangakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Leaf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "20",
+            "issn": "",
+            "pages": "40--49",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "A study of k-nearest neighbour as an imputation method",
+            "authors": [
+                {
+                    "first": "Eapa",
+                    "middle": [],
+                    "last": "Gustavo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maria",
+                    "middle": [
+                        "Carolina"
+                    ],
+                    "last": "Batista",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Monard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "His",
+            "volume": "87",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Brits: Bidirectional recurrent imputation for time series",
+            "authors": [
+                {
+                    "first": "Wei",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dong",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jian",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hao",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lei",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yitan",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1805.10572"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Smote: Synthetic minority over-sampling technique",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Nitesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kevin",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chawla",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lawrence",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Bowyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "Philip"
+                    ],
+                    "last": "Hall",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Kegelmeyer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Recurrent neural networks for multivariate time series with missing values",
+            "authors": [
+                {
+                    "first": "Zhengping",
+                    "middle": [],
+                    "last": "Che",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sanjay",
+                    "middle": [],
+                    "last": "Purushotham",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kyunghyun",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Sontag",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yan",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Scientific reports",
+            "volume": "8",
+            "issn": "1",
+            "pages": "1--12",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Learning phrase representations using rnn encoder-decoder for statistical machine translation",
+            "authors": [
+                {
+                    "first": "Kyunghyun",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "Caglar",
+                    "middle": [],
+                    "last": "Bart Van Merrienboer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dzmitry",
+                    "middle": [],
+                    "last": "Gulcehre",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fethi",
+                    "middle": [],
+                    "last": "Bahdanau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Holger",
+                    "middle": [],
+                    "last": "Bougares",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yoshua",
+                    "middle": [],
+                    "last": "Schwenk",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1406.1078"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Learning to detect sepsis with a multitask gaussian process rnn classifier",
+            "authors": [
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Futoma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sanjay",
+                    "middle": [],
+                    "last": "Hariharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Katherine",
+                    "middle": [],
+                    "last": "Heller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1174--1182",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Handling missing values in exploratory multivariate data analysis methods",
+            "authors": [
+                {
+                    "first": "Julie",
+                    "middle": [],
+                    "last": "Josse",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fran\u00e7ois",
+                    "middle": [],
+                    "last": "Husson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Journal de la Soci\u00e9t\u00e9 Fran\u00e7aise de Statistique",
+            "volume": "153",
+            "issn": "2",
+            "pages": "79--99",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Temporal belief memory: Imputing missing data during rnn training",
+            "authors": [
+                {
+                    "first": "Jin",
+                    "middle": [],
+                    "last": "Yeo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Min",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 27th International Joint Conference on Artificial Intelligence (IJCAI-2018)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Matrix factorization techniques for recommender systems",
+            "authors": [
+                {
+                    "first": "Yehuda",
+                    "middle": [],
+                    "last": "Koren",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Bell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Volinsky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Computer",
+            "volume": "42",
+            "issn": "8",
+            "pages": "30--37",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Classification of sparse and irregularly sampled time series with mixtures of expected gaussian kernels and random features",
+            "authors": [
+                {
+                    "first": "Steven",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "-Xian",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Benjamin M Marlin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "UAI",
+            "volume": "",
+            "issn": "",
+            "pages": "484--493",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Directly modeling missing data in sequences with rnns: Improved classification of clinical time series",
+            "authors": [
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Zachary C Lipton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Randall",
+                    "middle": [],
+                    "last": "Kale",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wetzel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Machine learning for healthcare conference",
+            "volume": "",
+            "issn": "",
+            "pages": "253--270",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Modeling missing data in clinical time series with rnns",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zachary C Lipton",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "Randall",
+                    "middle": [],
+                    "last": "Kale",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wetzel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Machine Learning for Healthcare",
+            "volume": "56",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Multivariate time series imputation with generative adversarial networks",
+            "authors": [
+                {
+                    "first": "Yonghong",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiangrui",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ying",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jun",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaojie",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 32nd International Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1603--1614",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Unsupervised pattern discovery in electronic health care data using probabilistic clustering models",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Benjamin M Marlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Kale",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Robinder",
+                    "suffix": ""
+                },
+                {
+                    "first": "Randall C",
+                    "middle": [],
+                    "last": "Khemani",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wetzel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the 2nd ACM SIGHIT international health informatics symposium",
+            "volume": "",
+            "issn": "",
+            "pages": "389--398",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Spectral regularization algorithms for learning large incomplete matrices",
+            "authors": [
+                {
+                    "first": "Rahul",
+                    "middle": [],
+                    "last": "Mazumder",
+                    "suffix": ""
+                },
+                {
+                    "first": "Trevor",
+                    "middle": [],
+                    "last": "Hastie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Tibshirani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "The Journal of Machine Learning Research",
+            "volume": "11",
+            "issn": "",
+            "pages": "2287--2322",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Modeling alzheimer's disease progression using deep recurrent neural networks",
+            "authors": [
+                {
+                    "first": "Minh",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nanbo",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiashi",
+                    "middle": [],
+                    "last": "Alexander",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bt Thomas",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yeo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 International Workshop on Pattern Recognition in Neuroimaging (PRNI)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--4",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Deep learning to attend to risk in icu",
+            "authors": [
+                {
+                    "first": "Phuoc",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Truyen",
+                    "middle": [],
+                    "last": "Tran",
+                    "suffix": ""
+                },
+                {
+                    "first": "Svetha",
+                    "middle": [],
+                    "last": "Venkatesh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1707.05010"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "WHO Working Group on the Clinical Characterisation and Management of COVID-19 infection. A minimal common outcome measure set for covid-19 clinical research. The Lancet Infection Diseases",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Smoothing and differentiation of data by simplified least squares procedures",
+            "authors": [
+                {
+                    "first": "Abraham",
+                    "middle": [],
+                    "last": "Savitzky",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J E"
+                    ],
+                    "last": "Golay",
+                    "suffix": ""
+                }
+            ],
+            "year": 1964,
+            "venue": "Analytical Chemistry",
+            "volume": "36",
+            "issn": "8",
+            "pages": "1627--1639",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Interpolation-prediction networks for irregularly sampled time series",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Satya Narayan Shukla",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Benjamin M Marlin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1909.07782"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Multi-resolution networks for flexible irregular time series modeling (multifit)",
+            "authors": [
+                {
+                    "first": "Iman",
+                    "middle": [],
+                    "last": "Bhanu Pratap Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bharath",
+                    "middle": [],
+                    "last": "Deznabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bryon",
+                    "middle": [],
+                    "last": "Narasimhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rheeya",
+                    "middle": [],
+                    "last": "Kucharski",
+                    "suffix": ""
+                },
+                {
+                    "first": "Akhila",
+                    "middle": [],
+                    "last": "Uppaal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Madalina",
+                    "middle": [],
+                    "last": "Josyula",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fiterau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1905.00125"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Sequence to sequence learning with neural networks",
+            "authors": [
+                {
+                    "first": "Ilya",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "Oriol",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "Quoc",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1409.3215"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Multi-directional recurrent neural networks: A novel method for estimating missing data",
+            "authors": [
+                {
+                    "first": "Jinsung",
+                    "middle": [],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mihaela",
+                    "middle": [],
+                    "last": "William R Zame",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Van Der Schaar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Time Series Workshop in International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Imputation of missing data in time series for air pollutants using long short-term memory recurrent neural networks",
+            "authors": [
+                {
+                    "first": "Hongwu",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guoming",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zijian",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ji",
+                    "middle": [],
+                    "last": "Jia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yiwen",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 ACM International Joint Conference and 2018 International Symposium on Pervasive and Ubiquitous Computing and Wearable Computers",
+            "volume": "",
+            "issn": "",
+            "pages": "1293--1300",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Recover missing sensor data with iterative imputing network",
+            "authors": [
+                {
+                    "first": "Jingguang",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zili",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "tSMOTE illustration for a 2D harmonic oscillator with observations sampled from a uniform distribution (a)-(c) and an exponential distribution (d)-(f). (a) & (d) the original data set generated as described in the text (b) & (e) synthetic data generated by tSMOTE and (c) & (f) the original data set after imputation.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Fig. 5 as interquartile range (IQR) and median values.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "cov(xix k ) + E(xi)E(x k )) = (cov(xix k ) + E(xi)E(x k )) 1 DK \u00b5 (k\u00b5 + K) var(\u03bb) + E(\u03bb) 2 \u2212 2KE(\u03bb) = (cov(xix k ) + E(xi)E(x + k)) var(\u03bb) + E(\u03bb) 2 1 DK \u00b5 (k\u00b5 + K) \u2212 2E(\u03bb) = 2 (cov(xix k ) + E(xi)E(x k )) var(\u03bb) + E(\u03bb) 2 \u2212 E(\u03bb)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "MSE (LSTM only)Table 1: AUC and Accuracy for our COVID prediction model, compared with three commonly used classifiers with aggregated time series data.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Algorithm 1 Procedure for Generating and Assigning Time Slices INPUT T = [[t 1 Rough Implementation of SMOTE [ref] Within a Single Time Slice INPUT slice=[x 1 , x 2 , ..., x s ]",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "D )]], T slices , synSlices, nFix X out =[] FOR i IN range(|X|): REPLACE Nulls in X[i] list=[[],...,[]] (list of n T empty lists) FOR j IN range(|X[i]|): t = T slices [i][j] APPEND X[i][j] to list[t \u2212 1] FOR k IN range(|list|): ELSE IF |list[k]|>1: AVERAGE OVER list[k] APPEND list TO X out OUTPUT X out",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

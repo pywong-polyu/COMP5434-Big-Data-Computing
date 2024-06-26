@@ -1,0 +1,2534 @@
+{
+    "paper_id": "a7b6113fcec13a00f3e01d46470fb947549e3de7",
+    "metadata": {
+        "title": "Online Debiased Lasso for Streaming Data",
+        "authors": [
+            {
+                "first": "Ruijian",
+                "middle": [],
+                "last": "Han",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The Chinese University of Hong Kong",
+                    "location": {
+                        "settlement": "Hong Kong SAR",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Lan",
+                "middle": [],
+                "last": "Luo",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Iowa",
+                    "location": {
+                        "settlement": "Iowa City, Iowa",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Yuanyuan",
+                "middle": [],
+                "last": "Lin",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The Chinese University of Hong Kong",
+                    "location": {
+                        "settlement": "Hong Kong SAR",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Jian",
+                "middle": [],
+                "last": "Huang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Iowa",
+                    "location": {
+                        "settlement": "Iowa City, Iowa",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We propose an online debiased lasso (ODL) method for statistical inference in high-dimensional linear models with streaming data. The proposed ODL consists of an efficient computational algorithm for streaming data and approximately normal estimators for the regression coefficients.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Its implementation only requires the availability of the current data batch in the data stream and sufficient statistics of the historical data at each stage of the analysis. A dynamic procedure is developed to select and update the tuning parameters upon the arrival of each new data batch so that we can adjust the amount of regularization adaptively along the data stream. The asymptotic normality of the ODL estimator is established under the conditions similar to those in an offline setting and mild conditions on the size of data batches in the stream, which provides theoretical justification for the proposed online statistical inference procedure. We conduct extensive numerical experiments to evaluate the performance of ODL. These experiments demonstrate the effectiveness of our algorithm and support the theoretical results. An air quality dataset and an index fund dataset from Hong Kong Stock Exchange are analyzed to illustrate the application of the proposed method.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The advent of distributed online learning systems such as Apache Flink (Carbone et al. , 2015) has motivated new developments in data analytics for streaming processing. Such systems enable efficient analyses of massive streaming data assembled through, for example, mobile or web applications (Jiang et al. , 2018) , e-commerce purchases (Akter & Wamba, 2016) , infectious disease surveillance programs (Choi et al. , 2016; Samaras et al. , 2020) , mobile health consortia (Shameer et al. , 2017; Kraft et al. , 2020) , and financial trading floors (Das et al. , 2018) . Streaming data refers to a data collection scheme where observations arrive sequentially and perpetually over time, making it challenging to fit into computer memory for static analyses. Researchers would query such continuous and unbounded data streams in real-time to answer questions of interest including assessing disease progression, monitoring product safety, and validating drug efficacy and side effects. In these scenarios, it is essential for practitioners to process data streams sequentially and incrementally as part of online monitoring and decision-making procedures. Additionally, data streams from various fields such as bioinformatics, medical imaging, and computer vision are usually high-dimensional in nature.",
+            "cite_spans": [
+                {
+                    "start": 71,
+                    "end": 94,
+                    "text": "(Carbone et al. , 2015)",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 294,
+                    "end": 315,
+                    "text": "(Jiang et al. , 2018)",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 339,
+                    "end": 360,
+                    "text": "(Akter & Wamba, 2016)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 404,
+                    "end": 424,
+                    "text": "(Choi et al. , 2016;",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 425,
+                    "end": 447,
+                    "text": "Samaras et al. , 2020)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 474,
+                    "end": 497,
+                    "text": "(Shameer et al. , 2017;",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 498,
+                    "end": 518,
+                    "text": "Kraft et al. , 2020)",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 550,
+                    "end": 569,
+                    "text": "(Das et al. , 2018)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we consider the problem of online statistical inference in high-dimensional linear regression with streaming data and propose an online debiased lasso (ODL) estimator. While substantial advancements have been made in online learning and associated optimization problems, the existing works focus on online computational algorithms for point estimation and their numerical convergence properties (Langford et al. , 2009; Duchi et al. , 2011; Tarr\u00e8s & Yao, 2014; Sun et al. , 2020) . However, these works did not consider the statistical distribution properties of the online point estimators, which are needed for making statistical inference. Online statistical inference methods have been mostly developed under low-dimensional settings where p n (Schifano et al. , 2016; Luo & Song, 2020) . The goal of this paper is to develop an online algorithm and statistical inference procedure for analyzing high-dimensional streaming data.",
+            "cite_spans": [
+                {
+                    "start": 410,
+                    "end": 434,
+                    "text": "(Langford et al. , 2009;",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 435,
+                    "end": 455,
+                    "text": "Duchi et al. , 2011;",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 456,
+                    "end": 475,
+                    "text": "Tarr\u00e8s & Yao, 2014;",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 476,
+                    "end": 494,
+                    "text": "Sun et al. , 2020)",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 763,
+                    "end": 787,
+                    "text": "(Schifano et al. , 2016;",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 788,
+                    "end": 805,
+                    "text": "Luo & Song, 2020)",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The last decade has witnessed enormous progress on statistical inference in high-dimensional models, see, for example, Zhang & Zhang (2014) ; van de Geer et al. (2014) ; Javanmard & Montanari (2014) , as well as the review paper Dezeure et al. (2015) and the references therein. Most of the advancements such as the novel debiased lasso have been developed for an offline setting. A major difficulty in an online setting with streaming data is that one does not have full access to the entire dataset as new data arrives on a continual basis. To tackle the computational and inference problems due to the evolving nature of the high dimensional stream, it is desirable to develop an algorithm and statistical inference procedure in an online mode by updating the regression parameters sequentially with newly arrived data batch and summary statistics of historical raw data.",
+            "cite_spans": [
+                {
+                    "start": 119,
+                    "end": 139,
+                    "text": "Zhang & Zhang (2014)",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 142,
+                    "end": 167,
+                    "text": "van de Geer et al. (2014)",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 170,
+                    "end": 198,
+                    "text": "Javanmard & Montanari (2014)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 229,
+                    "end": 250,
+                    "text": "Dezeure et al. (2015)",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "In recent years, there has been an ever-increasing interest in developing online variable selection methods for high-dimensional streaming data. Most of the work is along the line of lasso (Tibshirani, 1996) . For example, Langford et al. (2009) proposed an online 1 -regularized method via a variant of the truncated SGD. Fan et al. (2018) adopted the diffusion approximation techniques to characterize the dynamics of the sparse online regression process. Comprehensive development of online counterparts of popular offline variable selection algorithms such as lasso, Elastic Net (Zou & Hastie, 2005) , Minimax Convex Penalty (MCP) (Zhang, 2010) , and Feature Selection with Annealing (FSA) (Duchi et al. , 2011) has been studied by Sun et al. (2020) . Nevertheless, it is known that variable selection methods focus on point estimation, but do not provide any uncertainty assessment. There is no systematic study on statistical inference, including interval estimation and hypothesis testing, with high-dimensional streaming data. Another complication in dealing with high-dimensional streaming data is that, the regularization parameter \u03bb that controls the sparsity level can no longer be determined by the traditional cross-validation. Instead, small coefficients are rounded to zero with a certain threshold or a pre-specified sparsity level (Sun et al. , 2020) .",
+            "cite_spans": [
+                {
+                    "start": 189,
+                    "end": 207,
+                    "text": "(Tibshirani, 1996)",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 223,
+                    "end": 245,
+                    "text": "Langford et al. (2009)",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 323,
+                    "end": 340,
+                    "text": "Fan et al. (2018)",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 583,
+                    "end": 603,
+                    "text": "(Zou & Hastie, 2005)",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 635,
+                    "end": 648,
+                    "text": "(Zhang, 2010)",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 694,
+                    "end": 715,
+                    "text": "(Duchi et al. , 2011)",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 736,
+                    "end": 753,
+                    "text": "Sun et al. (2020)",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1349,
+                    "end": 1368,
+                    "text": "(Sun et al. , 2020)",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "Recently, Deshpande et al. (2019) considered a class of online estimators in a high-dimensional auto-regressive model and studied the asymptotic properties via martingale theories. Shi et al. (2020) proposed an inference procedure for high-dimensional linear models via recursive onlinescore estimation. In both works, it is assumed that the entire dataset is available at the initial stage for computing an initial estimator (e.g. the lasso estimator) and the information in the streaming data is used to reduce the bias of the initial estimator. However, the assumption that the full dataset is available at the initial stage is not realistic in an online learning setting.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 33,
+                    "text": "Deshpande et al. (2019)",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 181,
+                    "end": 198,
+                    "text": "Shi et al. (2020)",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "The goal of this work is to develop an online debiased lasso estimator for statistical inference with high-dimensional streaming data. Our proposed ODL differs from the aforementioned works on online inference in two crucial aspects. First, we do not assume the availability of the full dataset at the initial stage. Second, at each stage of the analysis, we only require the availability of the current data batch and sufficient statistics of historical data. Therefore, ODL achieves statistical efficiency without accessing the entire dataset. Furthermore, we propose a new approach for tuning parameter selection that is naturally suited to the streaming data structure. In addition, we provide a detailed theoretical analysis of the proposed ODL estimator. The main contributions of the paper are as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our contributions"
+        },
+        {
+            "text": "\u2022 We introduce a new approach for online statistical inference in high-dimensional linear models. Our proposed ODL consists of two main ingredients: online lasso estimation and online debiasing lasso. Instead of re-accessing the entire dataset, we utilize only sufficient statistics and the current data batch.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our contributions"
+        },
+        {
+            "text": "\u2022 We propose a new adaptive procedure to determine and update the tuning parameter \u03bb dynamically upon the arrival of a new data batch, which enables us to adjust the amount of regularization adaptively along with the data accumulation. Our proposed online tuning parameter selector aligns with the online estimation and debiasing procedures and involves summary statistics only.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our contributions"
+        },
+        {
+            "text": "\u2022 We establish the asymptotic normality of the proposed ODL estimator under the conditions similar to those in an offline setting and mild conditions on the batch sizes. We show that the asymptotic normality result holds as the cumulative sample size goes to infinity, regardless of finite data batch sizes. These results provide a theoretical basis for constructing confidence intervals and conducting hypothesis tests with approximately correct confidence levels and test sizes, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our contributions"
+        },
+        {
+            "text": "\u2022 Extensive numerical experiments with simulated data demonstrate that ODL algorithm is computationally efficient and strongly support the theoretical properties of the ODL estima-",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our contributions"
+        },
+        {
+            "text": "tor. An air pollution dataset is also used to illustrate the application of ODL.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our contributions"
+        },
+        {
+            "text": "The rest of the paper is organized as follows. Section 2 presents the model formulation and our proposed ODL procedure. Section 3 includes the theoretical properties of the proposed ODL estimator. Simulation experiments are given in Section 4 to evaluate the performance of our proposed ODL in comparison to the offline ordinary least square estimator. In Section 5.1 we demonstrate the application of the proposed method on an air pollution dataset. Concluding remarks are given in Section 6. Detailed proof of the theoretical properties is included in the appendix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our contributions"
+        },
+        {
+            "text": "Consider a time point b \u2265 2 with a total of N b samples arriving in a sequence of b data batches,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "n j ) is an n j \u00d7 p design matrix with n j being the data batch size. Here the regression coefficient \u03b2 0 = (\u03b2 0,1 , . . . , \u03b2 0,p ) \u2208 R p is an unknown but sparse vector, and the error terms",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": ". . , n j , are independent and identically distributed (i.i.d) with mean zero and finite but unknown variance \u03c3 2 . Throughout the paper, we consider a high-dimensional linear model, in particular, we allow p \u2265 N b \u2261 b j=1 n j . In a streaming data setting where data volume accumulates fast over time, individual-level raw data may not be stored in memory for a long time, making it impossible to implement the offline debiased algorithms (Zhang & Zhang, 2014; van de Geer et al. , 2014; Javanmard & Montanari, 2014 ) that require access to the entire dataset. To address this issue, we develop an online debiasing procedure for each component of \u03b2 0 in model (1). Without loss of generality, our discussion in the following focuses on the estimation and inference of \u03b2 0,r , the r-th component of \u03b2 0 , r = 1, . . . , p.",
+            "cite_spans": [
+                {
+                    "start": 441,
+                    "end": 462,
+                    "text": "(Zhang & Zhang, 2014;",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 463,
+                    "end": 489,
+                    "text": "van de Geer et al. , 2014;",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 490,
+                    "end": 517,
+                    "text": "Javanmard & Montanari, 2014",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "When the first data batch D 1 = {y (1) , X (1) } arrives, we start off by applying the offline debiased lasso to obtain the initial estimator. Specifically, let x (1) r be the r-th column of X (1) and X",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "(1) \u2212r be the sub-matrix of X (1) excluding the r-th column. An initial lasso estimator is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "where \u03bb 1 \u2265 0 is a regularization parameter. Following Zhang & Zhang (2014) , to construct a confidence interval for \u03b2 0,r , a low-dimensional projection z",
+            "cite_spans": [
+                {
+                    "start": 55,
+                    "end": 75,
+                    "text": "Zhang & Zhang (2014)",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "(1) r that acts as the projection of x",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "r to the orthogonal complement of the column space of X",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "(1) \u2212r , is defined as z",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "(1)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "and \u03bb 1 is taken to be the same as in (2) for simplicity. Then, the offline debiased lasso estimator of \u03b2 0 , r = 1, . . . , p, is defined as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "Later on, when the second batch D 2 = {y (2) , X (2) } arrives, the offline debiased lasso algorithm would replace y (1) and X (1) by the augmented full dataset y (1) , y (2) and X (1) , X (2) respectively in (2)-(4). However, {y (1) , X (1) } may no longer be available in an online setting. To address this issue, we propose an online estimation and inference procedure that utilize the information in historical raw data via summary statistics. We present the three main steps of ODL in Subsections 2.1-2.3 below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso"
+        },
+        {
+            "text": "Upon the arrival of data batch",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "are available, we can use the offline lasso method that solves the following optimization problem:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "where N b = b j=1 n j is the cumulative sample size and \u03bb b is the regularization parameter adaptively chosen for step b. For simplicity, we use \u03b2 (b) to denote \u03b2 (b) (\u03bb b ) except in the discussion on the choice of \u03bb b in Section 2.4. However, since we only assume the availability of summary statistics of historical data, we cannot use the algorithms such as coordinate descent (Friedman et al. , 2007) that requires the availability of the whole dataset.",
+            "cite_spans": [
+                {
+                    "start": 381,
+                    "end": 405,
+                    "text": "(Friedman et al. , 2007)",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "Note that the objective function in (5) depends on the data only through the following summary statistics:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "Therefore, it is reasonable to refer to these summary statistic as sufficient statistics relative to this objective function, or simply sufficient statistics without confusing with the concept of sufficient statistic in a parametric model. Based on these two summary statistics, one can obtain the solution to (5) by the gradient descent algorithm.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "Let L(\u03b2) = b j=1 y (j) \u2212 X (j) \u03b2 2 2 /(2N b ), and the gradient of L(\u03b2) is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "Notably, the gradient depends on the historical raw data only through the summary statistics S (b) and U (b) . We update the solution iteratively by combining a gradient descent step and soft thresholding (Daubechies et al. , 2004; Donoho & Johnstone, 1994) . Specifically, each iteration consists of the following two steps:",
+            "cite_spans": [
+                {
+                    "start": 205,
+                    "end": 231,
+                    "text": "(Daubechies et al. , 2004;",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 232,
+                    "end": 257,
+                    "text": "Donoho & Johnstone, 1994)",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "where \u03b7 is the learning rate in the gradient descent;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "\u2022",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "Step 2 (Soft thresholding): apply the soft-thresholding operator S( \u03b2 These two steps are carried out iteratively till convergence. In the implementation, the stopping criterion is set as \u2202L(\u03b2)/\u2202\u03b2 2 \u2264 10 \u22126 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "The size of the sufficient statistics will not increase as more data batches arrive. For example, when a new batch D b arrives, we update the summary statistics by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "incrementally, which are matrices of fixed dimensions even if b \u2192 \u221e. In addition, a consistent estimator of \u03c3 2 by the method of moments is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "which will be used in constructing the confidence intervals.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online lasso"
+        },
+        {
+            "text": "Next, we obtain an online estimator for the low-dimensional projection. Let",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online low-dimensional projection"
+        },
+        {
+            "text": "where N b and \u03bb b are the same as in (5). We can summarize the data information in the following two statistics:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online low-dimensional projection"
+        },
+        {
+            "text": "r . Repeating similar procedure in the online lasso, we can obtain \u03b3 (b) r and further define a low-dimensional projection z",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online low-dimensional projection"
+        },
+        {
+            "text": "excluding the r-th row and the r-th column, and S (b) \u2212r,r is a sub-matrix of S (b) with the r-th row being deleted but the r-th column being kept. The low-dimensional projection z (b) r will be used in constructing the debiased estimator in Subsection 2.3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online low-dimensional projection"
+        },
+        {
+            "text": "When data batch D b arrives, the ODL estimator for \u03b2 0,r , r = 1, . . . , p, is defined as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso estimator"
+        },
+        {
+            "text": "Although the historical data are still involved in (11), we only need to store the following statistics rather than the entire dataset to compute \u03b2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso estimator"
+        },
+        {
+            "text": "r ) X (j) , which have the same dimensions when the new data arrives and can be easily updated. For example, we update a",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso estimator"
+        },
+        {
+            "text": "Consequently, by substituting the online lasso estimator and low-dimensional projection into (11),",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso estimator"
+        },
+        {
+            "text": "on,r . Meanwhile, as discussed in Section 3, the estimated standard error is given by \u03c3",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso estimator"
+        },
+        {
+            "text": "and ( \u03c3 2 ) (b) is given in (9) in Subsection 2.1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Online debiased lasso estimator"
+        },
+        {
+            "text": "In an offline setting, the tuning parameter \u03bb can be chosen from a candidate set via cross-validation where the entire dataset is split into training and testing sets multiple times. However, such a sample-splitting scheme is not applicable in an online setting since we do not have the full dataset at hand. A natural sample-splitting idea that aligns with the streaming data structure originates from the forecasting accuracy evaluation in time series; see Figure 1 . At time point b, those sequentially arrived data batches up to time point b \u2212 1, denoted by {D 1 , . . . , D b\u22121 }, serve as the training set, and the current data batch D b is the testing set. This procedure is also known as \"rolling-original-recalibration\" (Tashman, 2000) .",
+            "cite_spans": [
+                {
+                    "start": 729,
+                    "end": 744,
+                    "text": "(Tashman, 2000)",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 459,
+                    "end": 467,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Tuning parameter selection"
+        },
+        {
+            "text": "Specifically, with only the first data batch D 1 , \u03b2 (1) is a standard lasso estimator with \u03bb 1 selected by the classical offline cross-validation. When the b-th data batch D b arrives, we calculate",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tuning parameter selection"
+        },
+        {
+            "text": "and define",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tuning parameter selection"
+        },
+        {
+            "text": "In such a way, we are able to determine \u03bb b upon the arrival of a new data batch D b adaptively, and extract the corresponding lasso estimator \u03b2 (b) (\u03bb b ) as the starting point for ODL. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tuning parameter selection"
+        },
+        {
+            "text": "is the testing set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tuning parameter selection"
+        },
+        {
+            "text": "We now summarize our proposed ODL procedure for the statistical inference of \u03b2 0,r , r = 1, . . . , p, using a flowchart in Figure 2 . It consists of two main blocks: one is online lasso estimation and the other is online low-dimensional projection. Outputs from both blocks are used to compute the online debiased lasso estimator as well as the construction of confidence intervals in real-time.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 124,
+                    "end": 132,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Summary"
+        },
+        {
+            "text": "In particular, when a new data batch D b arrives, it is first sent to the online lasso estimation block, where the summary statistics",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Summary"
+        },
+        {
+            "text": ". These summary statistics facilitate the updating of the lasso estimator \u03b2 (b\u22121) to \u03b2 (b) at some grid values of the tuning parameters without retrieving the whole dataset. At the same time, regarding the cumulative dataset that produces the old lasso estimate \u03b2 (b\u22121) as training set and the newly arrived D b as testing set, we can choose the tuning parameter \u03bb b that gives the smallest prediction error. Now, the selected \u03bb b is passed to the low-dimensional projection block for the calculation of \u03b3 r output from the low-dimensional projection block together with the lasso estimator \u03b2 (b) (\u03bb b ) will be used to compute the debiased lasso estimator",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Summary"
+        },
+        {
+            "text": "on,r and its estimated standard error.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Summary"
+        },
+        {
+            "text": "Remark 1. When p is large, the online algorithm presented in Figure 2 requires a sufficient large storage capacity, since sample covariance matrix S (b) requires O(p 2 ) space complexity. To reduce memory usage, we can apply the eigenvalue decomposition (EVD) of",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 61,
+                    "end": 69,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Summary"
+        },
+        {
+            "text": "whose diagonal elements are the eigenvalues of S (b) . We only need to store Q b and \u039b b . Since ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Summary"
+        },
+        {
+            "text": "Lasso estimation Outputs Figure 2 : Flowchart of the online debiasing algorithm. When a new data batch D b arrives, it is sent to the lasso estimation block for updating \u03b2 (b\u22121) to \u03b2 (b) . At the same time, it is also viewed as test set for adaptively choosing tuning parameter \u03bb b . In the low-dim projection block, we extract sub-matrices from the updated summary statistic",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 25,
+                    "end": 33,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Low-dim projection"
+        },
+        {
+            "text": "r from the two blocks are further used to compute the debiased lasso estimator \u03b2 ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Low-dim projection"
+        },
+        {
+            "text": "To establish the asymptotic properties of the ODL estimator proposed in Section 2, we first introduce some notation. Consider a random design matrix X with i.i.d rows. Let \u03a3 be the covariance matrix of each row of X. Denote the inverse of \u03a3 by \u0398 = \u03a3 \u22121 . For r = 1, . . . , p, define \u03b3 r := arg min",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "and the corresponding residual vector is z r := x r \u2212 X \u2212r \u03b3 r . Let s 0 = |{j : \u03b2 j = 0}| and s r = |{k = r : \u0398 k,r = 0}| be two sparsity levels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "The following regularity conditions on the design matrix X and the error terms are imposed to establish the asymptotic results. Specifically, we assume that X has either i.i.d sub-Gaussian or bounded rows. We first consider the sub-Gaussian case.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Assumption 1. Suppose that (A1) The design matrix X has i.i.d sub-Gaussian rows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "(A2) The smallest eigenvalue \u039b 2 min of \u03a3 is strictly positive and 1/\u039b 2 min = O(1). In addition, the largest diagonal element of \u03a3, max j \u03a3 j,j = O(1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "(A3) The error terms",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Theorem 1. Assume Assumption 1 holds. For the j-th data batch, suppose that the tuning parameter \u03bb j satisfies \u03bb j = C log p/N j , j = 1, . . . , b. If the first batch size n 1 \u2265 cs r log p, the subsequent batch size n j \u2265 c log p, j = 2, . . . , b, for some constant c, and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "then, for any r = 1, . . . , p and sufficiently large N b ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Remark 2. Similar to the offline debiased lasso estimator (Zhang & Zhang, 2014; van de Geer et al. , 2014) , Theorem 1 implies that the dimensionality p could be at the exponential rate of the data size. However, the problem here is more difficult than that in the offline setting and the proofs for the properties of the offline debiased estimator do no apply here. Specifically, let The requirement on the minimum batch size in Theorem 1 indicates that, one may apply the online lasso algorithm once the sample size of the first data batch reaches the order of s r log p.",
+            "cite_spans": [
+                {
+                    "start": 58,
+                    "end": 79,
+                    "text": "(Zhang & Zhang, 2014;",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 80,
+                    "end": 106,
+                    "text": "van de Geer et al. , 2014)",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "After that, we update the lasso estimators when the size of the newly arrived batch is at the order of log p. The next theorem justifies that the order of the subsequent batch size O(log p) could be relaxed to O(1), at the price of a relatively stronger condition on N b .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Theorem 2. Assume Assumption 1 holds. When the j-th batch data arrives, suppose that the tuning parameter \u03bb j satisfies \u03bb j = C log p/N j . If the first batch size n 1 \u2265 cs r log p for some constant c and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "then, for any r = 1, . . . , p and sufficiently large N b ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Remark 5. The requirement of the first batch size n 1 \u2265 c 1 s r log p in Theorems 1 and 2 is needed to establish the consistency of the lasso-typed estimator (B\u00fchlmann & van de Geer, 2011) ; otherwise, the error bound of \u03b3",
+            "cite_spans": [
+                {
+                    "start": 158,
+                    "end": 188,
+                    "text": "(B\u00fchlmann & van de Geer, 2011)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "(1) r defined in (10) in the first step cannot be controlled, resulting in large error",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "r . When there is not enough data at the initial stage, e.g., n 1 = log p, the error bound of \u03b3",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "(1) r can also be controlled by considering some bounded parameter space such as {\u03b3 : \u03b3 1 \u2264 C} for some large constant C rather than {\u03b3 : \u03b3 \u2208 R p\u22121 }.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "We now consider the case when the covariates are bounded. For a matrix A = (a ij ), let A \u221e be the largest absolute value of its elements, that is, A \u221e = max i,j |a ij |.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Assumption 2. Suppose that (B1) The covariates are bounded by a finite constant K > 0, namely, X \u221e \u2264 K, where X is the design matrix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "(B2) The smallest eigenvalue \u039b 2 min of \u03a3 is strictly positive and 1/\u039b 2 min = O(1). Moreover, max j \u03a3 j,j = O(1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "(B3) X \u2212r \u03b3 r \u221e = O(K) and max r E(z 4 r,1 ) = O(K 4 ), where z r,1 is the first element of z r := (x r \u2212 X \u2212r \u03b3 r ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Theorem 3. Assume Assumption 2 holds. When the j-th batch data arrives, suppose that the tuning parameter \u03bb j satisfies \u03bb j = C log p/N j . If the first batch size n 1 \u2265 cs 2 r log p for some constant c and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "then, for any r = 1, . . . , p and sufficiently large N b ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "is defined in (12).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "Theorems 2 and 3 are established without specific assumptions on data batch sizes except for the first batch. Comparing to Theorem 2, Theorem 3 requires a relatively stronger condition on n 1 , but a more relaxed condition on the cumulative sample size N b . Furthermore, rewriting (",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "The proofs of Theorems 1-3 are included in the appendix. According to Theorems 1 -3, W r is asymptotically normal through verifying the conditions of the Lindeberg central limit theorem. As a result, for any 0 < \u03b1 < 1, a (1 \u2212 \u03b1)% confidence interval for \u03b2 0,r is (9), \u03a6(\u00b7) is the cumulative distribution function of the standard normal distribution and \u03a6 \u22121 is its inverse function.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "4 Simulation experiments",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical properties"
+        },
+        {
+            "text": "In this section, we conduct simulation studies to examine the finite-sample performance of the proposed online debiasing procedure in high-dimensional linear models. We randomly generate a total of N b samples arriving in a sequence of b data batches, denoted by {D 1 , . . . ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "Recall that s 0 is the number of non-zero components of \u03b2 0 . We set half of the nonzero coefficients to be 1 (relatively strong signals), and another half to be 0.01 (weak signals). We consider the where N b > p. We include the OLS method using R package lm as a benchmark for comparison.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "The results are reported in Tables 1-4.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "It can be seen from Tables 1-4 that the estimation bias of the online debiased lasso decreases rapidly as the number of data batches b increasing from 2 to 12. Both the estimated standard errors and averaged length of 95% confidence intervals exhibit similar decreasing trend over time. Even though the coverage probabilities of the confidence intervals by the OLS at the end point are around the nominal 95% level, both the estimation bias and standard errors of OLS estimator are much larger than those of online debiased lasso. In particular, the estimation bias of OLS could even be 10 times that of online debiased lasso when p = 400 as shown in Tables 1 and 2 By comparing across different signal groups, i.e. \u03b2 0,r = 0, 0.01, 1, we observe that both ASE and ACL are quite close to each other and even coincide when N b = 1200, as shown in Tables 3-4 . We believe this is reasonable, as each column in the design matrix, denoted by x r \u2208 R N b \u00d71 , is of the same marginal distribution, and thus the estimated standard errors computed according to (12) on,r at data batches b = 2, 6, 10. Each row corresponds to a true value of parameter \u03b2 0 , i.e. \u03b2 0,r = 0, 0.01, 1. Before applying our online algorithm, we first preprocess the original raw data. We transform the categorical predictors into the one-hot vector. We also include interaction terms, which are coded as products of all pairs of the original features. As a result, the dimension of the feature vector is p = 296. Since the curve of an exponential distribution fits the PM 2.5 data well, we use the logarithm of PM 2.5 as the response variable. In addition, we split the data into b = 120 batches fairly by its chronological order. Each batch contains half-month data with size n j = 348, j = 1, . . . , b. t-statistic on the right panel.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 651,
+                    "end": 665,
+                    "text": "Tables 1 and 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 846,
+                    "end": 856,
+                    "text": "Tables 3-4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Bias and coverage probability"
+        },
+        {
+            "text": "Next, we focus on another two variables: pressure and dew point. The results are shown in Figure 5 . It can be seen that the increase of dew point is associated with the increase of PM 2.5 except in the summer. On the contrary, apart from the summer, the pressure itself has a negative impact on the PM 2.5. This finding also agrees with the study in Liang et al. (2015) . The main difference is on the influence of dew point in summer time. We believe the difference arises from the interaction terms. Actually, the coefficient of the square of the dew point is significantly positive, and its estimated standard error is similar to the middle panel in Figure 4 . Both of them have a decreasing trend. The values of t-statistic are also presented on the right panel. For ease of illustration, we also present the trace of the outcomes on the wind direction, pressure and dew point to show the trend of the estimation with the influx of new data. The result is presented in Figure 6 . Moreover, we identify other significant variables such as the wind speed and some interaction terms in this analysis. These findings suggest some interesting covariates that warrant further investigation and validation.",
+            "cite_spans": [
+                {
+                    "start": 351,
+                    "end": 370,
+                    "text": "Liang et al. (2015)",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 90,
+                    "end": 98,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF11"
+                },
+                {
+                    "start": 654,
+                    "end": 662,
+                    "text": "Figure 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 974,
+                    "end": 982,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF12"
+                }
+            ],
+            "section": "Bias and coverage probability"
+        },
+        {
+            "text": "We next illustrate the application of ODL with an index fund dataset. This dataset consists of the returns of 1148 stocks listed in Hong Kong Stock Exchange and the Hang Seng Index (HSI, a freefloat-adjusted market-capitalization-weighted stock-market index in Hong Kong) during the period from January 2010 to December 2020. The response variable is the return of the HSI for every three days, and the predictors are every-three-day returns of the 1148 stocks. We partition the data into batches according to chronological order. Specifically, the first batch consists of a two-",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Hang Seng Index fund data"
+        },
+        {
+            "text": "year dataset from 2010-2011 to ensure sufficient sample size at the initial stage and each subsequent batch contains one-year data. Hence, b = 10, n 1 = 164 and n j = 82 for j = 2, . . . , 10. Similar to Lan et al. (2016) , the goal of this study is to identify the most relevant stocks that can be used to create a portfolio for index tracking.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 221,
+                    "text": "Lan et al. (2016)",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Hang Seng Index fund data"
+        },
+        {
+            "text": "The proposed ODL method is applied and the coefficients of 19 stocks are identified to be ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Hang Seng Index fund data"
+        },
+        {
+            "text": "In this paper we developed an online debiased lasso estimator for statistical inference in linear models with high-dimensional streaming data. The proposed method does not assume the availability of the full dataset at the initial stage and only requires the availability of the current batch of the data stream and the sufficient statistics of the historical data. A natural dynamic tuning parameter selection procedure that takes advantage of streaming data structure is developed as an important ingredient of the proposed algorithm. The proposed online inference procedure is justified theoretically under regularity conditions similar to those in the offline setting and mild conditions on the batch size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "There are several other interesting questions that deserve further study. First, we focused on the problem of making statistical inference about individual regression coefficients, the proposed method can be extended to the case of making inference about a fixed and low-dimensional subvector of the coefficient. Second, we did not address the problem of variable selection in the online learning setting consider here. This is apparently different from the variable selection problem in the offline setting. The main issue is how to recover the variables that are dropped at the early stages of the stream but may be important as more data come in. Third, it would be interesting to generalize the proposed method to generalized linear and nonlinear models. These questions warrant thorough investigation in the future.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "In the appendix, we prove Theorems 1-3 and include an additional figure of Q-Q plots from the simulation studies in Section 4.2. We first define the notation needed below. For any sequences Lemmas 1 -5 are needed to prove Theorem 1. The first two lemmas show the consistency of the lasso estimators.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Lemma 1. Suppose that Assumption 1 holds and n 1 \u2265 c 1 s r log p for some constant c 1 . Then, for any j = 1, . . . , b, with probability at least 1 \u2212 p \u22123 , low-dimensional projection defined in (10) with \u03bb j = c 2 log p/N j satisfies,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Proof of Lemma 1. For notational convenience, we suppress the subcript r of \u03b3 in this proof. For any fixed j = 1, . . . , b, \u03b3 (j) := arg min",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where N j is the cumulative size of data at step j. Note that S r = {k : \u0398 k,r = 0, k = r} and s r = |S r |.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "To establish the consistency of the lasso estimator, we first show that \u03a3 (j)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "\u2212r /N j satisfies the compatibility condition for the set S r . Namely, there is a constant \u03c6 j such that for all \u03b3 satisfying \u03b3 S c r 1 \u2264 3 \u03b3 Sr 1 , it holds that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where the i-th element of \u03b3 Sr is denoted by \u03b3 Sr,i = \u03b3 i 1 {i\u2208Sr} for i = 1, . . . , p \u2212 1. It follows from an extension of Corollary 1 in Raskutti et al. (2010) from Gaussian case to sub-Gaussian case that, with probability at least 1 \u2212 p 4 , the above inequality holds as long as N j \u2265 c 1 s r log p and \u03a3 (j) \u2212r meets the compatibility condition, which hold under the assumption that n 1 \u2265 c 1 s r log p and (A2)",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 162,
+                    "text": "Raskutti et al. (2010)",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "in Assumption 1 respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "The remaining proof follows standard arguments. More notations are introduced. Recall that \u03b3 := arg min",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "is the lasso estimator defined in (15), it follows that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Then,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where x ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "k,l is sub-exponential distributed by the definition of \u03b3 and (A1) in Assumption 1 respectively. By Bernstein inequality, we obtain that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "for some constant c which does not depend on p and N i . Since the above inequality holds for any k = r, by Bonferroni inequality, it holds that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "By choosing \u03bb j = c 2 log p/N j , then, with probability at least 1 \u2212 p \u22124 ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where (18) holds due to \u03b3 Sr 1 = 0. It further implies that v",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Since (19) holds for any j = 1, . . . , b, the proof of Lemma 1 is complete.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Lemma 2. Suppose that Assumption 1 hold and N b \u2265 c 1 s 0 log p for some constant c 1 . Then, with probability at least 1 \u2212 p \u22124 , the lasso estimator in (5) with \u03bb b = c 2 log p/N b satisfies,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "The proof of Lemma 2 is structurally similar to the proof of Lemma 1 by letting j = b. (A3) in Assumption 1 is used to obtain the concentration inequality as Bernstein inequality in Lemma 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "We omit the details here. The next lemma is used to estimate the cumulative terms in the online learning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Lemma 3. Recall that n j and N j are the batch size and the cumulative batch size respectively when the j-th data arrives, j = 1, . . . , b. Then,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Proof of Lemma 3. We first prove (20). Let",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Repeat the above procedure by letting t = n j /N j\u22121 for j = b \u2212 1, . . . , 2. It then follows that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Then, in view of n 1 = N 1 , (20) holds. The remaining step is to prove (21). We claim that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Similarly, we repeat this procedure by choosing a = N j\u22121 , b = n j for j = b \u2212 1, . . . , 2. It follows that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Given n 1 = N 1 , (21) holds.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "For any matrix A = (a ij ), let A \u221e be the largest absolute value of its elements, that is, Lemma 4. Suppose that the conditions in Lemma 1 holds and the subsequent batch size n j \u2265 c log p, j = 2, . . . , b, for some constants c. If",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "then, z r 2 = \u2126( \u221a N b ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Proof of Lemma 4. By the triangle inequality,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where z r = ((z Since n j \u2265 c log p, j = 1, . . . , b and \u03a3 \u2212r \u221e is bounded, it follows that for some constant c 5 , n j N j \u2264 c 5 s 2 r log p 1 + log",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where the last inequality is from (20) in Lemma 3. As",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "As a result, we have shown that z r 2 2 \u2264 c 6 N b for some constant c 6 in probability. Similarly, in view of the fact that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "we can conclude that z r 2 2 \u2265 c 7 N b for some constant c 7 . We complete the proof of Lemma 4. Proof of Lemma 5. As mentioned earlier in Remark 2, due to z",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "r , we cannot directly apply KKT condition here. To see the difference with the proof in the offline debiased lasso, we first separate k =r z r x k ( \u03b2 (b) k \u2212\u03b2 0,k ) into two parts: the offline term and one additional term from the online algorithm. The upper bound of the former is derived from KKT condition while the latter is tackled differently. Consider z r = (( z (1) r ) , . . . , ( z",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where \u03a0 off pertains to an offline term and \u03a0 on pertains to an online error. First,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "By the Karush-Kuhn-Tucker (KKT) condition and Lemma 2,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Then, (p)).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Second, for the online error,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "By Lemma 1, we obtain",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "In the proof of Lemma 4, we have shown that \u03a3 (j) \u2212r \u221e is bounded with probability tending to 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "where the last equation is from (21) in Lemma 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Then,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "\uf8f6 \uf8f8 = O P (s 0 s r log(p)) .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        },
+        {
+            "text": "Since s 0 s r log(p)/ \u221a N b = o(1), the statement of the lemma follows. on,r at data batches b = 2, 6, 10. Each row corresponds to a true value of parameter \u03b2 0 , i.e. \u03b2 0,r = 0, 0.01, 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Appendix"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Big data analytics in E-commerce: a systematic review and agenda for future research",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Akter",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Wamba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Electronic Markets",
+            "volume": "26",
+            "issn": "",
+            "pages": "173--194",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Statistics for high-dimensional data: methods, theory and applications",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "B\u00fchlmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Van De",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Geer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Apache Flink: stream and batch processing in a single engine",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Carbone",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Katsifodimos",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ewen",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Markl",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Haridi",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Tzoumas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE Data Engineering Bulletin",
+            "volume": "38",
+            "issn": "",
+            "pages": "28--38",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Online Principal Component Analysis in High Dimension: Which Algorithm to Choose?",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cardot",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Degras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Statistical Review",
+            "volume": "86",
+            "issn": "",
+            "pages": "29--50",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Web-based infectious disease surveillance systems and public health perspectives: a systematic review",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Choi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Shim",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Woo",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "BMC Public Health",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Real-Time Sentiment Analysis of Twitter Streaming data for Stock Prediction",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Behera",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Rath",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Computational Intelligence and Data Science",
+            "volume": "132",
+            "issn": "",
+            "pages": "956--964",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "An iterative thresholding algorithm for linear inverse problems with a sparsity constraint",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Daubechies",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Defrise",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "De Mol",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Communications on Pure and Applied Mathematics",
+            "volume": "57",
+            "issn": "11",
+            "pages": "1413--1457",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Online Debiasing for Adaptively Collected High-dimensional Data",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Deshpande",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Javanmard",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mehrabi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1911.01040"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "High-dimensional inference: confidence intervals, p-values and R-software hdi",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Dezeure",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "B\u00fchlmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Meier",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Meinshausen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Statistical Science",
+            "volume": "30",
+            "issn": "4",
+            "pages": "533--558",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Ideal spatial adaptation by wavelet shrinkage",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Donoho",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Johnstone",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "Biometrika",
+            "volume": "81",
+            "issn": "",
+            "pages": "425--455",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Adaptive subgradient methods for online learning and stochastic optimization",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Duchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Hazan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Singer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "The Journal of Machine Learning Research",
+            "volume": "12",
+            "issn": "",
+            "pages": "2121--2159",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Statistical sparse online regression: a diffusion approximation perspective",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Gong",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the Twenty-First International Conference on Artificial Intelligence and Statistics. Proceedings of Machine Learning Research",
+            "volume": "84",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Pathwise coordinate optimization",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Friedman",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hastie",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "H\u00f6fling",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tibshirani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "The Annals of Applied Statistics",
+            "volume": "1",
+            "issn": "2",
+            "pages": "302--332",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Confidence intervals and hypothesis testing for highdimensional regression",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Javanmard",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Montanari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "The Journal of Machine Learning Research",
+            "volume": "15",
+            "issn": "1",
+            "pages": "2869--2909",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "A clickstream data analysis of the differences between visiting behaviors of desktop and mobile users",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Sang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Data and Information Management",
+            "volume": "2",
+            "issn": "3",
+            "pages": "130--140",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Efficient processing of geospatial mHealth data using a scalable crowdsensing platform",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kraft",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Birk",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Deshpande",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Schlee",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Langguth",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Baumeister",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Probst",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Spiliopoulou",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pryss",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Sensors",
+            "volume": "20",
+            "issn": "12",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Testing a single regression coefficient in high dimensional linear models",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Tsai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Journal of Econometrics",
+            "volume": "195",
+            "issn": "1",
+            "pages": "154--168",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Sparse online learning via truncated gradient",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Langford",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Journal of Machine Learning Research",
+            "volume": "10",
+            "issn": "",
+            "pages": "777--801",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Assessing Beijing's PM2. 5 pollution: severity, weather impact, APEC and winter heating",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zou",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences",
+            "volume": "471",
+            "issn": "",
+            "pages": "2015--0257",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Renewable Estimation and Incremental Inference in Generalized Linear Models with Streaming Datasets",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "X"
+                    ],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": ".-K",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of the Royal Statistical Society: Series B",
+            "volume": "82",
+            "issn": "",
+            "pages": "69--97",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Restricted eigenvalue properties for correlated Gaussian designs",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Raskutti",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Wainwright",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "The Journal of Machine Learning Research",
+            "volume": "11",
+            "issn": "",
+            "pages": "2241--2259",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Syndromic surveillance using web data: a systematic review. Innovation in Health Informatics",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Samaras",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Garc\u00eda-Barriocanal",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Sicilia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "39--77",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Online updating of statistical inference in the big data setting",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Schifano",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Technometrics",
+            "volume": "58",
+            "issn": "3",
+            "pages": "393--403",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Translational bioinformatics in the era of real-time biomedical, health care and wellness data streams",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shameer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Badgeley",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Miotto",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Glicksberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Morgan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Dudley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Briefings in Bioinformatics",
+            "volume": "18",
+            "issn": "1",
+            "pages": "105--124",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Statistical inference for high-dimensional models via recursive online-score estimation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "",
+            "issn": "",
+            "pages": "1--12",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A novel framework for online supervised learning with feature selection",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Barbu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1803.11521"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Online Learning as Stochastic Approximation of Regularization Paths: Optimality and Almost-Sure Convergence",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Tarr\u00e8s",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE Transactions on Information Theory",
+            "volume": "60",
+            "issn": "9",
+            "pages": "5716--5735",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Out-of-sample tests of forecasting accuracy: an analysis and review",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Tashman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "International Journal of Forecasting",
+            "volume": "16",
+            "issn": "",
+            "pages": "437--450",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Regression shrinkage and selection via the lasso",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tibshirani",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Journal of the Royal Statistical Society: Series B",
+            "volume": "58",
+            "issn": "1",
+            "pages": "267--288",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "On asymptotically optimal confidence regions and tests for high-dimensional models",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Van De Geer",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "B\u00fchlmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Ritov",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Dezeure",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "The Annals of Statistics",
+            "volume": "42",
+            "issn": "3",
+            "pages": "1166--1202",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Nearly unbiased variable selection under minimax concave penalty",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "The Annals of Statistics",
+            "volume": "38",
+            "issn": "2",
+            "pages": "894--942",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Confidence intervals for low dimensional parameters in high dimensional linear models",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Journal of the Royal Statistical Society: Series B",
+            "volume": "76",
+            "issn": "1",
+            "pages": "217--242",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Regularization and variable selection via the elastic net",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zou",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hastie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Journal of the Royal Statistical Society: Series B",
+            "volume": "67",
+            "issn": "2",
+            "pages": "301--320",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "; \u03b7\u03bb b ) to the r-th component in \u03b2 (b) in step 1, for r = 1, . . . , p, where S(x, \u03bb) = sgn(x)(|x| \u2212 \u03bb) + .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "A diagram illustrates the series of training and test sets, where the black dots form the training sets, and the gray dots form the test sets. At a time point b, the ODL estimator \u03b2 (b\u22121) (\u03bb) is obtained based on the training set {D 1 , . . . , D b\u22121 } and the current data batch",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "(\u03bb b ). The idea of online updating is the same as in lasso estimation, except the relevant summary statistics are the sub-matrices of S (b) . The resulting projection z (b)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "obtained solely based on the {D 1 , . . . , D j }. Thus the KKT condition for the lasso minimization problem does not hold for the online estimator. The arguments for the asymptotic properties of the debiased estimator in Zhang & Zhang (2014) and van de Geer et al.(2014) heavily use the KKT condition. Therefore, different arguments are needed to establish Theorem 1.Remark 3. Theorem 1 is established for the proposed online debiased lasso estimators based on the algorithm described in Section 2. Indeed, the proof of Theorem 1 uses the specific form of the algorithm. Therefore, this result does not apply to other online estimators computed using a different algorithm. For example, it is not clear whether the estimators based on the online algorithms inLangford et al. (2009) andFan et al. (2018) will have similar asymptotic distributional properties.Remark 4. The error terms are assumed to have sub-exponential tails in (A3). For sub-Gaussian design matrix X in (A1), the assumption (A3) is the same as that in the offline setting for the asymptotic properties of the debiased lasso estimator invan de Geer et al. (2014).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "following settings: (i) N b = 420, b = 12, n j = 35 for j = 1, . . . , 12, p = 400 and s 0 = 6; (ii) N b = 1200, b = 12, n j = 100 for j = 1, . . . , 12, p = 1000 and s 0 = 20. Under each setting, two types of \u03a3 are considered: (a) \u03a3 = I p ; (b) \u03a3 = {0.5 |i\u2212j| } i,j=1,...,p . We set the step size in gradient descent \u03b7 = 0.005 in case (i) and \u03b7 = 0.05 in case (ii).The objective is to conduct both estimation and inference along the arrival of a sequence of data batches. The evaluation criteria include: averaged absolute bias in estimating \u03b2 0 (A.bias); averaged estimated standard error (ASE); empirical standard error (ESE); coverage probability (CP) of the 95% confidence intervals; averaged length of the 95% confidence interval (ACL). These quantities will be evaluated separately for three groups: (i) \u03b2 0,r = 0, (ii) \u03b2 0,r = 0.01 and (iii) \u03b2 0,r = 1. Comparison is made between our proposed online debiased lasso at several intermediate points from j = 1, . . . , b and the ordinary least squares (OLS) estimator at the terminal point b",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": ". Furthermore, it is worth noting that even though the coverage probability of both estimators reaches the nominal level at the terminal point, the ACL of OLS is about 2 to 4 times the one of online debiased lasso. Such a loss of statistical efficiency by OLS further demonstrates the advantage of our proposed online debiased method under the high-dimensional sparse regression setting with streaming datasets.To visualize the asymptotic normality of our proposed online debiasing estimator, we plot the proposed online debiased lasso estimates at several intermediate points b = 2, 6, 10 against the theoretical quantiles of a standard normal distribution inFigure 3. Similar plots for more settings with N b = 1200 and p = 1000 are provided in the Appendix. In these Q-Q plots, the scattered points summarized from 200 replications stay closely along the 45 \u2022 diagonal blue line, indicating the validity of asymptotic normal distribution. Furthermore, such trend becomes clearer as b increases.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "in the simulations are identical up to a certain decimal for every component in \u03b2, regardless of signal strength.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "N b = 420, b = 12, p = 400, s 0 = 6, \u03a3 = {0.5 |i\u2212j| } i,j=1,...,p . Performance on statistical inference. Tuning parameter \u03bb is chosen from T \u03bb = {0.15, 0.20, 0.25, 0.30} using the adaptive method in Section 2.4. Simulation results are summarized over 200 replications. In the table, we report the \u03bb selected with highest frequency among 200 replications. QQ plots of standardized \u03b2 (b) on,r with total sample size N b = 420, p = 400 and \u03a3 = I p . Each column represents the estimated parameter \u03b2 (b)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "3: N b = 1200, b = 12, p = 1000, s 0 = 20, \u03a3 = I p . Performance on statistical inference. Tuning parameter \u03bb is chosen from T \u03bb = {0.15, 0.20, 0.25, 0.30} using the adaptive method in Section 2.4. Simulation results are summarized over 200 replications. In the table, we report the \u03bb selected with highest frequency among 200 replications. N b = 1200, b = 12, p = 1000, s 0 = 20, \u03a3 = {0.5 |i\u2212j| } i,j=1,...,p . Performance on statistical inference. Tuning parameter \u03bb is chosen from T \u03bb = {0.15, 0.20, 0.25, 0.30} using the adaptive method in Section 2.4. Simulation results are summarized over 200 replications. In the table, wereport the \u03bb selected with highest frequency among 200 replications. the proposed ODL to analyze the Beijing PM2.5 Data byLiang et al. (2015), which is available in UC Irvine Machine Learning Repository. Fine particulate matter less than 2.5 microns (PM2.5) is an air pollutant that threatens human health. Therefore, understanding the changes of PM 2.5 level is an important issue. The dataset contains hourly PM2.5 records from 1 January 2010 to 31 December 2014, in conjunction with 5 meteorological features. We are interested in whether the meteorological variables, such as the wind direction, have an influence on PM 2.5 level.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": ", we examine the influence of wind direction. There are 4 types of wind directions: northwest (NW), northeast (NE), southeast (SE), and calm and variable (cv). The results are shown in From the left panel, we can observe that in the most cases, SE wind has a positive influence on PM 2.5 while NE and NW has a negative impact. This observation is consistent with the statement in Liang et al. (2015). The major heavily polluting industries are located at the south and east of Beijing, but the north region lacks industries of this kind. Besides, another interesting observation is that comparing to other seasons, all wind directions are not significant on decreasing the level of PM 2.5 in winter and the SE wind even has positive effect on increasing the level of PM 2.5. One possible explanation is the heating supply in northern China in winter. At that time, coals are burned to provide the heat which significantly increases the PM 2.5 level in the whole region. In the presence of coal burning, wind directions are insignificant variables. In the middle panel, we present the estimated standard errors. As expected, the standard errors decrease as the number of batches increases. Combining the results in the left and middle panels, we present the The influence of wind direction in different seasons. Left panel: the heat map of the estimated coefficients at the end of a year. Middle panel: the corresponding estimated standard errors. Right panel: the t-statistic.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "The influence of pressure and dew point in different seasons. Left panel: the heat map of the estimated coefficients at the end of a year. Middle panel: the corresponding estimated standard errors. Right panel: the t-statistic.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "The trace plots on the influence of wind direction, pressure and dew point in different seasons. Each vertical bar corresponds to the 95% confidence interval. Left panel: wind direction in Summer and Winter. Middle panel: wind direction in Spring and Autumn. Right panel: pressure and dew point in four seasons.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "significant at a significance level \u03b1 = 0.05. The estimates of the 19 regression coefficients and their standard errors are presented in Figure 7. Among these selected stocks, only three of them (with stocks code 0004.HK, 1088.HK and 3988.HK) are not constituent stocks of the current HSI (June 2021), but they are highly associated with the constituent stocks of the HSI. For example, 0004.HK (Wharf Holdings) is the parent company of 1997.HK (Wharf Real Estate Investment Company Ltd), a constituent stock of the current HSI. For the other 16 selected stocks, they cover all sub-indexes of HSI, including Finance Sub-index, Utilities Sub-index, Properties Sub-index and Commerce & Industry Sub-index. Our analysis demonstrates the importance of selecting diversified stocks to establish a portfolio for tracking HSI. In Figure 7, the left panel displays the estimated coefficients of the 19 stocks, among which the significance of many stocks does not change much in past years except for 0700.HK (Tencent Holding Ltd). Tencent was listed on the Hong Kong Stock Exchange in 2004 and was added as a Hang Seng Index Constituent Stock in 2008. The Chinese tech giant has become the most valuable publicly traded company in China in 2018 and thus its weight in HSI was increasing in past years,which is consistent with our analysis. In the right panel, as expected, the standard errors decrease as more and more data are collected. However, the standard errors of several stocks increase in 2019-2020. We believe this might be related to the impact of the unprecedented COVID-19 pandemic. COVID-19 virus has ravaged economies all over the world and changed consumer behavior and preferences. In the COVID-19 pandemic, there are many losers in traditional industries, but the tech giants are thriving, as demand for online services and digital utilities has exploded. The shift in market may have caused extra uncertainty in statistical analysis. In summary, our proposed ODL performs reasonably well in analyzing this financial dataset.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF14": {
+            "text": "Analysis results of the Hang Seng Index fund data. Left panel: the heat map of the estimated coefficients. Right panel: the corresponding estimated standard errors. Note that the results in the first column of each graph is based on the data collected from 2010-2011.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF15": {
+            "text": "{X N } N \u2208N and {Y N } N \u2208N , we say that X N = O P (Y N ) if for any > 0, there exists M 1 , M 2 > 0 such that P(|X n /Y n | \u2265 M 1 ) < for any n > M 2 . Roughly speaking,X N = O P (Y N ) means that X N /Y N is stochastically bounded. Besides, X N = o P (Y N ) means that X N /Y N converges to zero in probability. Particularly, X N = \u2126(Y N ) if X N = O P (Y N ) and Y N = O P (X N ). In addition, we use c 1 , c 2 , c 3 . . . to stand for the constants which do not depend on N b .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF16": {
+            "text": ",l are the explanatory variables from the l-th observation in i-th data batch. Then, (17) is written as the sum of i.i.d random variables. Specifically, E{(x",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF17": {
+            "text": "r ) 2 }. Under Assumption 2, \u039b 2 min \u2264 \u03b6 r \u2264 \u03a3 j,j = O(1). It then follows from the law of large + O P ( N b ) = \u03b6 r N b + O P ( N b ). /n j .Recall that \u03a3 \u2212r is the principle submatrix of \u03a3 by removing the r-th row and the r-th column. It can be shown along similar lines of the proof of Lemma 1 that, with probability at least 1 \u2212 p , for j = 1, . . . , b.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF18": {
+            "text": "j) \u2212r \u2212 \u03a3 \u2212r \u221e \u2264 c 5 , for j = 1, . . . , b.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF19": {
+            "text": "Suppose that the conditions in Lemma 1 hold and the subsequent batch size n j \u2265 c log p, j = 2, . . . , b, for some constants c. Ifs 0 s r log(p) \u221a N b = o(1), Then, k =r z r x k ( \u03b2 (b) k \u2212 \u03b2 0,k ) = O P (s 0 s r log(p)) = o P \u221a N b .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF20": {
+            "text": "QQ plots of standardized \u03b2 (b) on,r with total sample size N b = 1200, p = 1000 and \u03a3 = {0.5 |i\u2212j| } i,j=1,...,p . Each column represents the estimated parameter \u03b2 (b)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "p}, we can use an incremental EVD approach(Cardot & Degras, 2018) to update Q b and \u039b b . Then the space complexity reduces to O(r b p). The space complexity can be further reduced by setting a threshold. For example, select the principal components which explain most of the variations in the predictors. However, incremental EVD could increase the computational cost since it requires additional O(r 2 b p) computational complexity. Indeed, there is a trade-off between the space complexity and computational complexity. How to balance this trade-off is an important computational issue and deserves careful analysis, but is beyond the scope of this study.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "N b = 420, b = 12, p = 400, s 0 = 6, \u03a3 = I p . Performance on statistical inference. Tuning",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The work of J. Huang is partially supported by the U.S. NSF grant DMS-1916199 ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgment"
+        },
+        {
+            "text": "r ) ) . Then, we write the online debiased estimator in (11) into the following vector form:Subtract the true parameter \u03b2 0,r and obtainWhat remains to be shown is that,as detailed by Lemma 4 and Lemma 5 respectively.Proof of Theorem 2 and Theorem 3. Theorem 2 and Theorem 3 can be proved in the same fashion as Theorem 1. Due to limited space, we only point out the main difference. In the proof of Theorem 2, we will show the upper bound of \u03a3 (j) \u2212r \u221e is O P (log p), by replacing n j , j = 2, . . . , b with 1 in Lemma 4 and Lemma 5. For Theorem 3, the major difference is to establish a similar lemma to Lemma 1 with conclusion \u03b3 (j) r \u2212 \u03b3 r 1 \u2264 cs 2 r \u03bb j under Assumption 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "annex"
+        }
+    ]
+}

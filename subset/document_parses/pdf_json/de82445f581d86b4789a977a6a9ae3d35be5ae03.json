@@ -1,0 +1,3247 @@
+{
+    "paper_id": "de82445f581d86b4789a977a6a9ae3d35be5ae03",
+    "metadata": {
+        "title": "Towards Observability for Machine Learning Pipelines",
+        "authors": [
+            {
+                "first": "Shreya",
+                "middle": [],
+                "last": "Shankar",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC Berkeley",
+                    "location": {
+                        "settlement": "Berkeley"
+                    }
+                },
+                "email": "shreyashankar@berkeley.edu"
+            },
+            {
+                "first": "Aditya",
+                "middle": [
+                    "G"
+                ],
+                "last": "Parameswaran",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC Berkeley",
+                    "location": {
+                        "settlement": "Berkeley"
+                    }
+                },
+                "email": "adityagp@berkeley.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Software organizations are increasingly incorporating machine learning (ML) into their product offerings, driving a need for new data management tools. Many of these tools facilitate the initial development of ML applications, but sustaining these applications post-deployment is difficult due to lack of real-time feedback (i.e., labels) for predictions and silent failures that could occur at any stage, or component, of the ML pipeline (e.g., data distribution shift). We propose a new type of data management system that offers end-to-end observability, or visibility into complex system behavior, for ML pipelines through assisted (1) detection, (2) diagnosis, and (3) reaction to ML-related bugs. We describe new research challenges and suggest preliminary solution ideas in all three aspects. Finally, we introduce an example architecture for a \"bolt-on\" ML observability system, or one that wraps around existing tools in the stack.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Organizations are devoting increasingly more resources towards developing and deploying applications powered by machine learning (ML). ML applications rely on pipelines that span multiple heterogeneous stages or components, such as feature generation and model training, requiring specialized data management tools. The majority of the work in data management for ML concentrates on specific components, e.g., for identifying data bugs during preprocessing [1, 2] , or for logging models and model metadata for post-hoc debugging during training [3, 4, 5, 6] . Additionally, some industry solutions have garnered widespread adoption by handling data management issues that stem from experimenting with large numbers of models [7, 8] . As a result of all of these componentcentric data management tools, building an ML pipeline has never been easier.",
+            "cite_spans": [
+                {
+                    "start": 457,
+                    "end": 460,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 461,
+                    "end": 463,
+                    "text": "2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 546,
+                    "end": 549,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 550,
+                    "end": 552,
+                    "text": "4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 553,
+                    "end": 555,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 556,
+                    "end": 558,
+                    "text": "6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 726,
+                    "end": 729,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 730,
+                    "end": 732,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "However, there are many unaddressed challenges in sustaining ML pipelines: maintaining, debugging, and improving them after the initial deployment. Various best practices for \"production ML\" and failure case studies highlight the dire need for ML sustainability [9, 10] . We posit that for sustainability, ML practitioners should be able to (1) detect, (2) diagnose, and (3) react to bugs post-deployment. Compared to traditional software systems, which typically only break when there are infrastructure issues, ML pipelines can also fail unpredictably due to data issues-and therefore are uniquely challenging to sustain in all three aspects.",
+            "cite_spans": [
+                {
+                    "start": 262,
+                    "end": 265,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 266,
+                    "end": 269,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Bug Detection: Hard Due to Feedback Delays. It is well-known that data distributions change or shift over time, causing model performance to drop [11, 12] . Detecting performance drops postdeployment is challenging due to lack of \"ground-truth\" data: in many production ML systems, feedback on predictions, or labels, can arrive at a later time. Furthermore, in many pipelines, only a few labels arrive (e.g., labelers manually annotate some predictions, or only a handful of predicted outputs are displayed to the user). As a result, practitioners are unable to monitor simple ML metrics such as accuracy in real-time. As an alternative, end-to-end ML frameworks such as TFX [13] and Sagemaker [14] monitor internal pipeline state or health via distance metrics, e.g., Kolmogorov-Smirnov test statistic [15] , over distributions of ML features and outputs over time. These proxies often produce too many false positives and thus do not accurately determine when models are underperforming, as we will discuss further in Section 2.",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 150,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 151,
+                    "end": 154,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 676,
+                    "end": 680,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 695,
+                    "end": 699,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 804,
+                    "end": 808,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Bug Diagnosis: Hard Due to Pipeline Complexity. Even if a bug or failure is confidently detected, the complex, highly intertwined nature of components in the ML pipeline makes it hard to diagnose its root cause. For ML pipelines, \"changing anything changes everything (CACE),\" causing predictions to vary unpredictably [10] . For example, changing data cleaning criteria (e.g., upper and lower bounds for a column) might change the feature and prediction distributions. Moreover, models are periodically retrained and redeployed over time [16] , making debugging a nightmare if practitioners do not log, version, and track the lineage of every artifact generated by every component in the pipeline. Finally, ML pipelines uniquely suffer from silent failures (i.e., low-quality predictions are generated even when there are bugs). Consequently, failures in different components can result in the same output: for example, both a broken sensor that produces raw data and an incorrect join in the feature generation component can yield too many null values for a column. This motivates fine-grained logging of inputs and outputs at the component level.",
+            "cite_spans": [
+                {
+                    "start": 319,
+                    "end": 323,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 539,
+                    "end": 543,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Bug Fixes: Hard Due to No Obviously Correct Answers. Even if users can successfully trace the root cause of an ML bug, there can be many ways to bring model performance back up to a desirable level, and effectiveness depends on the nature of the data or task. For example, there are many ways to retrain a model-adding features, adding data, or both. Users often have no sense of the benefits of each approach, relative to the costs in resources and time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "ML Observability. The challenges outlined above motivate the need for observability [17] , or \"better visibility into understanding the complex behavior of software using telemetry collected ... at run time\" [18] , tailored for ML pipelines. Observability encompasses more than just monitoring predefined metrics that capture holistic system health (i.e., known-unknowns)-it also allows practitioners to ask questions about how systems behaved on historical outputs (i.e., unknown-unknowns), or perform \"needle-in-a-haystack\" queries. The north star for software observability systems is to give users the power to ask new questions of historical system behavior without gathering new data [19] .",
+            "cite_spans": [
+                {
+                    "start": 84,
+                    "end": 88,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 208,
+                    "end": 212,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 690,
+                    "end": 694,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Contributions. In this paper, we discuss unaddressed research challenges in ML observability as a call-to-arms for the database community to contribute to this nascent research direction. We propose the concept of a \"bolt-on\" observability system for ML pipelines-one that does not require users to rewrite all their code to use a specific framework. ML application developers assemble their pipelines in an ad-hoc manner employing a myriad of tools along the way, and our bolt-on observability system must interoperate with such heterogeneous pipelines. For example, practitioners may use a Hive metastore to catalog raw data [20] , Deequ for data validation [21] , and Weights & Biases for experiment tracking [8] .",
+            "cite_spans": [
+                {
+                    "start": 627,
+                    "end": 631,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 660,
+                    "end": 664,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 712,
+                    "end": 715,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "For our bolt-on observability system to address bug detection, diagnosis, and fixing needs, we propose a three-pronged approach:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "(1) Monitoring approximations of coarse-grained, i.e., businesscritical, ML metrics to alert users of ML performance drops even when there may not be real-time labels. In Section 3.2, we propose automated techniques that rely on lightweight proxies to bin predictions and estimate metrics based on importance weighting, drawing on the approximate query processing and streaming literature.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "(2) Logging fine-grained (i.e., distance metrics, data summaries) information for users to query while diagnosing ML bugs. In Section 3.3, we propose a hybrid approach of tracking distances and adversarially learning differences between training and live data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "(3) Providing interfaces and retraining strategies for users to fix ML bugs. In Section 3.4, we describe how comparing feature-wise distance metrics and adversarially-learned differences in fine-grained logs can suggest different ways to augment training datasets in response to drops in coarse-grained metrics. In Section 4.1, we discuss an example of a bolt-on ML observability system architecture. Finally, in Section 4.2, we introduce our vision for mltrace, a lightweight bolt-on ML observability tool, which has already received preliminary interest from practitioners with over 300 GitHub stars (github.com/loglabs/mltrace).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In this section, we discuss prior work in data management for ML pipelines and current end-to-end ML pipeline frameworks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "BACKGROUND"
+        },
+        {
+            "text": "Extract, Transform, Load (ETL. Input data for ML models is typically constructed and preprocessed through a series of ETL workloads. Faulty predictions can stem from such workloads, such as incorrectly performing missing value imputation [22] . Tools like Dagger [2] and mlinspect [1] help practitioners detect data-related bugs in preprocessing components of pipelines. Our focus is instead on bugs that originate post-deployment.",
+            "cite_spans": [
+                {
+                    "start": 238,
+                    "end": 242,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 263,
+                    "end": 266,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 281,
+                    "end": 284,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Pre-Deployment"
+        },
+        {
+            "text": "Experiment Tracking. After preprocessing, in the training stage of the ML lifecycle, practitioners typically train thousands of models with different architectures and configurations.Other tools [7, 3, 8] focus on experiment tracking, one of the biggest pain points in generating models for production ML pipelines. While these tools help determine the best model to promote to production, none of them determine when production pipelines are failing (e.g., via monitoring) nor where bugs in the pipeline may lie.",
+            "cite_spans": [
+                {
+                    "start": 195,
+                    "end": 198,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 199,
+                    "end": 201,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 202,
+                    "end": 204,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Pre-Deployment"
+        },
+        {
+            "text": "Assertions on data quality.ML pipelines require data validation throughout the entire pipeline [23] ; some tools [21, 24, 13] offer libraries of assertions for practitioners to embed in their application code; however, practitioners must explicitly determine which specific assertions to embed for each pipeline from a bewildering array of options. Additionally, since these assertions or tests are often written as part of a main application, they may not be easily reusable across pipelines. Finally, results of these tests must be externally logged with a separate service for users to query post-hoc. While data quality assertions are certainly valuable for catching egregious issues (e.g., negative values for columns that should be positive), ML pipeline performance can drop over time without failing assertions typically embedded by application developers.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 113,
+                    "end": 117,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 118,
+                    "end": 121,
+                    "text": "24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 122,
+                    "end": 125,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Post-Deployment"
+        },
+        {
+            "text": "Detecting data shift. Many papers in the ML literature discuss how various forms of data shift (e.g., concept shift, covariate shift, prior probability shift) cause model performance to degrade [11, 25, 26] . To address such shift problems in a generalizable way for different models, the ML community has proposed monitoring distance metrics across distributions of features and predictions, such as the Kolmogorov-Smirnov (K-S) test statistic for numerical features or dimensionality-reduced features and the Chi-Squared test statistic for categorical features [27] . However, with thousands of features and seasonal changes in data, such methods may not correctly flag shift, might trigger too many alarms and cause alert \"fatigue\" or result in confusion (e.g., the K-S test statistic is significant for one feature but not another) [23] . Thus, there is a need for higher-precision methods that detect data shift, e.g., methods that determine exactly when practitioners should retrain their models to reflect current distributions of data.",
+            "cite_spans": [
+                {
+                    "start": 194,
+                    "end": 198,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 199,
+                    "end": 202,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 203,
+                    "end": 206,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 563,
+                    "end": 567,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 836,
+                    "end": 840,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Post-Deployment"
+        },
+        {
+            "text": "Unresolved Observability Challenges in Existing Tools. Endto-end frameworks such as Sagemaker [14] and TFX [13] provide logging at the component level but only support primitive monitoring: users are required to specify the metrics up-front, and these metrics do not accurately address data shift as mentioned above. Additionally, these frameworks force their users to rewrite their pipeline using their DSLs. For example, to use TFX, users must write their data processing pipelines using Apache Beam, manipulate data with TFData, build models in Tensorflow, and serve models via Tensorflow Serving. To avoid having users perform a cumbersome rewrite, other proprietary monitoring tools from industry, such as Neptune and Arize [28] , only monitor pipeline predictions through an API, which cannot flag all problems or suggest where problems lie in the pipeline because they lack end-to-end visibility.",
+            "cite_spans": [
+                {
+                    "start": 94,
+                    "end": 98,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 729,
+                    "end": 733,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Post-Deployment"
+        },
+        {
+            "text": "\"Declarative\" ML. Other declarative frameworks [29, 30] allow users to declaratively specify their end-to-end ML pipelines instead of writing code. While this paradigm abstracts away boilerplate code and streamlines iteration on a model, it is orthogonal to identifying bugs in production and reacting to faulty predictions, which are key concepts of observability. Moreover, ML practitioners often prefer to use their homegrown hodgepodge of tools rather than rewrite their code in a separate framework. Thus, we advocate for an observability solution that can interoperate with such tools.",
+            "cite_spans": [
+                {
+                    "start": 47,
+                    "end": 51,
+                    "text": "[29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 52,
+                    "end": 55,
+                    "text": "30]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Post-Deployment"
+        },
+        {
+            "text": "We now introduce unaddressed research challenges in ML observability related to detecting, diagnosing, and reacting to bugs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RESEARCH CHALLENGES"
+        },
+        {
+            "text": "First, we introduce key definitions and an example ML pipeline (Figure 1 ) to ground our discussion. Then, we explain monitoring needs in ML, stemming from long-term changes in data distributions.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 63,
+                    "end": 72,
+                    "text": "(Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "ML Pipeline Preliminaries"
+        },
+        {
+            "text": "Here, we define several terms used throughout this paper. An ML pipeline involves multiple data processing components, leading to one or more ML models that provide predictions for a specific task. A metric is a measure of success for an ML pipeline, such as prediction accuracy. A tuple is an individual feature vector used to generate predictions. A live prediction is a prediction made after deployment, as opposed to predictions made during training. The consumers of predictions provide feedback, or some data that indicates the quality of a prediction (e.g., item selection for recommendations, correctness for binary classification). Labels, or \"ground-truth\" for predictions, are derived from feedback. Finally, we refer to groups of tuples or subpopulations, defined based on conjunctions of predicates on features, as buckets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definitions."
+        },
+        {
+            "text": "A bucketing strategy refers to how tuples are assigned to buckets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definitions."
+        },
+        {
+            "text": "3.1.2 Example ML Pipeline. We now describe an example pipeline and ML task that we use to illustrate the research challenges.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definitions."
+        },
+        {
+            "text": "ML Task. Using data from the New York City Taxi and Limousine Coalition [31] , our ML task involves predicting whether a rider will give their driver a high tip (> 20% of the fare). Our task therefore involves binary classification, where predictions are probabilities (i.e., are floats between 0 and 1). Each tuple in the dataset (Yellow Trips) corresponds to a single ride, with 17 attributes.",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 76,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Definitions."
+        },
+        {
+            "text": "Pipeline Architecture. Our ML pipeline includes five components, as described by the rectangular boxes in Figure 1 . We have two sub-pipelines-training and inference-that share the cleaning and feature generation components. For simplicity, the pipeline includes only one model, an sklearn random forest classifier. The ML pipeline is evaluated on accuracy, or the fraction of correct predictions, when the prediction is rounded to the nearest integer.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 106,
+                    "end": 114,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Definitions."
+        },
+        {
+            "text": "As a proxy for real-time accuracy, which can be nearly impossible to measure due to feedback delay (or sometimes, feedback never arrives), practitioners monitor changes, or shifts, in distributions of features and predictions. ML researchers and practitioners have introduced any number of types of shifts, such as concept shift, data shift, covariate shift, label shift, subpopulation shift, prior probability shift, low-data shift, and more-and these definitions often conflict in blog posts and papers [11, 25, 26, 32, 33] . If is the label space and is the feature or covariate space (e.g., location of ride, number of passengers), we note that all of the aforementioned shift definitions boil down to at least one of the two shift scenarios: Concept shift: ( | ) changes; ( ) changes but ( ) doesn't Covariate shift: ( ) and ( ) change but ( | ) doesn't A concrete example of concept shift is a recession: riders tip less across the population, changing the tip distribution ( ) but not the covariate distribution ( ). A concrete example of covariate shift is around New Year's Eve: the number of taxi rides will be relatively higher near Times Square (for the annual celebration), potentially changing the overall covariate distribution ( ) and tip distribution ( ) as a result, even though the nature of a taxi ride that results in a high tip does not change, i.e., ( | ).",
+            "cite_spans": [
+                {
+                    "start": 505,
+                    "end": 509,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 510,
+                    "end": 513,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 514,
+                    "end": 517,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 518,
+                    "end": 521,
+                    "text": "32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 522,
+                    "end": 525,
+                    "text": "33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Formalizing Distribution Shift."
+        },
+        {
+            "text": "The rationale for tracking ( ) and ( ) over time is that significant changes in these values can indicate when and how to retrain models. For example, concept shift might imply a retrain over fresh data, whereas covariate shift might imply upsampling of certain populations in the data. However, methods to flag changes in distributions, as mentioned in Section 2.2, cause too many false positive alerts. For example, practitioners compute the K-S test statistic between training and live tuples for each feature to approximate how ( ) has changed, which can yield thousands of measures. These alerts can be confusing-for instance, what would a user do with an alert saying a handful of their thousand features' K-S test statistics are now statistically significant? Does this alert really impact ML accuracy? Additionally, in the era of big data, -values can quickly go to zero even when there is no practical significance [34] , further exacerbating the alert fatigue problem.",
+            "cite_spans": [
+                {
+                    "start": 924,
+                    "end": 928,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Formalizing Distribution Shift."
+        },
+        {
+            "text": "To improve precision on real-time model performance alerts, We break down identifying distribution shifts into coarse-grained and fine-grained categories. Coarse-grained metrics map most closely to business value and require labels (e.g., accuracy). Fine-grained information is useful to indicate or explain changes in coarse-grained metrics and does not require labels (e.g., K-S test statistic between a feature's distribution in the training set and its live distribution at inference time). An ML observability tool should primarily alert the user on changes in coarse-grained metrics, or detect ML performance drops, and show fine-grained information as a means for diagnosing and reacting to ML issues-e.g., which features diverged most and how the training set should change in response. In the following subsections, we discuss how coarse-grained monitoring help detect ML performance issues (Section 3.2) and how fine-grained monitoring can help diagnose their root causes (Section 3.3). Finally, we describe approaches to aid users to fix these issues (Section 3.4).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Formalizing Distribution Shift."
+        },
+        {
+            "text": "Feedback on predictions (i.e., labels) can be delayed, making it hard to know real-time accuracy. Moreover, delays may not be uniform across different buckets (e.g., a power outage in East Village might prevent taxicab meter information from being uploaded) and can be exacerbated in situations where manual labeling is required. A major challenge is to estimate real-time accuracy as correctly as possible even when labels don't arrive in a timely manner. As shown in Figure 1 , predictions and feedback arrive at different timestamps and are joined on some identifier. At every timestamp, ML pipelines can move between three feedback scenarios: full feedback, partial feedback, and no feedback, impacting real-time accuracy scores. We discuss each of the feedback scenarios in turn.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 469,
+                    "end": 477,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Coarse-grained Monitoring for Detection"
+        },
+        {
+            "text": "In this setting, we have labels or feedback for all the predictions so far. When estimating real-time accuracy for these predictions, there are at least three variants of interest: (a) cumulative accuracy for all predictions made until now; (b) accuracy for predictions made in the last time window ; (c) accuracy for the last predictions. The last two variants provide accuracies over a sliding window. The cumulative setting is not just relevant when we are evaluating accuracy from = 0; it is also useful when we \"reset the clock\" regularly, e.g., accuracy on a per-day basis.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Full-Feedback."
+        },
+        {
+            "text": "To estimate cumulative accuracy (a) we simply need to perform an approximate join between the prediction and feedback streams. Challenges occur at scale, when our streaming windows too large to fit both predictions and feedback in-memory, motivating AQP (approximate query processing) techniques. Unlike the standard join setting, here, each prediction tuple joins precisely with a single feedback tuple, meaning that the challenges of quadratically fewer samples with AQP over joins do not apply [35, 36, 37] -however, new challenges emerge. Since we do not know the size of the stream in advance, a naive approach is to apply reservoir sampling [38] on both streams using a shared hash function on the common identifier. However, this approach is wasteful, since once the pair of prediction and feedback tuples are received, they no longer both need to be stored in memory. Moreover, the quality of the estimate degrades over time since we are maintaining a fixed size sample over streams that grow in size. Ideally we would want to maintain both a reservoir (for prediction tuples whose feedback has not been received) as well as partial aggregates (for prediction tuples whose feedback has been received). Joined tuples can make way for new slots in the reservoir. However, doing so while respecting the typical reservoir sampling guarantee of each having the same probability of being sampled, is non-trivial. For example, the sudden arrival of a number of feedback tuples can cause multiple slots in the reservoir to become vacant, leading to an increasing probability for the next prediction tuple to be included in the reservoir.",
+            "cite_spans": [
+                {
+                    "start": 497,
+                    "end": 501,
+                    "text": "[35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 502,
+                    "end": 505,
+                    "text": "36,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 506,
+                    "end": 509,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 647,
+                    "end": 651,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Full-Feedback."
+        },
+        {
+            "text": "Extending this reservoir sampling approach to (b) and (c) is also challenging. We can leverage prior work on reservoir sampling over windows [39, 38, 40, 41] , where we can evict old tuples from the reservoir when they expire [39] , or update the probabilities to favor newer tuples more, using an exponential decay weighting [41] . As before, we will want to modify these techniques to be less wasteful of memory, while also ensuring that they are unbiased.",
+            "cite_spans": [
+                {
+                    "start": 141,
+                    "end": 145,
+                    "text": "[39,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 146,
+                    "end": 149,
+                    "text": "38,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 150,
+                    "end": 153,
+                    "text": "40,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 154,
+                    "end": 157,
+                    "text": "41]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 226,
+                    "end": 230,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 326,
+                    "end": 330,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Full-Feedback."
+        },
+        {
+            "text": "This scenario typically occurs immediately after deployment. The feedback might come in batches at a later date, possibly after human review, motivating us to find ways to estimate real-time performance without labels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "No-Feedback."
+        },
+        {
+            "text": "To estimate cumulative accuracy, we may use importance weighting (IW) techniques [11] . At a high level, we can identify buckets based on input features or combinations thereof, determine the training set accuracy for each bucket, and weight these accuracies based on the number of points in each bucket in the live (post-deployment, unlabeled) data. Consider the neighborhood as a naive bucketing strategy: if the training set had FiDi and Midtown accuracies of 80% and 50% respectively and we have 100 FiDi and 500 Midtown live predictions, we can estimate an accuracy of 0.8 \u00d7 100 + 0.5 \u00d7 500 = 55%.",
+            "cite_spans": [
+                {
+                    "start": 81,
+                    "end": 85,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "No-Feedback."
+        },
+        {
+            "text": "An open question here is which bucketing strategy to use. Even if we decide to construct the bucketing offline and not change it in response to live data, there are still many candidate bucketings. We can construct bucketings based on any subset of the input features, which is ( !), where is the number of features. Figure 2 illustrates three bucketings. The first couple of bucketings have representation in each bucket, which gives us some confidence in per-bucket accuracy. However, the last bucketing has some buckets with zero representation-so if a live tuple were to be assigned to such a bucket, we would not have an accuracy estimate for it. Increasing granularity and sparsity Figure 2 : Bucketing strategies based on pickup location and trip distance. 1-D histograms are normalized to show density. As buckets become more finer-grained, they also become sparse.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 317,
+                    "end": 325,
+                    "text": "Figure 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 688,
+                    "end": 696,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "No-Feedback."
+        },
+        {
+            "text": "Overall, finer-grained bucketings may capture patterns not found in coarse-grained bucketings but could also be more sparse, which can impact the correctness of our accuracy estimates. The goal overall is to produce the closest approximation of accuracy (or any chosen coarse-grained metric), while bounding the number of buckets (a proxy for storage). Therefore, a \"good\" bucketing strategy must have lots of diversity among different buckets but little diversity within individual buckets-analogous to typical clustering objectives. An additional challenging constraint is that each bucket should have substantial representation in the training set: if the number of training tuples for a bucket is small, we cannot be confident in the live IW estimate. Picking the bucketing is also related to statified sampling [42] , used in AQP [43, 44] to support predicates on the stratified attributes. Inspired by recent \"hybrid AQP\" work, we can also construct different bucketings and merge the resulting accuracy estimates [45] .",
+            "cite_spans": [
+                {
+                    "start": 816,
+                    "end": 820,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 835,
+                    "end": 839,
+                    "text": "[43,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 840,
+                    "end": 843,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 1020,
+                    "end": 1024,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "No-Feedback."
+        },
+        {
+            "text": "Extending this technique to the sliding window accuracy setting if we are using a fixed offline bucketing may be straightforward. Per bucket, we can apply ideas from prior work in streaming algorithms to update counts for the last tuples [46] ; similar techniques may also apply for the sliding window defined by time.",
+            "cite_spans": [
+                {
+                    "start": 238,
+                    "end": 242,
+                    "text": "[46]",
+                    "ref_id": "BIBREF46"
+                }
+            ],
+            "ref_spans": [],
+            "section": "No-Feedback."
+        },
+        {
+            "text": "Finally, we may gain additional benefits from changing the bucketing strategy in response to live data. The research challenge is then to devise methods that efficiently identify buckets in highdimensional, changing data streams with a reference dataset in mind (i.e., the training set). A starting point to a solution could be to extend streaming clustering algorithms that are explicitly robust to changing data distributions [47] : in addition to the live data, we could feed the training set to such a clustering algorithm.",
+            "cite_spans": [
+                {
+                    "start": 428,
+                    "end": 432,
+                    "text": "[47]",
+                    "ref_id": "BIBREF47"
+                }
+            ],
+            "ref_spans": [],
+            "section": "No-Feedback."
+        },
+        {
+            "text": "Often, live data is only labeled or arrives on a specific schedule, and some upstream data collection issues might influence feedback delays (e.g., there's a cell tower outage in a region of Tribeca, causing payment meter data to be delayed). Here, aggregating the full-feedback and no-feedback estimates, weighted by the count of tuples in each case, may produce a reasonable real-time accuracy estimate. However, if feedback fails to arrive for certain subsets of data for extended periods of time, users may want to diagnose this matter further, as discussed in the next section.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Partial-Feedback."
+        },
+        {
+            "text": "There are several ways users may want to carefully inspect an ML pipeline that is not behaving as expected based on coarse-grained estimates. They may want to diagnose feedback delays, data-level integrity issues, or distribution shift, discussed next.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fine-Grained Logging for Diagnosis"
+        },
+        {
+            "text": "When there are feedback delays, knowing how the distribution of feedback delays changes over time can uncover engineering issues in the pipeline and enable practitioners to quickly respond to them. Assuming the distribution of label delay is unknown and nonstationary (i.e., it may not be feasible to train a separate model to predict which predictions won't have feedback), a research challenge lies in identifying groups of tuples that have similar feedback delay times to understand patterns. Many streaming clustering algorithms may not produce interpretable groups, or groups simply described with only a few clauses in the predicate [48] . For debugging purposes, users may also care about how these clusters of delayed tuples change over time, or anomalies in delays; especially in the sliding window settings.",
+            "cite_spans": [
+                {
+                    "start": 639,
+                    "end": 643,
+                    "text": "[48]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Diagnosing Feedback Delays."
+        },
+        {
+            "text": "Consider the cumulative setting first. Here, we want to pick predicate combinations that \"cover\" all of the tuples that have severe label delays. This is analogous to frequent itemsets [49] ; recent work has extended it to work in an approximate setting, while optimizing for metrics like coverage [50] . Unlike that setting, here, we cannot materialize a sample upfront and operate on it; instead, we must operate on a stream directly, and determine what predicate combinations may have high coverage \"on the fly\". For this, we can draw on incremental maintenance techniques for frequent itemsets [51] , however this work focuses on updating itemsets given the addition of new tuples. In our setting some prediction tuples that are missing feedback may have their feedback arrive a bit later than expected. Therefore, we will need to both add and remove tuples and thereby update the counts of the current frequent itemsets during incremental maintenance.",
+            "cite_spans": [
+                {
+                    "start": 185,
+                    "end": 189,
+                    "text": "[49]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 298,
+                    "end": 302,
+                    "text": "[50]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 598,
+                    "end": 602,
+                    "text": "[51]",
+                    "ref_id": "BIBREF51"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Diagnosing Feedback Delays."
+        },
+        {
+            "text": "These challenges are exacerbated in the sliding window setting. Here, we may be able to draw on work on streaming frequent itemsets [52, 53] . For example, Chang et al. [53] use time-weighting to decay frequencies of itemsets over time unless they were seen recently. Doing this in the presence of feedback tuples appearing later in a delayed fashion is not straightforward.",
+            "cite_spans": [
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "[52,",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 137,
+                    "end": 140,
+                    "text": "53]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 169,
+                    "end": 173,
+                    "text": "[53]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Diagnosing Feedback Delays."
+        },
+        {
+            "text": "Checks and Summaries at Scale. There's a rich body of literature on data validation and constraint checking at each step of machine learning [23, 1, 22, 54, 55] . For example, Schelter et al. [22] defines 25 different types of ML-specific data constraints on a single column basis, and two constraints on pairs of columns, all of which provide valuable guardrails. However, there are two issues. First, even with these constraints, in many cases users simply want to go and inspect the actual raw inputs and outputs across components in the ML pipeline. Second, checking so many constraints when there are thousands of features can be quite expensive. We consider each issue in turn.",
+            "cite_spans": [
+                {
+                    "start": 141,
+                    "end": 145,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 146,
+                    "end": 148,
+                    "text": "1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 149,
+                    "end": 152,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 153,
+                    "end": 156,
+                    "text": "54,",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 157,
+                    "end": 160,
+                    "text": "55]",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 192,
+                    "end": 196,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data Integrity"
+        },
+        {
+            "text": "Logging raw inputs and outputs for each component in the ML pipeline can quickly get expensive. As an anecdote, the first author worked at a startup where the MLFlow [7] logs would require a \"purge\" every few months. To minimize log size, we can use the same approach as in the previous section and use a reservoir sample for prediction tuples; a uniform sample may suffice for training tuples. In addition, we can log histograms instead of full data streams; however, bins should change as data evolves over time. Research challenges lie in combining ideas from incrementally-maintained approximate histograms with ideas from adaptive histograms to produce evolving summaries of windows of data [56] . Another insight is that users will only selectively query logged intermediates (e.g., inspect the head of a dataframe). For each component, we can learn from query patterns over time to inform what goes into logs, thereby reducing latency and storage footprints. When checking constraints, we may want to learn how to sequence the checking of constraints to reduce overall cost and quickly identify errors. This problem is reminiscent of work on adaptive query processing [57, 58] by reordering predicates based on selectivity. We will need to adapt these techniques for the defined space of constraints-in our case, we may be able to identify the optimal constraint checking strategy offline.",
+            "cite_spans": [
+                {
+                    "start": 166,
+                    "end": 169,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 696,
+                    "end": 700,
+                    "text": "[56]",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 1175,
+                    "end": 1179,
+                    "text": "[57,",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 1180,
+                    "end": 1183,
+                    "text": "58]",
+                    "ref_id": "BIBREF59"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data Integrity"
+        },
+        {
+            "text": "do not flag distribution shift, motivating the need to track how data distributions change over time. For instance, a recession could cause riders to tip less across the population, changing ( ) but not ( ). To approximately compute shifts in ( ) and ( ), existing work proposes tracking metrics like KL divergence and KS tests [27] between sliding windows in live inference data and train datasets (i.e., for train-serve skew as described in Breck et al. [23] ). There are two problems with this approach: (1) it requires the inference and training data to be kept in memory, and (2) it doesn't work well in settings where there are many tuples--values go to zero even if shifts aren't significant enough to warrant a retrain, as discussed in Section 3.1.3 and shown in Figure 3 .",
+            "cite_spans": [
+                {
+                    "start": 328,
+                    "end": 332,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 456,
+                    "end": 460,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 771,
+                    "end": 779,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Understanding Distribution Shift. Data integrity checks"
+        },
+        {
+            "text": "To solve (1), the memory issue, we can leverage a reservoir of live tuples (as in Section 3.2), but it is impractical to keep the entire training set in memory. We can keep a materialized sample of the training set in-memory, but randomly sampling the training set might neglect important tuples, such as those from minority classes. As a solution, we can obtain a weighted random sample of the train set, where each tuple is weighted by its loss.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Understanding Distribution Shift. Data integrity checks"
+        },
+        {
+            "text": "To solve (2), the -value issue, we can draw inspiration from adversarial validation, a Kaggle community-originated method to determine whether train and test datasets are drawn from the same distribution [59] . Adversarial validation trains a binary classifier, ( ), to predict whether a tuple came from either the train or test dataset. If ( ) converges to \u223c 50% AUC [60] , then one can assume the datasets are similar [61] . Extending this method to track shift seems straightforward: we can train ( ) to predict whether comes from the training sample or the reservoir sample of prediction/live data (as in Section 3.2), and log the AUC. However, adapting this method to the streaming setting is computationally challenging because we would need to train a new classifier ( ) every time we log an AUC, and computing AUC requires multiple passes through the data.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 208,
+                    "text": "[59]",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 368,
+                    "end": 372,
+                    "text": "[60]",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 420,
+                    "end": 424,
+                    "text": "[61]",
+                    "ref_id": "BIBREF62"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Understanding Distribution Shift. Data integrity checks"
+        },
+        {
+            "text": "One insight is that users don't exactly care about the AUC, they only care about how the AUC changes over time, as an increasing AUC indicates that live data is diverging from training set data. As a proxy, we can log ( )'s loss over time, which can be computed in a single pass. To avoid frequently retraining ( ) from scratch, every time we get a new tuple in the reservoir sample of live data, we can sample from the reservoir with = 0.5 and the training set with = 0.5; then, we can fine-tune ( ) on with stochastic gradient descent. Here, the intuition is that decreases in loss are coupled with increases in AUC, as shown in Figure 4 . As loss decreases, it is becoming easier to separate the training and live data, indicating distribution shift. The onset of distribution shift as flagged by the adversarial classifier aligns with the beginning of the ML model accuracy drop (late March 2020). The features highly weighted in ( ) are also the ones most likely to be responsible for the shift, further aiding diagnosis.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 631,
+                    "end": 639,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Understanding Distribution Shift. Data integrity checks"
+        },
+        {
+            "text": "Once users isolate their ML bugs, they may want suggestions for how to fix them. Reacting to an ML bug flagged by a data integrity check (e.g., too many nulls in a column because of a broken taxicab meter) can be straightforward. Here, we focus on helping users retrain models in response to distribution shifts. We propose using logs to understand how distributions have changed and suggesting ways to augment training sets to improve coarse-grained metrics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reacting to Bugs in ML Pipelines"
+        },
+        {
+            "text": "Users may wonder whether coarse-grained metric drops are dominated by covariate or concept drifts. In practice, both ( | ) and ( ) are likely to change -and we can never know exactly if or how ( | ) changes, since this is what the user's ML model is trying to learn. To give users intuition for how their data is changing, we can display visualizations of K-S test measures and adversarial classifier losses over time. If the rate of increase in K-S test measures is smaller than the rate of decrease in adversarial validation loss, then we can suggest that there is some concept shift. Otherwise, users can assume that covariate shifts mainly explain Figure 6 : Proposed ML observability system architecture.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 652,
+                    "end": 660,
+                    "text": "Figure 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Reacting to Bugs in ML Pipelines"
+        },
+        {
+            "text": "ML accuracy drops. In our taxicab example, adversarial validation losses deviate more than K-S test measures over time, as shown in Figure 5 , indicating the concept shift that happened around the onset of COVID-19 (where coarse-grained accuracy decreases).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 132,
+                    "end": 140,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Reacting to Bugs in ML Pipelines"
+        },
+        {
+            "text": "Once we understand the nature of the shift, we can provide hints on how to retrain models. For covariate shift, we can suggest upsampling tuples in buckets with high live representation and low training set representation. For concept shift, we can suggest retraining on recent data or leverage AutoML techniques to suggest new features [62] . In either case, we can also augment the training set with tuples from the reservoir that have low adversarial classifier losses (i.e., are most distinct from the training set).",
+            "cite_spans": [
+                {
+                    "start": 337,
+                    "end": 341,
+                    "text": "[62]",
+                    "ref_id": "BIBREF63"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Reacting to Bugs in ML Pipelines"
+        },
+        {
+            "text": "In this section, we discuss general properties of a bolt-on ML observability system. We also introduce our system mltrace-a lightweight, end-to-end ML observability system that integrates into ML pipelines at the component level. The current prototype of mltrace is publicly available on Github [63] and PyPI [64].",
+            "cite_spans": [
+                {
+                    "start": 295,
+                    "end": 299,
+                    "text": "[63]",
+                    "ref_id": "BIBREF64"
+                }
+            ],
+            "ref_spans": [],
+            "section": "SYSTEM"
+        },
+        {
+            "text": "A bolt-on ML observability system must be able to compute and store (1) history of and (2) interactions between components, requiring logging state at component runtime. Data and model integrity checks (e.g., expected number of nulls, model assertions [65] ) can be programmed as \"constraints. \" Coarse-grained metric computation (e.g., approximate accuracy) can run as \"triggers. \" Interface Layer. Users should be able to view real-time pipeline performance (i.e., coarse-grained metrics) and query fine-grained data summaries, traces for outputs, and other information in component logs. Output traces can be computed on-the-fly using the logs. Furthermore, in debugging low ML performance, users will want to visualize how data changes over time, motivating dashboards and plots that unambiguously tell them when models are stale, leveraging techniques from visualization recommendation to highlight the most salient ones [66, 67, 68, 69] . Execution Layer. The execution layer, which wraps around a component, must be able to run trigger computation such as data quality tests, identify component dependencies to track lineage, and infer component staleness. Staleness is used as a catch-all term to represent when components must be rerun-e.g., when at least one of its dependencies was generated a long time ago (default of 30 days) or was not the \"freshest\" representation (i.e., for an inference component, newer features or better models were available). ML model staleness-where there is enough data \"distribution shift\" to warrant a retrain-is of utmost importance to monitor. Additionally, in the triggers, the system should compute fine-grained information such as data summaries, distance metrics, and adversarial classifier weights.",
+            "cite_spans": [
+                {
+                    "start": 252,
+                    "end": 256,
+                    "text": "[65]",
+                    "ref_id": "BIBREF65"
+                },
+                {
+                    "start": 926,
+                    "end": 930,
+                    "text": "[66,",
+                    "ref_id": "BIBREF66"
+                },
+                {
+                    "start": 931,
+                    "end": 934,
+                    "text": "67,",
+                    "ref_id": "BIBREF67"
+                },
+                {
+                    "start": 935,
+                    "end": 938,
+                    "text": "68,",
+                    "ref_id": "BIBREF68"
+                },
+                {
+                    "start": 939,
+                    "end": 942,
+                    "text": "69]",
+                    "ref_id": "BIBREF69"
+                }
+            ],
+            "ref_spans": [],
+            "section": "System Architecture"
+        },
+        {
+            "text": "Storage Layer. As shown in Figure 6 , we must store at least three types of data: pointers to inputs and outputs, coarse-grained metrics monitored across consecutive runs of the same component (Section 3.2), and logs capturing fine-grained state (Section 3.3) every time a component is run. Additionally, the system must keep samples of training sets and live inference tuples in-memory for the execution layer to use while computing fine-grained information (e.g., K-S test results, adversarial classifier weights).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 27,
+                    "end": 35,
+                    "text": "Figure 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "System Architecture"
+        },
+        {
+            "text": "Our bolt-on ML observability system, mltrace, will eventually have the following functionality: (1) a library of functions that can support predefined computation before or after component runs for metric calculation or any relevant alerts, triggers, or constraints; (2) automatic logging of inputs, outputs, and metadata at the component run level; and (3) an interface for users to ask arbitrary post-hoc queries about their pipelines. Our current prototype has preliminary approaches for (2) and (3) and we are working on populating our library (1). We provide declarative, client-facing abstractions for users to specify components and the metrics and tests they would like to compute at every run of the component.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "mltrace Abstractions"
+        },
+        {
+            "text": "Component. The Component abstraction represents a stage in a pipeline, similar to Kubeflow [70] notation, and houses its static metadata, such as the name (primary key), description, owner, and any string-valued tags. The Component abstraction also includes beforeRun and afterRun methods for the user to define computation, or triggers, to be run before and after the component is run. These methods will primarily be used for testing and monitoring. mltrace will have a library of common components that practitioners can use off-the-shelf, such as a TrainingComponent that might check for train-test leakage in its beforeRun method and verify there is no overfitting in the afterRun method. Additionally, users can create their own types of components if they want to have finer-grained control.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 95,
+                    "text": "[70]",
+                    "ref_id": "BIBREF70"
+                }
+            ],
+            "ref_spans": [],
+            "section": "mltrace Abstractions"
+        },
+        {
+            "text": "ComponentRun. The ComponentRun (CR for short) abstraction represents dynamic metadata associated with a run or execution of a component. It includes the relevant Component name (foreign key), start timestamp of the run, end timestamp of the run, inputs, outputs, source code snapshot or git hash, extra notes, staleness indicator, and dependent CRs. Unlike other DAG-based tools, users do not need to explicitly define dependent components. mltrace sets the dependencies at runtime based on the input values; for example, if a feature generation CR produced an output features.csv and an inference CR used features.csv as an input, mltrace would add the feature generation CR as a dependency for the inference CR.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "mltrace Abstractions"
+        },
+        {
+            "text": "IOPointer. Inputs and outputs for a CR are represented by IOPointers.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "mltrace Abstractions"
+        },
+        {
+            "text": "In the current prototype, the IOPointer holds only a string identifier, such as features.csv or model.joblib, and its serialized raw data. We plan to make historical inputs and outputs available to users in beforeRun and afterRun triggers.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "mltrace Abstractions"
+        },
+        {
+            "text": "For mltrace to be as light as possible, we only require users to interact with the Component abstraction. CRs and IOPointers are created at component runtime via decorators on functions that represent component execution (e.g., the function that preprocesses data).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "mltrace Abstractions"
+        },
+        {
+            "text": "We proposed new research challenges in ML observability through a taxonomy of detecting, diagnosing, and reacting to ML bugs. We discussed a high-level architecture of a bolt-on ML observability system. Finally, we presented our prototype and vision for mltrace, a lightweight, platform-agnostic end-to-end observability tool for ML applications. We call on the database community to contribute to the vision of ML observability, helping supporting users who are comfortable with their existing toolstack, while alleviating many of the data management and querying concerns that come with production ML.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Mlinspect: A data distribution debugger for machine learning pipelines",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Grafberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Guha",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Stoyanovich",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schelter",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "SIGMOD'21",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Dagger: A data (not code) debugger",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Rezig",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "CIDR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Modeldb: a system for machine learning model management",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Vartak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "HILDA '16",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Mistique: A system to store and query model intermediates for model diagnosis",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Vartak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "SIGMOD '18",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Towards unified data and lifecycle management for deep learning",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Miao",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Davis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Deshpande",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ICDE'17",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Hindsight logging for model training",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Garcia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "VLDB'21",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Accelerating the machine learning lifecycle with mlflow",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zaharia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Data Eng. Bull",
+            "volume": "41",
+            "issn": "",
+            "pages": "39--45",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Tracking with weights and biases www",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Biewald",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "The ml test score: A rubric for ml production readiness and technical debt reduction",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Breck",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Big Data'17",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Hidden technical debt in ml systems",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sculley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Covariate shift adaptation by importance weighted cross validation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sugiyama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "JMLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Data management challenges in production machine learning",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Polyzotis",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Roy",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Whang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zinkevich",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "SIGMOD '17",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Tfx: A tensorflow-based production-scale machine learning platform",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Modi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Elastic machine learning algorithms in amazon sagemaker",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Liberty",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "06",
+            "issn": "",
+            "pages": "731--737",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "The kolmogorov-smirnov test for goodness of fit",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Massey",
+                    "suffix": ""
+                }
+            ],
+            "year": 1951,
+            "venue": "Journal of the American statistical Association",
+            "volume": "46",
+            "issn": "253",
+            "pages": "68--78",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Production ml pipelines: Empirical analysis and optimization opportunities",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Xin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Miao",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Parameswaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Polyzotis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "SIGMOD",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Distributed Systems Observability: A Guide to Building Robust Systems",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sridharan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Towards observability data management at scale",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Karumuri",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Solleza",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zdonik",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tatbul",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "ACM SIGMOD Record",
+            "volume": "49",
+            "issn": "4",
+            "pages": "18--23",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Observability: A manifesto",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Majors",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Hive: A warehousing solution over a map-reduce framework",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Thusoo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "VLDB",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Deequ -data quality validation for machine learning pipelines",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schelter",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Rukat",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kiessling",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Taptunov",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Biessmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lange",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Automating large-scale data quality verification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schelter",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "PVLDB'18",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Data validation for machine learning",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Breck",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zinkevich",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Polyzotis",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Whang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Roy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of SysML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Welcome to great expectations",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "A unifying view on dataset shift in classification",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Moreno-Torres",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Raeder",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Alaiz-Rodr\u00edguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Chawla",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Herrera",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Pattern Recognition",
+            "volume": "45",
+            "issn": "1",
+            "pages": "521--530",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Detecting and correcting for label shift with black box predictors",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lipton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.-X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Smola",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 35th International Conference on Machine Learning, ser. Proceedings of Machine Learning Research",
+            "volume": "80",
+            "issn": "",
+            "pages": "3122--3130",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Failing loudly: An empirical study of methods for detecting dataset shift",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rabanser",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "G\u00fcnnemann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Lipton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Building MLOps tools, J. Czakon, M. an ML person",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "C M"
+                    ],
+                    "last": "Person",
+                    "suffix": ""
+                }
+            ],
+            "year": 2022,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Overton: A data system for monitoring and improving machine-learned products",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "R\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Niu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Gudipati",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Srisuwananukorn",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "CIDR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Ludwig: a type-based declarative deep learning toolbox",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Molino",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Dudin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Miryala",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Tlc trip record data",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Breeds: Benchmarks for subpopulation shift",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Santurkar",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tsipras",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Madry",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "arXiv: Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "A fine-grained analysis on distribution shift",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Wiles",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gowal",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Stimberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.-A",
+                    "middle": [],
+                    "last": "Rebuffi",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ktena",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Dvijotham",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Cemgil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "ArXiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Too big to fail: Large samples and the p-value problem",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lucas",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Shmueli",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Information Systems Research",
+            "volume": "24",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "On random sampling over joins",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chaudhuri",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Narasayya",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "SIGMOD Rec",
+            "volume": "28",
+            "issn": "2",
+            "pages": "263--274",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/304181.304206"
+                ]
+            }
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Quickr: Lazily approximating complex adhoc queries in bigdata clusters",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kandula",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shanbhag",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vitorovic",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Olma",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grandl",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chaudhuri",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 International Conference on Management of Data, ser. SIGMOD '16",
+            "volume": "",
+            "issn": "",
+            "pages": "631--646",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2882903.2882940"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Joins on samples: A theoretical guide for practitioners",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pettie",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mozafari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. VLDB Endow",
+            "volume": "13",
+            "issn": "4",
+            "pages": "547--560",
+            "other_ids": {
+                "DOI": [
+                    "10.14778/3372716.3372726"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "On biased reservoir sampling in the presence of stream evolution",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Aggarwal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the 32nd international conference on Very large data bases",
+            "volume": "",
+            "issn": "",
+            "pages": "607--618",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Sampling from a moving window over streaming data",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Babcock",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Datar",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "2002 Annual ACM-SIAM Symposium on Discrete Algorithms",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Sampling time-based sliding windows in bounded space",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gemulla",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Lehner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 2008 ACM SIGMOD international conference on Management of data",
+            "volume": "",
+            "issn": "",
+            "pages": "379--392",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Macrobase: Prioritizing attention in fast data",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bailis",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Gan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Madden",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Narayanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Rong",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Suri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 ACM International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "541--556",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Stratified sampling",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Parsons",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Wiley StatsRef: Statistics Reference Online",
+            "volume": "",
+            "issn": "",
+            "pages": "1--11",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Blinkdb: queries with bounded errors and bounded response times on very large data",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Agarwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mozafari",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Panda",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Milner",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Madden",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Stoica",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 8th ACM European Conference on Computer Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "29--42",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "The aqua approximate query answering system",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Acharya",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Gibbons",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Poosala",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ramaswamy",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Proceedings of the 1999 ACM SIGMOD international conference on Management of data",
+            "volume": "",
+            "issn": "",
+            "pages": "574--576",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Combining Aggregation and Sampling (Nearly) Optimally for Approximate Query Processing",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sintos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Krishnan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1129--1141",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Maintaining stream statistics over sliding windows",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Datar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gionis",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "SIAM journal on computing",
+            "volume": "31",
+            "issn": "6",
+            "pages": "1794--1813",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Data stream clustering algorithms: A review",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mousavi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Bakar",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Vakilian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Balancing the Tradeoff Between Clustering Value and Interpretability",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Saisubramanian",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Galhotra",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zilberstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "351--357",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3375627.3375843"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Mining of massive data sets",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rajaraman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Ullman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Interactive data exploration with smart drill-down",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Joglekar",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Garcia-Molina",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Parameswaran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Transactions on Knowledge and Data Engineering",
+            "volume": "31",
+            "issn": "1",
+            "pages": "46--60",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Incremental maintenance of frequent itemsets in evidential databases",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "A B"
+                    ],
+                    "last": "Tobji",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Yaghlane",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mellouli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "An algorithm for in-core frequent itemset mining on streaming data",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Fifth IEEE International Conference on Data Mining (ICDM'05)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Finding recent frequent itemsets adaptively over online data streams",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of the ninth ACM SIGKDD international conference on Knowledge discovery and data mining",
+            "volume": "",
+            "issn": "",
+            "pages": "487--492",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Detecting data errors: Where are we and what needs to be done",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Abedjan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. VLDB Endow",
+            "volume": "9",
+            "issn": "",
+            "pages": "993--1004",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Outlier detection in heterogeneous datasets using automatic tuple expansion",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Pit-Claudel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Mariet",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Harding",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Madden",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Fast incremental maintenance of approximate histograms",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Gibbons",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Matias",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Poosala",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "ACM Trans. Database Syst",
+            "volume": "27",
+            "issn": "3",
+            "pages": "261--298",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/581751.581753"
+                ]
+            }
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Eddies: Continuously adaptive query processing",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Avnur",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hellerstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Proceedings of the 2000 ACM SIGMOD international conference on Management of data",
+            "volume": "",
+            "issn": "",
+            "pages": "261--272",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Adaptive ordering of pipelined stream filters",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Babu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Munagala",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Nishizawa",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Widom",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the 2004 ACM SIGMOD international conference on Management of data",
+            "volume": "",
+            "issn": "",
+            "pages": "407--418",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "What is adversarial validation?",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ellis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Auc: a statistically consistent and more discriminating measure than accuracy",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "X"
+                    ],
+                    "last": "Ling",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "in Ijcai",
+            "volume": "3",
+            "issn": "",
+            "pages": "519--524",
+            "other_ids": {}
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Adversarial validation approach to concept drift problem in automated machine learning systems",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Pham",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Dorairaj",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.-Y.",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "ArXiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Automl to date and beyond: Challenges and opportunities",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Karmaker",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hassan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Veeramachaneni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2022,
+            "venue": "ACM Computing Surveys (CSUR)",
+            "volume": "54",
+            "issn": "",
+            "pages": "1--36",
+            "other_ids": {}
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "mltrace: Coarse-grained lineage and tracing for machine learning pipelines",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shankar",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "Model assertions for monitoring and improving ml models",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Raghavan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bailis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Zaharia",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "ArXiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF66": {
+            "ref_id": "b66",
+            "title": "Deconstructing categorization in visualization recommendation: A taxonomy and comparative study",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Setlur",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Tory",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Karahalios",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Parameswaran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "IEEE Transactions on Visualization and Computer Graphics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF67": {
+            "ref_id": "b67",
+            "title": "Lux: always-on visualization recommendations for exploratory dataframe workflows",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Agarwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Boonmark",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Mukhopadhyay",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yong",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Hearst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the VLDB Endowment",
+            "volume": "15",
+            "issn": "",
+            "pages": "727--738",
+            "other_ids": {}
+        },
+        "BIBREF68": {
+            "ref_id": "b68",
+            "title": "Voyager: Exploratory analysis via faceted browsing of visualization recommendations",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wongsuphasawat",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Moritz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Anand",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mackinlay",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Howe",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Heer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE transactions on visualization and computer graphics",
+            "volume": "22",
+            "issn": "1",
+            "pages": "649--658",
+            "other_ids": {}
+        },
+        "BIBREF69": {
+            "ref_id": "b69",
+            "title": "Towards a general-purpose query language for visualization recommendation",
+            "authors": [],
+            "year": 2016,
+            "venue": "Proceedings of the Workshop on Human-In-the-Loop Data Analytics",
+            "volume": "",
+            "issn": "",
+            "pages": "1--6",
+            "other_ids": {}
+        },
+        "BIBREF70": {
+            "ref_id": "b70",
+            "title": "Overview of kubeflow pipelines",
+            "authors": [],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF2": {
+            "text": "K-S test -values for each feature and prediction. The training set (Jan 2020) is compared to week-long sliding windows of inference data (Feb 2020-). -values are \"significant\" (< 0.05) throughout. The ML model accuracy is depicted by the dashed line.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "AUC and log loss from the adversarial classifier over time, trained to separate a loss-weighted random sample of the training dataset and a reservoir sample of live tuples. The ML model accuracy is depicted by the dashed line.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Fine-grained K-S measures and adversarial classifier losses. The training set (Jan 2020) is compared to week-long windows of inference data (Feb 2020-). ML model accuracy is depicted by the dashed line.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "arXiv:2108.13557v2 [cs.SE] 4 Mar 2022 Shreya Shankar and Aditya G. Parameswaran",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Dashboard to query logs & visualize dataData integrity constraint checks Triggers to compute coarse-grained metrics, fine-grained information, & component dependencies Component run logs (e.g., coarse-grained ML metrics, fine-grained distance metrics, constraint violations, input/output summaries, component dependencies)",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

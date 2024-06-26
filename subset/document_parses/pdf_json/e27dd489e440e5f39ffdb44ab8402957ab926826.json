@@ -1,0 +1,1819 @@
+{
+    "paper_id": "e27dd489e440e5f39ffdb44ab8402957ab926826",
+    "metadata": {
+        "title": "The Move Prover",
+        "authors": [
+            {
+                "first": "Jingyi",
+                "middle": [
+                    "Emma"
+                ],
+                "last": "Zhong",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {
+                        "settlement": "Stanford",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Kevin",
+                "middle": [],
+                "last": "Cheang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC Berkeley",
+                    "location": {
+                        "settlement": "Berkeley",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Shaz",
+                "middle": [],
+                "last": "Qadeer",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Wolfgang",
+                "middle": [],
+                "last": "Grieskamp",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Sam",
+                "middle": [],
+                "last": "Blackshear",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Junkil",
+                "middle": [],
+                "last": "Park",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Yoni",
+                "middle": [],
+                "last": "Zohar",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {
+                        "settlement": "Stanford",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Clark",
+                "middle": [],
+                "last": "Barrett",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {
+                        "settlement": "Stanford",
+                        "country": "USA"
+                    }
+                },
+                "email": "barrett@cs.stanford.edu"
+            },
+            {
+                "first": "David",
+                "middle": [
+                    "L"
+                ],
+                "last": "Dill",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The Libra blockchain is designed to store billions of dollars in assets, so the security of code that executes transactions is important. The Libra blockchain has a new language for implementing transactions, called \"Move.\" This paper describes the Move Prover, an automatic formal verification system for Move. We overview the unique features of the Move language and then describe the architecture of the Prover, including the language for formal specification and the translation to the Boogie intermediate verification language.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The ability to implement arbitrary transactions on a blockchain via so-called smart contracts has led to an explosion in innovative services in systems such as Ethereum [41] . Unfortunately, bugs in smart contracts have led to massive amounts of funds being stolen or made inaccessible [5, 15] . In retrospect, the source of these disasters is fairly obvious: smart contracts operate without a safety net. A fundamental requirement for blockchains is that transactions be automatic and irreversible. Unlike traditional financial applications, there is little opportunity for humans to oversee or intervene in transactions. Indeed, the design of the blockchain is intended to prevent human involvement. The resulting potential havoc that can be caused by a bug in a smart contract makes it essential for these contracts to be correct, without vulnerabilities. Not surprisingly, there is great interest in formal verification and other advanced testing methods for smart contracts, and several verification systems already exist or are under development.",
+            "cite_spans": [
+                {
+                    "start": 169,
+                    "end": 173,
+                    "text": "[41]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 286,
+                    "end": 289,
+                    "text": "[5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 290,
+                    "end": 293,
+                    "text": "15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This work was supported by the Stanford Center for Blockchain Research and Novi, a Facebook subsidiary whose goal is to provide financial services that let people participate in the Libra network. The Libra Association manages the Libra network and is an independent, not-for-profit membership organization, headquartered in Geneva, Switzerland.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The Libra blockchain [3, 38] is designed to be a foundation for supporting financial services for billions of people around the world. If successful, it could store and manage assets worth billions of dollars, with correspondingly stringent security requirements. The code that modifies the state of the blockchain is especially important. The architecture of the Libra blockchain requires that all such modifications be performed by the Move [12] virtual machine, which executes the well-defined Move instruction set. This architecture means that verification efforts can focus on the correctness of bytecode programs implementing smart contracts, including formally verifying those programs.",
+            "cite_spans": [
+                {
+                    "start": 21,
+                    "end": 24,
+                    "text": "[3,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 25,
+                    "end": 28,
+                    "text": "38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we describe a specification language and formal verification system for Move. If a programmer writes functional correctness properties for a procedure, the Move Prover tool can automatically verify it. Although many similar Floyd-Hoare verifiers exist, widespread adoption has been a challenge because conventional software is large, complex, and uses language features that present difficulties for even the simplest verification tasks. However, we are hopeful that the Move Prover will be used by the majority of Move programmers. There are three reasons for this optimism. First, the Move language has been designed to support verification. Second, we are building a culture of specification from the beginning: each Move module used by the Libra blockchain is being written with an accompanying formal specification. Finally, we are working to make the Move Prover as precise, fast, and user-friendly as possible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contributions"
+        },
+        {
+            "text": "The Move language, the Move Prover, Move programs, and their specifications, have been evolving rapidly, so this description necessarily represents a snapshot of the project at a particular time. However, we expect most of the changes to be improvements and extensions to the basics described here. In the remainder of this paper, we will: procedures in its declaring module. Resources allow programmers to encode safe, yet customizable assets that cannot be accidentally (or intentionally) copied or destroyed by code outside the module.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contributions"
+        },
+        {
+            "text": "Move is minimal in comparison to most conventional programming languages. The only types besides records are primitives (Booleans, unsigned integers, addresses), vectors, and references (which must be labeled as mutable or immutable, similar to Rust [30] ). Records can contain primitives and other records, but not references. Control-flow constructs can be encoded via jumps to static labels in the bytecode.",
+            "cite_spans": [
+                {
+                    "start": 250,
+                    "end": 254,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Contributions"
+        },
+        {
+            "text": "Move programs execute in the context of a blockchain with modules and resources published under account addresses. To interact with the blockchain, a programmer can write a Move transaction script, a single-procedure program similar to a main procedure in a conventional language, that invokes procedures of published modules. This script is then packaged into a cryptographically signed transaction that is executed by validators in the Libra blockchain. As in Ethereum, transaction execution is metered, meaning that computational resources (or \"gas\") used when a Move program is executed are measured and must be paid for by the submitter of a transaction (though we note that the Move Prover does not yet reason about gas usage).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contributions"
+        },
+        {
+            "text": "Verification-Friendly Design. There are several aspects of Move's design that facilitate verification. The first is limited interaction with the environment: to ensure deterministic execution, the language can only read data from the global blockchain state or the current transaction (no file or network I/O). Second, many features that are challenging for verification are absent from Move: concurrency, higher-order functions, exceptions, sub-typing, and dynamic dispatch. The absence of the last feature is particularly notable because it is present in Ethereum bytecode and has contributed to subtle re-entrancy bugs (e.g., [14] ). Third, Move has built-in safe arithmetic: overflows and underflows are detected during execution and result in a transaction abort. Finally, many common errors are prevented by the Move bytecode verifier (not to be confused with the Move Prover), a static analyzer that checks each bytecode program before execution (similar to the JVM [26] or CLR [31] bytecode verifier). The bytecode verifier ensures that: 1. Procedures and struct declarations are well-typed (e.g., linearity of resources) 2. Dependent modules and procedure targets exist (i.e., static linking) 3. Module dependencies are acyclic 4. The operand stack height is the same at the beginning and end of each basic block 5. A procedure can only touch stack locations belonging to callers via a reference passed to the callee 6. The global and local memory are always tree-shaped 7. There are no dangling references 8. A mutable reference has exclusive access to its referent Because these checks are run on every Move bytecode program, the prover can rely on them in its own reasoning. Note that this would not be true if the checks were performed by a source language compiler, since bad bytecode programs could be created by compiler bugs or by writing programs directly in the executable bytecode representation.",
+            "cite_spans": [
+                {
+                    "start": 629,
+                    "end": 633,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 973,
+                    "end": 977,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 985,
+                    "end": 989,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Contributions"
+        },
+        {
+            "text": "Limited Aliasing. In the rest of this section, we present an example that explains the memory-related invariants enforced by the Move bytecode verifier (6-8 above). The example in Fig. 1 is written in the Move source language, which can be directly compiled to the Move bytecode representation shown in the comments (note that the Move Prover analyzes the bytecode itself). The join procedure accepts two arguments: coin of type &mut LibraCoin::T (a mutable reference to a LibraCoin::T value stored elsewhere) and to_consume of type LibraCoin::T (an owned LibraCoin::T value). The purpose of this procedure is to destroy the LibraCoin::T resource stored in to_consume and add its value to the LibraCoin::T resource referenced by coin. The first line of the procedure performs the destruction by \"unpacking\" to_consume (placing the program value bound to its field into the program variable value), and the next two lines read the current value of c_value_ref and update it.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 180,
+                    "end": 186,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Contributions"
+        },
+        {
+            "text": "The careful reader might wonder: what will happen if c_value_ref is a reference to to_consume? In a C-like language, the first line would make c_value_ref into a dangling reference, which would lead to a memory error when it is subsequently used. Fortunately, the Move bytecode verifier ensures that this cannot happen. An owned value like to_consume can only be moved (either onto the operand stack or into global storage) if there are no outstanding references to the value. In addition, the bytecode verifier guarantees that no mutable reference can be an ancestor or descendant of another (mutable or immutable) reference in the same local or global data tree. This is a very strong restriction! It ensures that procedure formals that can be mutated (mutable references or owned values) point to disjoint memory locations. For example, an additional formal of type &mut u64 in the code above could not point into the memory of the other formals. Formals that are immutable references may alias with each other, but not with mutable references or owned values. This means it is impossible for an update to a reference to affect the value retrieved by a simultaneously existing reference. These restrictions on the structure of memory enable greatly simplified reasoning about aliased mutable data, a significant challenge for verification in conventional languages. Figure 2 shows the architecture of the Move Prover. The prover takes as input Move source code annotated with specifications. The overall workflow consists of several steps. First, the specifications are extracted from the annotated code, and the Move source code is compiled into Move bytecode. Next, all stack operations are removed from the bytecode and replaced with operations on local variables, and the stackless bytecode is abstracted into a prover object model. Along a separate path, the specifications are parsed and added to the prover object model. The finalized model is translated to a program in the Boogie intermediate verification language (IVL) [23, 24] .",
+            "cite_spans": [
+                {
+                    "start": 2033,
+                    "end": 2037,
+                    "text": "[23,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 2038,
+                    "end": 2041,
+                    "text": "24]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1369,
+                    "end": 1377,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Contributions"
+        },
+        {
+            "text": "The Boogie program is handed to the Boogie verification system, which generates an SMT formula in the SMT-LIB format [10] . This can then be checked using an SMT solver such as Z3 [32] or CVC4 [9] . If the result of this check is UNSAT, then the specification holds, which is reported to the user. Otherwise, a countermodel is obtained from the SMT-solver, which gets translated back to Boogie. Boogie produces a Boogie-level error report, and this result is analyzed and transformed into a source-level diagnosis that is given back to the user. Using this diagnosis, the user can refine the implementation and/or specification and start the process again.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[10]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 180,
+                    "end": 184,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 193,
+                    "end": 196,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Tool Overview"
+        },
+        {
+            "text": "The prover is written in Rust and can be found in the language/moveprover directory in the Libra repository on GitHub [25]. 1 We describe the Boogie model and the specification language in more detail in the following sections.",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 125,
+                    "text": "1",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Tool Overview"
+        },
+        {
+            "text": "Boogie IVL is a simple imperative programming language that supports local and global variables, branching and loops, and procedures and procedure calls. Boogie is designed for verification, so it also supports pre-and post-conditions, loop invariants, and global axioms. Boogie programs are not executable; instead, they are provided as input to the Boogie verification system, which applies a verification strategy to generate verification conditions (as SMT formulas) [8] . If all of the verification conditions hold, then each procedure ensures its post-conditions, under the assumption that its pre-conditions hold. The variable types supported by Boogie IVL match the sorts supported by SMT solvers, e.g., Booleans, integers, arrays, bitvectors, and datatypes. This makes the translation of Boogie verification conditions into SMT formulas fairly transparent. Boogie is used as a back-end for a wide variety of verification tools. The general strategy is to model the semantics of a source language in Boogie. Then, programs and specifications in the source language can be translated into Boogie IVL and checked using the Boogie verification system. For more details about Boogie, we refer the reader to [1, 7, 23, 24] .",
+            "cite_spans": [
+                {
+                    "start": 471,
+                    "end": 474,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1211,
+                    "end": 1214,
+                    "text": "[1,",
+                    "ref_id": null
+                },
+                {
+                    "start": 1215,
+                    "end": 1217,
+                    "text": "7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1218,
+                    "end": 1221,
+                    "text": "23,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1222,
+                    "end": 1225,
+                    "text": "24]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Boogie Model"
+        },
+        {
+            "text": "Following this pattern, we built a Boogie model for Move bytecode programs. A few highlights of the model are shown in Fig. 3 and described below. For a detailed understanding of the model, we refer the reader to the full Boogie model, which can be found in the Libra repository at language/moveprover/src/prelude.bpl and to a formalization of the core Move bytecode language described in [13] .",
+            "cite_spans": [
+                {
+                    "start": 389,
+                    "end": 393,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 119,
+                    "end": 125,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Boogie Model"
+        },
+        {
+            "text": "As mentioned above, in Move, a data value is either a primitive value (e.g., Boolean, integer, address), a struct (i.e. a record) containing one or more data values, or a vector of data values. Data values are represented in Boogie as the Value datatype, with one constructor for each primitive type, plus a vector constructor (containing one field: a finite array of Value), used to model both vectors and structs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Boogie Model"
+        },
+        {
+            "text": "Because Move supports generic functions (i.e. type-parameterized functions), we define a similar Boogie datatype for types called TypeValue (not shown). A type-parameterized function can then be represented as a Boogie procedure whose initial arguments are of type TypeValue (for the type parameters) and whose data arguments are of type Value (regardless of their actual Move type). The bytecode verifier ensures type-correctness, so we do not check that types are used correctly, but rather assume this is the case (by using Boogie assume statements as needed).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Boogie Model"
+        },
+        {
+            "text": "The Value and ValueArray datatypes are mutually recursive, and thus a Value can be thought of as a finite tree. A primitive Value is a leaf node of the tree, while a struct or vector Value is an internal node. A position within the tree can be uniquely identified by a path, which is a sequence of integers. A path specifies a node of the tree by starting at the root node and then following children according to the indices in the path. We model paths as finite arrays (also shown in Fig. 3 ). This simplifies the specification that two trees are disjoint, which is a necessary precondition in some smart contract functions. A Value can be stored in either local or global state, and references to data in either are allowed as local variables. For simplicity and uniformity, we have a single memory object which is a map from Location to Value (because memory is a partial function, it also contains a map from Location to bool, which indicates whether a particular location is present in memory). A Location is either global (indexed by an account address and a type) or local (indexed by an integer). References are then represented as a pair consisting of a location and a path. To model reading from or writing to a reference, the global memory is accessed along the reference's path. Note that this is done by enumerating cases up to the maximum possible path depth (based on the data structures in the modules being verified). 2 Finally, each bytecode instruction is modeled as a procedure modifying local or global state in Boogie. A bytecode program is then translated to a sequence of procedure calls, with goto statements handling control-flow. ",
+            "cite_spans": [
+                {
+                    "start": 1436,
+                    "end": 1437,
+                    "text": "2",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 486,
+                    "end": 492,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Boogie Model"
+        },
+        {
+            "text": "The Move Prover has a basic specification language for individual functions. Specifications include classical Floyd-Hoare pre-conditions, post-conditions, and a new condition specifying when a function aborts. (We are expanding this functionality to include ghost variables and global invariants for modules.) These conditions are separated from the actual code, in \"spec blocks,\" which are linked by name to the structure or function being specified, or to the containing module. Specifications never affect the execution of a module. A simplified example based on verifying a real Libra module appears in Fig. 4 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 607,
+                    "end": 613,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Specifications"
+        },
+        {
+            "text": "Pre-conditions and post-conditions are standard. Pre-conditions are introduced by the reserved word requires and post-conditions are introduced by ensures, and each is followed by a Boolean expression, in a syntax that is very similar to Move, which includes the usual relational and arithmetic operators, record field access, etc. A sub-expression after ensures can be enclosed in old(...), causing the expression to be evaluated using the variable values in the program state immediately after entry to the function, instead of using the program state just before exit from the function. Move functions can return multiple values, so the expressions return_1, return_2, etc. represent those return values.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Specifications"
+        },
+        {
+            "text": "Formal verifiers for conventional programming languages treat run-time errors as bugs to be reported. However, as in most smart contract languages, performing an undefined operation in Move, such as division by zero, cancels the entire transaction with no effect on the state except the consumption of some currency to pay for the computational resources consumed by the code that was executed before the error occurred. In Libra, this event is called an abort. Aborts are not necessarily run-time errors in Move. They are the standard way to handle illegal transactions, such as trying to perform an operation that is not authorized by the sender of the transaction.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Specifications"
+        },
+        {
+            "text": "Instead of treating all possible abort conditions as bugs, the Move Prover allows the user to specify the conditions under which a function is expected to abort. This type of specification is introduced by the reserved word aborts_if, which is followed by the same kind of expressions that can appear after requires. When aborts_if P appears in the specification of a function, the Move Prover requires that the function aborts if and only if P holds. If multiple aborts_if conditions are specified, there is an error unless the function aborts if and only if the disjunction of all their conditions holds. (This current semantics of aborts_if is subject to change.)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Specifications"
+        },
+        {
+            "text": "There are two expressions that are specific to the Libra blockchain. The expression exists<M::T>(A) is true iff there is an instance of the type T from module M appearing under account A in the global state tree. In the example of Fig. 4 , the first post-condition asserts that the payee account exists after a payment transaction (the payee account might not exist before the payment, in which case it is created). The expression global<M::T>(A) represents the value of type T from module M stored at account A. In the example, this construct accesses the balance values of the sender (the payer), to make sure that the balance covers the payment, and to assert that the payer account balance has decreased by the payment amount if the payment is successful. A global Boolean variable $abort_flag is introduced and assumed to be false at the beginning of each procedure. The Boogie code for each instruction sets this flag to true for conditions that cause abort, such as undefined operations or failures of explicit Move assert statements.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 231,
+                    "end": 237,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Specifications"
+        },
+        {
+            "text": "The specification translator combines, using logical disjunction, the conditions of all aborts_if statements into a single expression (called condition here), which is translated into the Boogie specifications ensures condition ==> $abort_flag and ensures !condition ==> !$abort_flag.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Specifications"
+        },
+        {
+            "text": "In this section, we report on our experience using the Move Prover. We first demonstrate that it can successfully be used on core modules in the Libra codebase.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Verifying Core Modules. We wrote specifications for all of the functions (25/25) in the Libra module and most of the functions (34/38) in the LibraAccount module (4 functions use features that are not yet supported: non-linear arithmetic and referencing data in the spec that does not appear in the code). 3 These are core modules of the Libra system, and their correct execution is crucial. The Move Prover was able to prove all of these specifications in under a minute, as shown below. The modules with their specifications are available in the Move Prover source tree. 4 The Libra and LibraAccount modules comprise nearly 1300 lines (including specifications). The total size of the generated Boogie files is a little over 14,000 lines, and the generated SMT files are around 52,000 lines. Writing these specifications was quite natural, thanks to the tree-based memory model and to the support for type-generics. Experiments were run on a machine with an Intel Core i9 processor with 8 cores @2.4 GHz and 32 GB RAM, running macOS Catalina. Impact of Move Prover. The Move Prover is co-developed with the Move language itself (which is relatively stable) to ensure that contracts remain correct as the entire toolset evolves. The prover is used in continuous integration, and is beginning to be used to verify contracts in production. As of this writing, the Move Prover hasn't exposed any serious bugs. However, it has had an impact on how we understand code. An example is a function called pay_from_sender (a version with some specifications and comments omitted appears in Fig. 4 ). This function simply pays money from the account of the sender (who signed the transaction) to payee. In a previous version of the function, the Prover reported errors for two of the \"obvious\" specification properties shown. The first specification says that the function always aborts when paying zero Libra, because deposit aborts unless the amount is positive. However, in the earlier version, create_account handled the payment to deposit the amount in the account when the account did not yet exist, and that payment was allowed to be zero, violating the specification. The function was rewritten as it appears now, so that the same deposit code is called regardless of whether the payee account was newly created. The last specification says that the payer's account decreases by amount after a successful payment. This condition was violated when the payer and payee were the same, resulting in no decrease. Adding an assert (marked \"new!\" in the figure) to abort in that useless case makes the specification simpler.",
+            "cite_spans": [
+                {
+                    "start": 127,
+                    "end": 134,
+                    "text": "(34/38)",
+                    "ref_id": null
+                },
+                {
+                    "start": 306,
+                    "end": 307,
+                    "text": "3",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 573,
+                    "end": 574,
+                    "text": "4",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1581,
+                    "end": 1587,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "The only other formal verification framework for Move that we are aware of is described in [36] , where a high-level approach and some case studies are described, but no implementation details are provided. The closest work in the literature has been done in the context of verification of solidity smart contracts using Boogie. VERISOL [22] is one tool which formally verifies solidity smart contracts via a translation to Boogie. Its specification language is designed for the specific context of application policies, but general specifications can be given by using solidity assertions. SOLC-VERIFY [19, 20] also uses Boogie to perform formal verification for solidity. It includes an annotation-based specification language and supports a larger feature-set of solidity than VERISOL. Interestingly, the formalization of the solidity persistent memory model presented in [20] is similar to our tree-based memory model for Move, though they were developed independently. One novelty of our model in comparison to theirs is its ability to handle generic functions as discussed in Sect. 4 (generics are supported in Move but not in solidity). Both VERISOL and SOLC-VERIFY target contracts written in solidity, and not in the Ethereum bytecode. In contrast, the Move Prover operates on the Move bytecode.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 95,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 337,
+                    "end": 341,
+                    "text": "[22]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 603,
+                    "end": 607,
+                    "text": "[19,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 608,
+                    "end": 611,
+                    "text": "20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 875,
+                    "end": 879,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The solidity compiler itself includes a formal verification framework that works via a direct translation to SMT [2] . Several other tools have focused on specific vulnerability patterns, rather than user-defined specifications [16, 28, 34, 40] . Other theoretical foundations have also been employed for the verification of solidity smart contracts. These include the K framework [35] (see, e.g., [21] ), F* [29] (see, e.g., [11, 18] ), and proof assistants such as Coq [37] (see, e.g., [42, 43] ).",
+            "cite_spans": [
+                {
+                    "start": 113,
+                    "end": 116,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 228,
+                    "end": 232,
+                    "text": "[16,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 233,
+                    "end": 236,
+                    "text": "28,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 237,
+                    "end": 240,
+                    "text": "34,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 241,
+                    "end": 244,
+                    "text": "40]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 381,
+                    "end": 385,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 398,
+                    "end": 402,
+                    "text": "[21]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 409,
+                    "end": 413,
+                    "text": "[29]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 426,
+                    "end": 430,
+                    "text": "[11,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 431,
+                    "end": 434,
+                    "text": "18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 471,
+                    "end": 475,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 488,
+                    "end": 492,
+                    "text": "[42,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 493,
+                    "end": 496,
+                    "text": "43]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Formal verification of Rust [30] programs is also related to the Move Prover, as Move's type system has similar characteristics to Rust [30] . Prusti [4] is a tool that leverages Rust's type system information to verify Rust programs. It is based on a higher-level intermediate framework called Viper [33] (that internally uses Boogie in some scenarios). Other verification efforts for Rust employ a translation to LLVM and then leverage LLVM-based verification techniques (see, e.g., [6, 27, 39] ).",
+            "cite_spans": [
+                {
+                    "start": 28,
+                    "end": 32,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 136,
+                    "end": 140,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 150,
+                    "end": 153,
+                    "text": "[4]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 301,
+                    "end": 305,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 485,
+                    "end": 488,
+                    "text": "[6,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 489,
+                    "end": 492,
+                    "text": "27,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 493,
+                    "end": 496,
+                    "text": "39]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In this paper, we introduced the Move Prover, a formal verification tool designed to be an integral part of the process of smart contract development for the Libra platform. Though our initial experience with the Move Prover is positive, there are many avenues for future work that we plan to pursue.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "As Move continues to evolve, we expect that some constructs may be easier and more efficient to model by using custom SMT constructs. An example of this is the built-in vector type. Our current model requires the use of quantifiers to compare two vector objects. However, an SMT theory of sequences could be used to model vectors without needing to use quantifiers to define equality. We plan to investigate the use of richer (and possibly custom) SMT theories in our model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "The specifications we have written so far are local in the sense that they deal with only a single execution of a single Move function. However, some properties of the Libra blockchain are inherently global in nature, such as the fact that the total amount of currency should remain constant. We plan to investigate techniques for creating and checking such global specifications.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "The current Prover is still in a prototype phase. But the goal is for it to be a product that is usable by everyone who is writing contracts for the Libra platform. We expect that there will be many challenges in producing a userfriendly, industrial-strength tool, but we also look forward to a future where formal specification and verification is a routine part of the development process for Move modules on the Libra blockchain.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "SMT-based verification of solidity smart contracts",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Alt",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Reitwiessner",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "ISoLA 2018",
+            "volume": "11247",
+            "issn": "",
+            "pages": "376--388",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "The Libra Blockchain",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Amsden",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Leveraging rust types for modular specification and verification",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Astrauskas",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Poli",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Summers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "PACMPL",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A survey of attacks on ethereum smart contracts (SoK)",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Atzei",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bartoletti",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Cimoli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "POST 2017",
+            "volume": "10204",
+            "issn": "",
+            "pages": "164--186",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-662-54455-6_8"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Verifying rust programs with SMACK",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Baranowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Rakamari\u0107",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ATVA 2018",
+            "volume": "11138",
+            "issn": "",
+            "pages": "528--535",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-01090-4_32"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Boogie: a modular reusable verifier for object-oriented programs",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Barnett",
+                    "suffix": ""
+                },
+                {
+                    "first": "B.-Y",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Deline",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jacobs",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "R M"
+                    ],
+                    "last": "Leino",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "FMCO 2005",
+            "volume": "4111",
+            "issn": "",
+            "pages": "364--387",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/11804192_17"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Weakest-precondition of unstructured programs",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Barnett",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "R M"
+                    ],
+                    "last": "Leino",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 6th ACM SIGPLAN-SIGSOFT Workshop on Program Analysis for Software Tools and Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "82--87",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1108792.1108813"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "CAV 2011",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "6806",
+            "issn": "",
+            "pages": "171--177",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-22110-1_14"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "The SMT-LIB standard: version 2.0",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Stump",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tinelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of the 8th International Workshop on Satisfiability Modulo Theories",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Formal verification of smart contracts: short paper",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Bhargavan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "91--96",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Move: A language with programmable resources",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Blackshear",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Resources: A safe language abstraction for money",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Blackshear",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Critical update re DAO",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Buterin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "A survey on Ethereum systems security: vulnerabilities, attacks and defenses",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pendleton",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Njilla",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "ConsenSys: Mythril Classic: Security analysis tool for Ethereum smart contracts",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Linear logic",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Girard",
+                    "suffix": ""
+                }
+            ],
+            "year": 1987,
+            "venue": "Theor. Comput. Sci",
+            "volume": "50",
+            "issn": "1",
+            "pages": "1--101",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "A semantic framework for the security analysis of Ethereum smart contracts",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Grishchenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Maffei",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Schneidewind",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "POST 2018",
+            "volume": "10804",
+            "issn": "",
+            "pages": "243--269",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-89722-6_10"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "solc-verify: A modular verifier for solidity smart contracts",
+            "authors": [
+                {
+                    "first": "\u00c1",
+                    "middle": [],
+                    "last": "Hajdu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Jovanovic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "SMT-friendly formalization of the solidity memory model",
+            "authors": [
+                {
+                    "first": "\u00c1",
+                    "middle": [],
+                    "last": "Hajdu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Jovanovi\u0107",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ESOP 2020",
+            "volume": "12075",
+            "issn": "",
+            "pages": "224--250",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "KEVM: a complete formal semantics of the Ethereum virtual machine",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Hildenbrandt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CSF",
+            "volume": "",
+            "issn": "",
+            "pages": "204--217",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Formal specification and verification of smart contracts for azure blockchain",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Lahiri",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Dillig",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "This is boogie",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "R M"
+                    ],
+                    "last": "Leino",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A polymorphic intermediate verification language: design and logical encoding",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "R M"
+                    ],
+                    "last": "Leino",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "R\u00fcmmer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "TACAS 2010",
+            "volume": "6015",
+            "issn": "",
+            "pages": "312--327",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-12002-2_26"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "The Java Virtual Machine Specification",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Lindholm",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Yellin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "No panic! verification of rust programs by symbolic execution",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lindner",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Aparicius",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lindgren",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "108--114",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Making smart contracts smarter",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Luu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Olickel",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Saxena",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hobor",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ACM Conference on Computer and Communications Security",
+            "volume": "",
+            "issn": "",
+            "pages": "254--269",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Dijkstra monads for all",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Maillard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "24th ACM SIGPLAN International Conference on Functional Programming (ICFP)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "The rust language",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Matsakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Klock",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Ada Lett",
+            "volume": "34",
+            "issn": "3",
+            "pages": "103--104",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2692956.2663188"
+                ]
+            }
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Technical overview of the common language runtime",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Meijer",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wa",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gough",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Z3: an efficient SMT solver",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "De Moura",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Bj\u00f8rner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "TACAS 2008",
+            "volume": "4963",
+            "issn": "",
+            "pages": "337--340",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-78800-3_24"
+                ]
+            }
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Viper: a verification infrastructure for permission-based reasoning",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schwerhoff",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Summers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Dependable Software Systems Engineering, NATO Science for Peace and Security Series -D: Information and Communication Security",
+            "volume": "50",
+            "issn": "",
+            "pages": "104--125",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Finding the greedy, prodigal, and suicidal contracts at scale",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Nikolic",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kolluri",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sergey",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Saxena",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hobor",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "653--663",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "An overview of the K semantic framework",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Rosu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Serbanuta",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "J. Log. Algebr. Program",
+            "volume": "79",
+            "issn": "6",
+            "pages": "397--434",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Synthetic Minds Blog: Verifying smart contracts in the move language",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "The Coq development team: The coq proof assistant reference manual version",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "The Libra Association: An Introduction to Libra",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Crust: a bounded verifier for rust (N)",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Toman",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pernsteiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Torlak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "75--80",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Securify: practical security analysis of smart contracts",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Tsankov",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Dan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Drachsler-Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gervais",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "B\u00fcnzli",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Vechev",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ACM Conference on Computer and Communications Security",
+            "volume": "",
+            "issn": "",
+            "pages": "67--82",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Ethereum: a secure decentralised generalised transaction ledger",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Wood",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Formal process virtual machine for smart contracts verification",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Fether: an extensible definitional interpreter for smart-contract verifications in Coq",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE Access",
+            "volume": "7",
+            "issn": "",
+            "pages": "37770--37791",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "The Move Prover architecture.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Highlights of the Boogie model for the Move Prover. The type {:datatype} syntax is used to declare a new datatype, and the function {:constructor} syntax is used to declare datatype constructors with their selectors. An array indexed by type T containing elements of type V is denoted in Boogie as [T]V.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "A simplified version of an example where verification led to an insight about a function. Without the assert marked \"new,\" the specification fails to hold if payee and sender are the same, as explained in Sect. 6.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Translation. Specifications are translated into requires and ensures statements in Boogie and combined with the prelude (the Boogie model, see Sect. 4) and the translated Move bytecode for the program.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Present a brief overview of Move and explain the language design decisions that facilitate verification (Sect. 2); 2. Describe how the Move Prover toolchain is implemented (Sect. 3); 3. Explain the model used to represent Move programs (Sect. 4); 4. Define the Move specification language and give examples of useful properties it can encode (Sect. 5); and 5. Demonstrate that the Move Prover can verify important aspects of the Libra core modules (Sect. 6).Move[12] is an executable bytecode language for writing smart contracts and custom transaction logic. Contracts in Move are written as modules that contain record types and procedures. Records in modules may either be struct or resource types-the most novel feature of Move. A resource type has linear[17] semantics, meaning that resources cannot be created, copied, or destroyed except byFig. 1. A Move module with its bytecode representation in comments.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "type {:datatype} Value ; function {:constructor} Boolean ( b : bool) : Value ; function {:constructor} I n t e g e r ( i : int) : Value ; function {:constructor} Address ( a : int) : Value ; function {:constructor} Vector ( v : ValueArray ) : Value ; type {:datatype} ValueArray ; function {:constructor} ValueArray ( v : [int] Value , l : int) : ValueArray ; type {:datatype} Path ; function {:constructor} Path ( p : [int]int, size : int) : Path ; type {:datatype} Location ; function {:constructor} Global ( t : TypeValue , a : int) : Location ; function {:constructor} Local ( i : int) : Location ; type {:datatype} Reference ; function {:constructor} Reference ( l : Location , p : Path ) : Reference ; type {:datatype} Memory ; function {:constructor} Memory( domain : [ Location ]bool, contents : [ Location ] Value ) : Memory; var $m : Memory ;",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Move Module LoC Boogie LoC SMT LoC Functions Verified Runtime",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

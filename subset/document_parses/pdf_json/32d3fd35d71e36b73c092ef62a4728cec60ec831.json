@@ -1,0 +1,2131 @@
+{
+    "paper_id": "32d3fd35d71e36b73c092ef62a4728cec60ec831",
+    "metadata": {
+        "title": "Federated Semi-supervised Medical Image Classification via Inter-client Relation Matching",
+        "authors": [
+            {
+                "first": "Quande",
+                "middle": [],
+                "last": "Liu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The Chinese University of Hong Kong",
+                    "location": {
+                        "settlement": "Hong Kong SAR",
+                        "country": "China"
+                    }
+                },
+                "email": "qdliu@cse.cuhk.edu.hk"
+            },
+            {
+                "first": "Hongzheng",
+                "middle": [],
+                "last": "Yang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Beihang University",
+                    "location": {
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Qi",
+                "middle": [],
+                "last": "Dou",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The Chinese University of Hong Kong",
+                    "location": {
+                        "settlement": "Hong Kong SAR",
+                        "country": "China"
+                    }
+                },
+                "email": "qdou@cse.cuhk.edu.hk"
+            },
+            {
+                "first": "Pheng-Ann",
+                "middle": [],
+                "last": "Heng",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The Chinese University of Hong Kong",
+                    "location": {
+                        "settlement": "Hong Kong SAR",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Federated learning (FL) has emerged with increasing popularity to collaborate distributed medical institutions for training deep networks. However, despite existing FL algorithms only allow the supervised training setting, most hospitals in realistic usually cannot afford the intricate data labeling due to absence of budget or expertise. This paper studies a practical yet challenging FL problem, named Federated Semi-supervised Learning (FSSL), which aims to learn a federated model by jointly utilizing the data from both labeled and unlabeled clients (i.e., hospitals). We present a novel approach for this problem, which improves over traditional consistency regularization mechanism with a new inter-client relation matching scheme. The proposed learning scheme explicitly connects the learning across labeled and unlabeled clients by aligning their extracted disease relationships, thereby mitigating the deficiency of task knowledge at unlabeled clients and promoting discriminative information from unlabeled samples. We validate our method on two large-scale medical image classification datasets. The effectiveness of our method has been demonstrated with the clear improvements over state-of-the-arts as well as the thorough ablation analysis on both tasks 4 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Data collaboration across medical institutions is increasingly desired to mitigate the scarcity and distribution bias of medical images, thereby improving the model performance on important tasks such as disease diagnosis [6, 27] . Recently, federated learning (FL) has emerged as a privacy-preserving solution for this, which allows to learn from distributed data sources by aggregating the locally learned model parameters without exchanging the sensitive health data [8, 12, 14, 16, 23] . However, despite progress achieved, existing FL algorithms typically only allow the supervised training setting [3, 13, 15, 24, 26] , which has limited the local clients (i.e., hospitals) without data annotations to join the FL process. Yet, in realistic scenarios, most hospitals usually cannot afford the intricate data labeling due to lack of budget or expertise [22] . How to utilize these widely-existing unlabeled datasets to further improve the FL models is still an open question to be solved.",
+            "cite_spans": [
+                {
+                    "start": 222,
+                    "end": 225,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 226,
+                    "end": 229,
+                    "text": "27]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 470,
+                    "end": 473,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 474,
+                    "end": 477,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 478,
+                    "end": 481,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 482,
+                    "end": 485,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 486,
+                    "end": 489,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 604,
+                    "end": 607,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 608,
+                    "end": 611,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 612,
+                    "end": 615,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 616,
+                    "end": 619,
+                    "text": "24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 620,
+                    "end": 623,
+                    "text": "26]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 858,
+                    "end": 862,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To this end, we study a practical FL problem which involves only several labeled clients while most of the participanting clients are unlabeled, namely federated semi-supervised learning (FSSL). This is also noted by Yang et al. [30] very recently in COVID-19 lesion segmentation, which halts in an extremely simple case containing only one labeled and one unlabeled client. In contrast to their work, we for the first time broaden this problem to a more practical yet complex scenario in which multiple distributed labeled and unlabeled clients are involved. To address this problem, a naive solution is to simply integrate the off-the-rack semi-supervised learning (SSL) methods onto the federated learning paradigm. However, previous SSL methods are typically designed for centralized training setting [2, 10, 17, 29] , which rely heavily on the assumption that the labeled data is accessible to provide necessary assistance for the learning from unlabeled data [1, 4] . In consistency-based methods [5, 31] , for instance, the regularization of perturbation-invariant model predictions needs the synchronous labeled data supervision, in order to obtain the necessary task knowledge to produce reliable model predictions for unlabeled data where the consistency regularization is imposed on. Unfortunately, such close assistance from labeled data is lost in FSSL scenario, where the local dataset could be completely unlabeled. This will make the local model aloof from original task as the consistency-based training goes on, hence fail to fully exploit the knowledge at unlabeled clients.",
+            "cite_spans": [
+                {
+                    "start": 229,
+                    "end": 233,
+                    "text": "[30]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 805,
+                    "end": 808,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 809,
+                    "end": 812,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 813,
+                    "end": 816,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 817,
+                    "end": 820,
+                    "text": "29]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 965,
+                    "end": 968,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 969,
+                    "end": 971,
+                    "text": "4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1003,
+                    "end": 1006,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1007,
+                    "end": 1010,
+                    "text": "31]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Based on the above issues, compared with traditional SSL problem, the main challenge in FSSL lies in how to build the interaction between the learning at labeled and unlabeled clients, given the challenging constraint of data decentralization. In this work, our insight is to communicate their knowledge inherent in disease relationships to achieve this goal. The idea is motivated by an observation that the relationships exist naturally among different categories of disease and reflect the structural task knowledge in the context of medical image classification, as evidenced by disease similarity measure [18, 20] . More importantly, such disease relationships are independent of the observed hospitals, i.e., similar disease at one hospital should also be high-related at others. We may consider extracting such client-invariant disease relation information from labeled clients to supervise the learning at unlabeled clients, thereby mitigating the loss of task knowledge at unlabeled clients and effectively exploiting the unlabeled samples.",
+            "cite_spans": [
+                {
+                    "start": 610,
+                    "end": 614,
+                    "text": "[18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 615,
+                    "end": 618,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we present to our knowledge the first FSSL framework for medical image classification, by exploring the client-independent disease relation information to facilitate the learning at unlabeled clients. Our method roots in the state-of-the-art consistency regularization mechanism, which enforces the prediction consistency under different input perturbations to exploit the unlabeled data. To address the loss of task knowledge at unlabeled clients which would lead to degenerated learning, we introduce a novel Inter-client Relation Matching scheme, by explicitly regularizing the unlabeled clients to capture similar disease relationships as labeled clients for preserving the discriminative task knowledge.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To this end, we propose to derive the disease relation matrix at labeled clients from pre-softmax features, and devise an uncertainty-based scheme to estimate reliable relation matrix at unlabeled clients by filtering out inaccurate pseudo labels. We validate our method on two large-scare medical image classification datasets, including intracranial hemorrhage diagnosis with 25000 CT slices and skin lesion diagnosis with 10015 dermoscopy images. Our method achieves large improvements by utilizing the unlabeled clients, and clearly outperforms the combination of federated learning with state-of-the-art SSL methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In FSSL scenario, we denote D L = {D 1 , D 2 , . . . , D m } be the collection of m labeled clients, where each labeled client l contains N l data and one-hot label pairs",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": ". . , D m+n } be the n unlabeled clients, with each unlabeled client u containing N u data samples",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "The goal of FSSL is to learn a global federated model f \u03b8 jointly utilizing the data from both labeled and unlabeled clients. Fig. 1 gives an overview of our proposed FSSL solution, i.e. FedIRM, in comparison with the naive FSSL solution.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 126,
+                    "end": 132,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Method"
+        },
+        {
+            "text": "Our method follows standard FL paradigm which involves the communication between a central server and local clients. Specifically, in each federated round, every client k will receive the same global model parameters \u03b8 from the central server, and update the model with local learning objective L k for e epochs on its private data D k . The central server then collects the local model parameters \u03b8 k from all clients and aggregate them to update the global model. Such process repeats until the global model converges stably. In this work, we adopt the wellestablished federated averaging algorithm [19] (FedAvg) to update the global model, by aggregating the local model parameters with weights in proportional to the size of each local dataset, i.e., \u03b8 =",
+            "cite_spans": [
+                {
+                    "start": 601,
+                    "end": 605,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Backbone Federated Semi-supervised Learning Framework"
+        },
+        {
+            "text": "In our FSSL solution, the local learning objective at labeled clients adopts the cross entropy loss for capturing the discriminative task knowledge. At unlabeled clients, we preserve the state-of-the-art consistency regularization mechanism, which exploits the unlabeled data in an unsupervised manner by enforcing the consistency of model predictions under input perturbations. Formally, this learning objective at each unlabeled client u could be expressed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Backbone Federated Semi-supervised Learning Framework"
+        },
+        {
+            "text": "where \u03be and \u03be denote different input perturbations (e.g., adding Gaussian noise). Fig. 1 . (a) Naive FSSL solution simply performs unsupervised learning (e.g. consistency regularization) at unlabeled clients, hence the local model is prone to forget the original task knowledge as the training goes on. (b) Our FedIRM explicitly utilizes the knowledge from labeled clients to assist the learning at unlabeled clients by aligning their extracted disease relationships, thereby mitigating the loss of task knowledge at unlabeled clients and promoting discriminative information from unlabeled data.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 82,
+                    "end": 88,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Backbone Federated Semi-supervised Learning Framework"
+        },
+        {
+            "text": "Without the assistance from labeled data supervision, the local learning at unlabeled clients solely with consistency regularization is prone to forget the original task knowledge, therefore failing to fully exploit the information from unlabeled samples. To tackle this problem, we introduce a novel inter-client relation matching (IRM) scheme, which explicitly extracts the knowledge from labeled clients to assist the learning at unlabeled clients, by exploiting the rich information inherent in disease relationships. Specifically, the relationships exist naturally across different categories of disease and reflect structural task knowledge in medical image classification, independent of the changes of observed hospitals.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "In light of this, we aim to enforce the alignment of such disease relations across labeled and unlabeled clients, thereby promoting the learning of discriminative information at unlabeled clients for preserving such structural task knowledge.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "Disease Relation Estimation at Labeled Clients. Inspired by knowledge distillation from deep networks, we estimate the disease relationships from the class ambiguity captured by deep models, i.e., per-class soft labels, and enforce them to be consistent between labeled and unlabeled clients. Formally, we first consider the relation estimation at labeled clients. For each labeled client D l , we summarize the model's knowledge on each class c by computing per-category mean feature vectors v l c \u2208 R C (with C denoting total class number):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "where N l c is the number of samples with class c at labeled client D l ; 1 [\u00b7] denotes the indicator function,f denotes the model without last softmax layer. The obtained v l c is then scaled to a soft label distribution, with a softened softmax function under temperature \u03c4 > 1 [7] :",
+            "cite_spans": [
+                {
+                    "start": 280,
+                    "end": 283,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "This distilled knowledge of soft label s l c conveys how the network predictions of samples on certain class generally distribute across all classes, reflecting the relationships across different classes captured by the deep model. Consequently, the collection of soft labels from all classes could form a soft confusion matrix M l = [s l 1 , . . . , s l C ], which encodes the inter-class relationships among different categories of disease hence serve as the disease relation matrix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "Reliable Disease Relation Estimation at Unlabeled Clients. Since the data annotations are unavailable at unlabeled clients, we utilize the pseudo labels generated from model predictions to estimate the disease relation matrix. However, without sufficient task knowledge provided at unlabeled clients, the model predictions on unlabeled data could be noisy and inaccurate. We therefore employ an uncertainty-based scheme to filter out the unreliable model predictions, and only preserve the trustworthy ones to measure the reliable relation matrix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "Specifically, we take the local training at unlabeled client D u for instance. Given an input mini-batch x u of B image, we denote p u as the corresponding predicted probability and y u as the pseudo labels, i.e., y u = argmax(p u ). Following the literature on uncertainty estimation, we approximate the uncertainty of model predictions with dropout of Bayesian networks [9] . Concretely, we perform T -time forward propagation for the input mini-batch x u under random dropout, obtaining a set of predicted probability vectors {q u t } T t=1 . The uncertainty w u is then estimated as the predictive entropy, which is computed from the averaged probability from the T -time forward passes as:",
+            "cite_spans": [
+                {
+                    "start": 372,
+                    "end": 375,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "where q u t(c) is the value of the c-th class of q u t . Since the predictive entropy has a fixed range, we can filter out the relatively unreliable predictions and only select the certain ones to compute the disease relation matrix. Hence, the per-category mean feature vectors v u c (c.f. Eq. 2) at unlabeled clients are computed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "where h is the threshold to select the certain predictions from w u . Then, following the same operation as Eq. 3, the disease relation matrix at unlabeled client u is estimated as M u = [s u 1 , s u 2 , . . . , s u C ].",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Relation Estimation at Labeled and Unlabeled Clients"
+        },
+        {
+            "text": "With the above basis, we aim to enforce the unlabeled clients to produce similar disease relationships as labeled clients to preserve such discriminative task knowledge. Specifically, at the end of each federated round, the central server collects the relation matrix M l from each labeled client, and average them to compute a matrix representing the general disease relation information captured from all labeled data, i.e., M = 1 m m l=1 M l . This obtained M is then delivered to unlabeled clients to supervise their next round of local training. To establish the supervision online, the relation matrix at unlabeled clients M u is estimated from each mini-batch during training. Finally, the inter-client relation matching loss is designed by minimizing the KL divergence between M and M u as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Objective of Inter-client Relation Matching"
+        },
+        {
+            "text": "where M c \u2208 R C denote the relation vector of class c, i.e., M c = s c ; and M c(j) denote its j-th entry. Overall, the local learning objectives at labeled (L l ) and unlabeled (L u ) clients are respectively expressed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Objective of Inter-client Relation Matching"
+        },
+        {
+            "text": "where L ce is the cross entropy loss; L c is the traditional consistency regularization loss (c.f. Eq. 1); \u03bb(\u03c9) is a warming up function regarding federated round \u03c9, which helps to reduce the effect of the learning at unlabeled clients when the model is underfitting at earlier federated rounds.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Objective of Inter-client Relation Matching"
+        },
+        {
+            "text": "We validate our method on two important medical image classification tasks, including: intracranial hemorrhage (ICH) diagnosis from brain CT and skin lesion classification from dermoscopy images. Task 1 -Intracranial hemorrhage diagnosis. We perform ICH diagnosis with the RSNA ICH Detection dataset [25] , which aims to classify CT slices into 5 subtypes of ICH disease. Since most images in this dataset are healthy without any of the subtypes, we randomly sample 25000 slices from the dataset which contain one of the 5 subtypes of ICH for evaluation. These samples are then randomly divided into 70%, 10% and 20% for training, validation and testing. Since multiple slices may come from the same patient in this dataset, we have ensured no overlapped patients exist across the three split for a valid evaluation.",
+            "cite_spans": [
+                {
+                    "start": 300,
+                    "end": 304,
+                    "text": "[25]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dataset and Experimental Setup"
+        },
+        {
+            "text": "Task 2 -Skin lesion diagnosis. We employ ISIC 2018: Skin Lesion Analysis Towards Melanoma Detection [21] dataset for skin lesion diagnosis, which contains 10015 dermoscopy images in the official training set labeled by 7 types of skin lesions. As the ground truth of official validation and testing set was not released, we randomly divide the entire training set to 70% for training, 10% for validation and 20% for testing. We perform the same data pre-processing for the two tasks. Specifically, we first resized the original images from 512 \u00d7 512 to 224 \u00d7 224. To employ the pre-trained model, we then normalized the images with statistic collected from ImageNet dataset before feeding them into the network.",
+            "cite_spans": [
+                {
+                    "start": 100,
+                    "end": 104,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dataset and Experimental Setup"
+        },
+        {
+            "text": "Experiment Setup. To simulate the FL setting, we randomly partition the training set into 10 different subsets serving as 10 local clients. Following the practice in SSL [28] , we evaluate the model performance under 20% labeled data setting, i.e., two clients are labeled and the remaining eight are unlabeled in our case. Five metrics are used to extensively evaluate the classification performance, including AUC, Sensitivity, Specificity, Accuracy and F1 score. We report the results in form of average and standard deviation over three independent runs.",
+            "cite_spans": [
+                {
+                    "start": 170,
+                    "end": 174,
+                    "text": "[28]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dataset and Experimental Setup"
+        },
+        {
+            "text": "Implementation Details. We employ DenseNet121 [11] as the backbone for medical image classification. Two types of perturbations are utilized to drive the consistency regularization, including random transformation on input data (rotation, translation and flip) and dropout layer in the network. The temperature parameter \u03c4 is empirically set as 2.0. The forward pass time T used to compute uncertainty is set as 8, and the threshold h to select reliable predictions is set as ln2. We follow [28] to apply a Gaussian warming up function \u03bb(\u03c9) = 1 * e (\u22125(1\u2212\u03c9/\u2126)) , where \u2126 is set as 30. The local training adopts Adam optimizer with momentum of 0.9 and 0.99, and the batch size is 48 for both labeled and unlabeled clients. We totally train 100 federated rounds when the global model has converged stably, with the local training epoch e set as 1.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 491,
+                    "end": 495,
+                    "text": "[28]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dataset and Experimental Setup"
+        },
+        {
+            "text": "We compare with recent FSSL methods, including Fed-SelfTraining [32] , which performs self training at unlabeled clients by iteratively updating the model parameters and the pseduo labels of unlabeled data with expectation maximization; and Fed-Consistency [30] , which employs the state-of-the-art SSL strategy, i.e., consistency regularization, to exploit the data at unlabeled clients (without inter-client relation matching compared with our method). We also compare with the FedAvg [19] model trained only with labeled clients or with all clients as labeled, which serve as the baseline and upperbound performance in FSSL.",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 68,
+                    "text": "[32]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 257,
+                    "end": 261,
+                    "text": "[30]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Comparison with State-of-the-arts."
+        },
+        {
+            "text": "The results on the two tasks are listed in Table 1 . As observed, both Fed-SelfTraining and Fed-Consistency performs better than the baseline FedAvg model, which reflects the benefit to integrate the knowledge from additional unlabeled clients to improve FL models. Notably, compared with these methods, our FedIRM achieves higher performance on nearly all metrics, with 2.73% Model performance under different labeled client number setting, using our approach and FedAvg (task 1); (c) Model performance as the number of unlabeled client increases (with labeled client number fixed), using our approach and Fed-Consistency (task 1). and 1.33% AUC improvements on the two tasks over Fed-Consistency which does not employ our inter-client relation matching scheme. These clear improvements benefit from our FedIRM scheme which explicitly harnesses the discriminative relation information learned from labeled clients to facilitate the learning at unlabeled clients. Without the supervision from L IRM , the local training simply from consistency regularization is prone to forget the original task information, hence fail to fully exploit the discriminative information from unlabeled data.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 43,
+                    "end": 50,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Comparison with State-of-the-arts."
+        },
+        {
+            "text": "Learning behavior under Inter-client Relation Matching. Fig. 2 (a) displays the disease relation matrix of labeled (first col.) and unlabeled clients (second col.) under our method, as well as their absolute difference under our method with (third col.) and without L IRM (i.e., Fed-Consistency, forth col.), at different federated rounds. As observed, the relationships between disease at labeled clients become increasingly clear as the federated training goes on, indicating that the model gradually captures such structural knowledge. Notably, the unlabeled clients in our method can well preserve such disease relationships, with highly consistent matrix patterns as labeled clients and low responses in the difference matrix. In contrast, the method without L IRM (i.e., Fed-Consistency) fails to do so and the responses in difference matrix are relatively high. This observation affirms the benefit to transfer such discriminative knowledge to facilitate the learning at unlabeled clients and also explains our performance gains.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 56,
+                    "end": 62,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Analytical Studies of Our Method"
+        },
+        {
+            "text": "Effectiveness under different labeled client number. We investigate the impact of different labeled client number in our method. As shown in the curve of Fig. 2(b) , our method shows consistent improvements over the supervised-only FedAvg model under labeled client number from 1 to 4 (corresponds 10% to 40% labeled data setting in SSL). Importantly, using only 40% labeled client, our method achieves 89.21% AUC, which is very close to the upper-bound FedAvg model trained with 10 labeled clients (90.48%). This endorses the capability of our method to leverage the data from unlabeled clients for improving FL models.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 154,
+                    "end": 163,
+                    "text": "Fig. 2(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Analytical Studies of Our Method"
+        },
+        {
+            "text": "Effect of adding more unlabeled clients. We finally analyze the effect of unlabeled client number on the performance of our FSSL method and Fed-Consistency, by fixing the labeled client number as 2 and gradually increasing the unlabeled client number in [1, 2, 4, 8] . As shown in Fig. 2(c) , an interesting finding is the FSSL performance progresses as the unlabeled client number increases, indicating the potential in realistic scenarios to aggregate more widely-existing unlabeled clients to improve the FL models. Notably, our method consistently outperforms the Fed-Consistency method under different unlabeled client number, highlighting the stable capacity of our proposed FSSL learning scheme.",
+            "cite_spans": [
+                {
+                    "start": 254,
+                    "end": 257,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 258,
+                    "end": 260,
+                    "text": "2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 261,
+                    "end": 263,
+                    "text": "4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 264,
+                    "end": 266,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 281,
+                    "end": 290,
+                    "text": "Fig. 2(c)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Analytical Studies of Our Method"
+        },
+        {
+            "text": "We present a new FSSL framework, which to our knowledge is the first method incorporating unlabeled clients to improve FL models for medical image classification. To address the deficiency of consistency regularization in FSSL, our method includes a novel inter-client relation matching scheme to explicitly utilize the knowledge of labeled clients to assist the learning at unlabeled clients. Experiments on two large-scare datasets demonstrate the effectiveness. Our method is extendable to non-IID scenario in FSSL setting, as the employed disease relations are independent of the observed clients and unaffected by image distributions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Graphx net \u2212 chest x-ray classification under extreme minimal supervision",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Aviles-Rivero",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Papadakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sellars",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Tan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sch\u00f6nlieb",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Medical Image Computing and Comput.-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "504--512",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Semi-supervised learning for networkbased cardiac mr image segmentation",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Bai",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Oktay",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sinclair",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Suzuki",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rajchl",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tarroni",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Glocker",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "King",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Matthews",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rueckert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "253--260",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Synthetic learning: Learn from distributed asynchronized discriminator gan without sharing medical image data",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sabuncu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Metaxas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "13856--13866",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Not-so-supervised: a survey of semisupervised, multi-instance, and transfer learning in medical image analysis",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Cheplygina",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Bruijne",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Pluim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Medical image analysis",
+            "volume": "54",
+            "issn": "",
+            "pages": "280--296",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Semi-supervised brain lesion segmentation with an adapted mean teacher model",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Inf. Process. Med. Imaging",
+            "volume": "",
+            "issn": "",
+            "pages": "554--565",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Aggregating multiple real-world data sources using a patient-centered health-data-sharing platform",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Dhruva",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Ross",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Akar",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Caldwell",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Childers",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Chow",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ciaccio",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Coplan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Dykhoff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "NPJ digital medicine",
+            "volume": "3",
+            "issn": "1",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Unpaired multi-modal segmentation via knowledge distillation",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Dou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Heng",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Glocker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE transactions on medical imaging",
+            "volume": "39",
+            "issn": "7",
+            "pages": "2415--2425",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Federated deep learning for detecting covid-19 lung abnormalities in ct: a privacy-preserving multinational validation study",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Dou",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "So",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Vardhanabhuti",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kaissis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Si",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "NPJ digital medicine",
+            "volume": "4",
+            "issn": "1",
+            "pages": "1--11",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Dropout as a bayesian approximation: Representing model uncertainty in deep learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ghahramani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "international conference on machine learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1050--1059",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Semi-supervised medical image classification with global latent mixing",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Gyawali",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghimire",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bajracharya",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "604--613",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Densely connected convolutional networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Der Maaten",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "4700--4708",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Secure, privacypreserving and federated machine learning in medical imaging",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Kaissis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Makowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "R\u00fcckert",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Braren",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nature Machine Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "1--7",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Federated simulation for medical imaging",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kar",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ravikumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Frangi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Fidler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "159--168",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Privacy-preserving federated brain tumour segmentation",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Milletar\u00ec",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Rieke",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hancox",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Baust",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ourselin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Cardoso",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Workshop on Machine Learning in Medical Imaging",
+            "volume": "",
+            "issn": "",
+            "pages": "133--141",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Multi-site fmri analysis using privacy-preserving federated learning and domain adaptation: Abide results",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gu",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Dvornek",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Staib",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ventola",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Duncan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Medical Image Analysis",
+            "volume": "65",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Feddg: Federated domain generalization on medical image segmentation via episodic learning in continuous frequency space",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Qin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Dou",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Heng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Semi-supervised medical image classification with relation-driven self-ensembling model",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Dou",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Heng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Transactions on Medical Imaging",
+            "volume": "39",
+            "issn": "11",
+            "pages": "3429--3440",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Finding disease similarity based on implicit semantic similarity",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mathur",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dinakarpandian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Journal of biomedical informatics",
+            "volume": "45",
+            "issn": "2",
+            "pages": "363--371",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Communication-efficient learning of deep networks from decentralized data",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Moore",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramage",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hampson",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Arcas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Artificial Intelligence and Statistics",
+            "volume": "",
+            "issn": "",
+            "pages": "1273--1282",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Understanding and predicting disease relationships through similarity fusion",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Oerton",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Lewis",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Guilliams",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bender",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Bioinformatics",
+            "volume": "35",
+            "issn": "7",
+            "pages": "1213--1220",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "The ham10000 dataset, a large collection of multi-source dermatoscopic images of common pigmented skin lesions",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Tschandl",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Rosendahl",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Scientific Data",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Deep learning for medical image processing: Overview, challenges and the future",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Razzak",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Naz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zaib",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Classification in BioApps",
+            "volume": "",
+            "issn": "",
+            "pages": "323--350",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "The future of digital health with federated learning",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Rieke",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hancox",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Milletari",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Roth",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Albarqouni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bakas",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Galtier",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Landman",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Maier-Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "NPJ digital medicine",
+            "volume": "3",
+            "issn": "1",
+            "pages": "1--7",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Federated learning for breast density classification: A real-world implementation",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Roth",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Neumark",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ihsani",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Bizzo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Domain Adaptation and Representation Transfer, and Distributed and Collaborative Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Multi-institutional deep learning modeling without sharing patient data: A feasibility study on brain tumor segmentation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Sheller",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Reina",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Edwards",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Martin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bakas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Brainlesion Workshop, MICCAI",
+            "volume": "",
+            "issn": "",
+            "pages": "92--104",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Federated learning in distributed medical databases: Meta-analysis of large-scale subcortical brain data",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Silva",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Gutman",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Romero",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Thompson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Altmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lorenzi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "270--274",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Mean teachers are better role models: Weight-averaged consistency targets improve semi-supervised deep learning results",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tarvainen",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Adv. Neural Inf. Process. Syst",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Focalmix: Semi-supervised learning for 3d medical image detection",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3951--3960",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Federated semi-supervised learning for covid region segmentation in chest ct using multi-national data from china, italy, japan",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Myronenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Roth",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Harmon",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Turkbey",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Turkbey",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Uncertainty-aware self-ensembling model for semi-supervised 3d left atrium segmentation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Heng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Medical Image Computing and Comput.-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "605--613",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Benchmarking semi-supervised federated learning",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Gonzalez",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Mahoney",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2008.11364"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Ablation analysis. (a) Disease relation matrix at labeled and unlabeled clients under our method, as well as their absolute difference with or without LIRM (task 2); (b)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Quantitative comparisons with state-of-the-arts on two different tasks.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The work described in this paper was supported in parts by the following grants: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

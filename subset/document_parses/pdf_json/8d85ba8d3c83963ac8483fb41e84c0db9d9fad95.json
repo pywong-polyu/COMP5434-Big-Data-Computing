@@ -1,0 +1,1141 @@
+{
+    "paper_id": "8d85ba8d3c83963ac8483fb41e84c0db9d9fad95",
+    "metadata": {
+        "title": "Federated Learning in Named Entity Recognition",
+        "authors": [
+            {
+                "first": "Efim",
+                "middle": [],
+                "last": "Luboshnikov",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "HSE University",
+                    "location": {
+                        "settlement": "Moscow",
+                        "country": "Russia"
+                    }
+                },
+                "email": "ealuboshnikov@edu.hse.ru"
+            },
+            {
+                "first": "(",
+                "middle": [
+                    "B"
+                ],
+                "last": "",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Ilya",
+                "middle": [],
+                "last": "Makarov",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "HSE University",
+                    "location": {
+                        "settlement": "Moscow",
+                        "country": "Russia"
+                    }
+                },
+                "email": "iamakarov@hse.ru"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "This article is devoted to the implementation of the federated approach to named entity recognition. The novel federated approach is designed to solve data privacy issues. The classic BiLSTM-CNNs-CRF and its modifications trained on a single machine are taken as baseline. Federated training is conducted for them. Influence of use of pretrained embedding, use of various blocks of architecture on training and quality of final model is considered. Besides, other important questions arising in practice are considered and solved, for example, creation of distributed private dictionaries, selection of base model for federated learning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In response to the recent increase in incidents involving leaks, illegal use and sale of client data, governments are creating and enacting laws to protect the rights of clients, both people and companies. Such laws impose significant restrictions on the transfer, storage and processing of customer data. Most of the solutions based on machine learning in business are built using client data. Companies directly use the data for training and model validation. With the adoption of laws, it will become more difficult, if not impossible, to continue implementing models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "One possible solution is to use federated learning. The main idea is to share the resources of many independent parts and then benefit all participants. Federated learning is called distributed training of the general model, where data is always stored on clients during training. Despite its recent appearance, federated learning is already being applied in various areas. Projects such as Google Keyboard, joint medical and financial research are good examples. In all these projects, private data was successfully and safely used for model training and evaluation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This work is devoted to solving the practical problem of extracting named entities in a federated approach. This task more often arises as a subtask of more complex, for example, machine translation or question answering. Most studies in the field of federated learning use multi-layer perceptron, the simplest CNN, which is of little practical interest. NLP tasks are more difficult to implement because of the complexity of general, secure preprocessing and preparation for learning, for example, creating common dictionaries. Besides, the models themselves have much more complicated architecture. In this study, we will try to find answers to several questions in this complex task and take a step towards safe and effective learning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This work has two logical parts: federated learning and named entity recognition. Analysis of related work, current approaches, benchmarks and results also has two semantic parts. Therefore, at the beginning of this part, we will give an overview of the NER area, and then we will move on to the issue of federated learning, which is the main interest of the work.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Named Entity Recognition. Named Entity Recognition (NER) is a machine learning task that consists of identifying and segmenting named objects, then classifying or classifying them according to various predefined classes. This task appears both independently and as a subtask in other tasks, for example: text understanding, information retrieval, automatic text summarization, question answering, natural language understanding, knowledge base construction.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "New state-of-the-art results are obtained with the help of deep learning approaches. According to the article [1] there are three key aspects of deep learning success in this area: complex non-linear mapping between network input and output, automatic features creation and end-to-end approach.",
+            "cite_spans": [
+                {
+                    "start": 110,
+                    "end": 113,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Most neural network architectures for this task have a 3-step structure. In the first stage, we get a good representation of input. Not only the word itself is important in the sentence, but also the context surrounding it. So, CNN, RNN, LM or Transformer are used for this purpose in the second step. In the final step, we use decoder to get the predictions themselves -tags for words. By convention, we can call these three steps as input, encoder, decoder.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The work BiLSTM-CNNs-CRF [2] was introduced in 2016 and marked a new trend in the solution. So, BiLSTM-CRF is the most common architecture now. The latest SOTA results were achieved with really huge models. The Bi-directional Transformer in a cloze-style manner [3] reaches (93.5%) on the CoNLL03 dataset. Instead of treating the NER problem as a sequence marking problem, the article [4] suggests formulating it as a machine reader's understanding problem (MRC). As result, models achieve significant amount of performance boost over current SOTA models on nested NER datasets for chinese, english languages. The success of NER systems strongly depends on input representation. The use of pre-trained language model embeddings is prevalent in new developments and research.",
+            "cite_spans": [
+                {
+                    "start": 25,
+                    "end": 28,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 262,
+                    "end": 265,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 385,
+                    "end": 388,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Federated Learning. The growing popularity of federated learning is primarily due to restrictions on the use of data. GDPR in European Union [5] , PDPA in Singapore [6] , CCPA [7] in the USA and many other laws and regulations limit the use and transfer of client data. Those who work with this data have to look for solutions. Using the full amount of distributed, private data for training would allow for better models, new tasks, and ultimately, better lives.",
+            "cite_spans": [
+                {
+                    "start": 141,
+                    "end": 144,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 165,
+                    "end": 168,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 176,
+                    "end": 179,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The main idea of federativity is cooperation of many independent participants. Federated systems include concepts of federated learning, federated database systems [8] and federated cloud [9] . The idea of federativity is inherent in all of them, but there are some peculiarities. In federated databases there is a focus on distributed data management, in federated cloud there is a focus on resource planning, in federated learning systems (FLS) there is a secure computation between all components of the system.",
+            "cite_spans": [
+                {
+                    "start": 164,
+                    "end": 167,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 188,
+                    "end": 191,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Research in this area has just begun, so in most works do not experiment with the choice of the optimizer. Default stochastic gradient descent has theoretical grounds and is well researched. Strategies of averaging local model improvements into global ones are studied much more. The simplest and most reliable way is to average local weights of the model changed after local training, the so-called FedAvg. In the article [10] the authors of the algorithm investigate the question of improving the quality of the global model with a federated approach on very simple models. The authors put forward two hypotheses to improve the quality of the global model: Logical prerequisites are justified by experiments. The authors study optimal parameters, as the increase in the number of epochs leads to the increase in the cost of local calculations, and the growth of transfers leads to an increase in the cost of communication activities.",
+            "cite_spans": [
+                {
+                    "start": 423,
+                    "end": 427,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In works [11, 12] the authors, relying on FedAvg, achieve better results with changing the target function for optimization. In FedProx, changes in the local loss function are limited, this approach has theoretical grounds. In the Agnostic FL method, a centralized model optimized for any target class distribution is trained. The main problem for practical application of federated training is efficiency. In [13] authors reduce the size of the reference at each iteration. The work [14] is devoted to finding the necessary number of communication rounds. Trade-off between local computations and weight exchange is still unexplored.",
+            "cite_spans": [
+                {
+                    "start": 9,
+                    "end": 13,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 14,
+                    "end": 17,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 410,
+                    "end": 414,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 484,
+                    "end": 488,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Only one article [15] was found on the subject of this study. Team of authors claim to have created a comprehensive model containing two modules. One of the modules is taught in a federated approach, respectively, after graduation trained weights and coefficients are common to all clients. The second module is trained on local data only. Thus, they offer to use the advantage of federated training to obtain aggregated information on private data distributed among clients, and additional training on local data will allow to take into account the context of a particular client. Unfortunately, this article has no source code and was published quite recently, so there is no possibility to judge about the reliability of the results.",
+            "cite_spans": [
+                {
+                    "start": 17,
+                    "end": 21,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The CoNLL03 dataset [16] is based on common themes and has a split into train (14041), valid (3250), test (3453). There are four entities: LOC (location), ORG (organization), PER (person) and MISC (miscellaneous). Original tagging scheme is BIO, but classic experiments results with IOBES is better. So, in all our experiments we use IOBES.",
+            "cite_spans": [
+                {
+                    "start": 20,
+                    "end": 24,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dataset and Metrics"
+        },
+        {
+            "text": "In most cases, accurate estimates are used for NER tasks. In extracting entities, there are two subtasks that need to be solved: defining exactly the boundaries and type of entity. For accurate estimates, only an extraction where boundaries and type are correctly marked is correct. Similar to the classification tasks, the concepts True Positive, False Positive, False Negative, True Negative are introduced. The obtained values are used to calculate metrics: precision, recall, F-measure. These metrics are defined for each class separately. In practical tasks it is always more convenient to focus on one number as a measure of quality. For this purpose, different types of F-measure averaging are used. In macro average we count F-score for each tag, and then take the arithmetic mean. We use micro-average, so, we sum up TP, FP, FN, TN all over the body without tags, and then take the average.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataset and Metrics"
+        },
+        {
+            "text": "Bi-directional LSTM-CNNs-CRF [2] is an strong baseline for NER tasks. There is no special preprocessing, feature-engineering in the model. This model can be trained for any sequence labeling task. Common NER solution are based on three-step architecture as shown on Fig. 1 . At the beginning of the model, convolutional layers are used to obtain information from words at the symbol level. Then we combine word and character based views into one common one and send it to BiLSTM. With RNN, we aggregate context information from specific words and characters. BiLSTM outputs are fed into a random field to account the correlation of neighbor labels in order to obtain the most likely sequence of labels for the input sentence. For the baseline word vectors were trained from scratch, not used character level features. Parameters were initialized in the same way and were optimized with stochastic gradient descent (SGD). We set initial learning rate \u03b7 0 = 0.015, momentum m = 0.9. Also, we used multiplicative learning rate scheduler with factor f = 0.95. The model achieves 85.33% F1 quality for NER on CoNLL03 dataset. In this article [17] more than 50, 000 experiments have been conducted to select the optimal parameters. The value we have obtained corresponds to the distribution of the test F1 for the corresponding set of model and optimizer hyperparameters.",
+            "cite_spans": [
+                {
+                    "start": 29,
+                    "end": 32,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1137,
+                    "end": 1141,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 266,
+                    "end": 272,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Baseline Model"
+        },
+        {
+            "text": "The goal of the series of experiments was to train the classical BiLSTM-CNNs-CRF and its modifications in a federated approach, to identify and find a solution to the problems encountered. Different metrics can serve as optimization functions in the implementation of the federated approach. In examples of model training on mobile devices, model weight and computational complexity are crucial. There are cases when the server cannot regularly receive model updates or send out a new version. Then it is critical to understand the minimum number of clients or their share required for training convergence. The experience of using federated training in the NER task speaks more about other problems.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Federated Approach"
+        },
+        {
+            "text": "Examples of applications are: training on customer medical records, medical records, payment documents, customer service calls. In all such cases, the distributed training will be conducted by the software provider or an independent participant for the common good of all participants in the training. This is why we do not consider improper motives or playing by the participants. Also, there is no question of communication, as there is constant communication between participants in such cases. The main issue in our research was cost reduction, which is primarily related to the learning time of the distributed model. For these reasons and for narrowing the space of the experiment, the number of users and tuned number of local epochs were fixed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Federated Approach"
+        },
+        {
+            "text": "Model Capacity. Federated learning is often used when data is private. But a company may have some data for different reasons: open data, a special agreement with some customers to collect data, a way to ensure that no private data is collected. Suppose we have this situation and we have dataset. Before implementing the federated approach, it is necessary to check its appropriateness. We should proceed from the assumption that the quality of the model under the federated approach tends to the quality of the model trained on the whole dataset, which is now distributed. It is suggested that a simple sketch should be made to find out whether adding data will improve the quality of the current model. For this purpose, we will break down the data into a small number of identical parts. Then, we will train the model in 1 part and check the quality in the deferred sample. Then, we will train the model in 2 parts and evaluate it again. And so on, before we train and validate the model on 100% of available data. Let us look at possible results obtained for two different models in such an experiment in the Fig. 2 . In the left side we see that adding data will most likely not lead to an increase in quality. Therefore, for such a model, it makes no sense to build federated training on clients. On the right picture, we can see that the quality of the model grows with the data quantity. Therefore, adding even more data may be reasonable. Such a model should be trained in a federated approach, because adding data would rather improve its quality.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1114,
+                    "end": 1120,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Federated Approach"
+        },
+        {
+            "text": "There are two things we should note. First, the experiment should be conducted for each new model or architecture configuration, since each model has its own capacity. If the model has a large capacity, it needs more data to achieve a plateau of quality on validation. Models with low capacity learn fewer patterns from data, so they need less data. Second, by extrapolating model quality growth on more data, we involuntarily assume that data will come from a similar distribution, which of course is not always done. This point should be taken into account and have at least an approximate estimate of the nature of data on distributed clients.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Federated Approach"
+        },
+        {
+            "text": "In the process of teaching one model on the whole dataset, most preprocessing steps are simple and even routine. With a federated approach, training becomes somewhat more difficult. Obviously, the initial data on all clients should be processed in the same way, i.e. we need the same preprocessing, creation of fiche, pretrained embedding if necessary. When creating NLP models, we often use dictionaries. Such dictionaries help to map tensor representation in the model (embedding) and real token or symbol. In the baseline model we also used such dictionaries for tokens and symbols. To create such a dictionary, we have collected tokens in the dataset and assigned them unique numbers corresponding to their embedding in the model. Now, as part of a federated approach, we can not collect tokens from all clients, so it would violate the conditions of privacy. To create a single dictionary with a privacy condition, we can implement the client-central server interaction scheme shown in this Fig. 3 . Every user after this procedure will be able to transform raw data to the model correct input. Fig. 3 . Remote secure mapping. \u2460 Each client preprocesses data and makes a frequency dictionary of tokens. \u2461 Client hashes the keys in such dictionary and saves the pairs {token : hash} with itself. Then all clients send hashed dictionaries to the server. \u2462 On the central server we sum up all the dictionaries and create a single mapping by selecting the desired minimum frequency of token. Also, we add to the mapping special tokens, for example <unk>. \u2463 Send the mapping to all clients. Each client now has two dictionaries: its own {token : hash} and common {hash : token id}. Applying one by one dictionary, each user will be able to get the correct input for the distributed model even for those tokens that were not in his original sample.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 996,
+                    "end": 1002,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1100,
+                    "end": 1106,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Distributed Data Preparation."
+        },
+        {
+            "text": "Federated Model Training. In all our experiments with federated approach we will compare learning process and final model performance with baseline. We will estimate overall time to reach baseline model performance, number of global communication rounds, local training epochs in process. Also, we will check influence of different factors to model training, for example, usage of pretrained word vectors, neural model blocks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "During the experiments on federated model training for the NER, the quality of the baseline model was achieved. Obviously, this was longer than usual model training. The training time of the federated model has exceeded 2.58 times the training time of a single instance. The cost of model training is linearly related to the duration of training, so we measured and compared the duration of training in all experiments with the conventional and federated approach. It should be understood that with distributed parallel learning, the real learning speed is certainly higher. It is proportional to the number of users without taking into account the time spent. But to calculate the cost of training, you must use the total time spent on all the clients, which we have received.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Learning Process and Results. As already mentioned, the number of local epochs and users has been fixed in order to reduce the space of experiments. We take 10 for both parameters. The data divided equally between users. The division is fixed in all experiments. We conducted several experiments on initializing local optimizer. It was decided to initialize the local optimizer according to the number of passed global training rounds. The scheme of updating the model weights was taken from the article [10] . This scheme consists in simple taking the arithmetic mean of weights of all models that have locally learned the same number of epochs on the given clients. After averaging, we distribute the averaged model to the participants again. So the learning process lasts to the required quality. On the Fig. 4 we can see the average value of loss for clients during the training. We can see that every tenth local epoch of loss increases because the local model is replaced by a global model. Every round of local training epochs we overfit on local data, but in general we reduce losses as we learn, reaching the right quality. The received training process is shown in Fig. 5 . The training time of the federated model has exceeded 2.58 times the one-instance training time. It should be understood that with distributed parallel learning, the real learning speed is certainly higher. It is proportional to the number of users without taking into account the time spent. But to calculate the cost of training, we must use the total time spent on all the clients, which we have received.",
+            "cite_spans": [
+                {
+                    "start": 504,
+                    "end": 508,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 807,
+                    "end": 813,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1175,
+                    "end": 1181,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Pretrained Word Embeddings. It is well known that the addition of pretrained embeddings reduces the training duration of models, and often increases the final quality. Nowadays, most modern models for NER are obtained using BERT, ELMO, their modifications as well as large language models. The addition of pretrained embeddings to BiLSTM-CNNs-CRF also leads to an increase in quality. As you can see from the previous section, the implementation of training in a federated approach leads to a multiple increase in training duration. Use of pretrained vectors could speed up the learning process. Two experiments were conducted to test this hypothesis. BiLSTM-CNNs-CRF was taken as a baseline, word embedding was initialized by pretrained GloVe-100 vectors. Word embeddings were left as a variable parameter.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "The results of the experiment are shown in Table 1 and the training graph in Fig. 6a . The learning time has diminished 2.19 times for one-instance and increased 1.64 times for federated. This is due to the fact that the model was better trained to quality, and recent epochs took a long time. For an honest assessment, it is necessary to compare the learning time at a certain quality level. This is done in Table 1 . In third line there we can see how various model modifications achieve the quality of the initial level (85.33%) by learning the federated approach. We see that the use of pretrained vectors and convolutional blocks allows us to significantly increase the learning speed. Modification BiLSTM-CNNs-CRF is the fastest. The final quality increased by 4.67%. This allows us to speak about the high efficiency of the use of pretrained embeddings for federated learning.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 43,
+                    "end": 50,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 77,
+                    "end": 84,
+                    "text": "Fig. 6a",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 409,
+                    "end": 416,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Char Embeddings. The next experiment was not followed by a preliminary hypothesis or an expected result. The aim of the experiment was to compare the behaviour of convolutional and recurrent architectures for processing symbolic embedding in a federated approach. It was the block of symbolic embedding processing in the initial architecture that we changed during the experiment. RNN at its time was a breakthrough in sequence processing. But subsequent results of CNN application in the text allowed us to consider convolutional layers as an alternative. First of all, it is related to the speed of learning. In our experiments, learning speed is almost the most important criterion.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "BiLSTM-CRF with pretrained embedding were used, also, CNN or RNN was used as a character processing block. Use of recurrent block to process symbolic text representation allowed to increase quality by 0.32% in valid Fig. 6b . In the course of this experiment, we did not get significant differences in the quality of the model, which cannot be said about the learning rate. The use of CNN allowed Pretrained embedding.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 216,
+                    "end": 223,
+                    "text": "Fig. 6b",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "RNN block. us to increase the training speed by 4% and 19% respectively for single-instance and federated approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "In Table 1 , the main results are the last 3 rows. For ease of comparison, we have scaled all experiments against the baseline experiment. The first line shows the training time for different modifications of the model. In the second line, we see how much longer training time increases when you move from one-instance to federated learning. This data is not so representative, because we need to remember that the final quality of models with pretrained embedding is higher, so they learn longer. In order to estimate how quickly the models are trained to a specific level, the third line were created. In this line, we see how long various modifications of the models achieve the quality of baseline (85.33%) by learning the federated approach. We see that the use of pretrained vectors and convolutional blocks allows us to significantly increase the learning speed. At the same time, we should understand that the final quality of modification with convolutional is little worse to that with recurrent blocks.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "Line 4 in Table 1 shows how time costs increase when moving from baseline one-instance to federated learning. The last line shows the F 1 value on the validation dataset. If we speak about the final quality, the models with the use of pretrained vectors have bypassed those trained from scratch by 5%. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 10,
+                    "end": 17,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "In this work, a full process of preparation and training in a federated approach was carried out. A solution was found to the problems encountered. Such conclusions can be drawn for practical use.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "-Before implementing a federated approach, it is necessary to conduct tests for the capacity module and, if possible, find out the nature of data distribution among the participants of training. -For the model's auxiliary dictionaries, you can use the scheme described in this article before you start training. -It is better to use pretrained embeddings and convolutional blocks to increase the learning speed. In case of federated learning is even more important than in case of single machine learning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "A survey on deep learning for named entity recognition",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Trans. Knowl. Data Eng",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TKDE.2020.2981314"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "End-to-end sequence labeling via bi",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Hovy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1603.01354"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Cloze-driven pretraining of self-attention networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Baevski",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Edunov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zettlemoyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Auli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1903.07785"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "A unified MRC framework for named entity recognition",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Meng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1910.11476"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "The EU general data protection regulation (GDPR)",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Voigt",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Von Dem Bussche",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-57959-7"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "The Singapore Personal Data Protection Act and an assessment of future trends in data privacy reform",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Chik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Comput. Law Secur. Rev",
+            "volume": "29",
+            "issn": "5",
+            "pages": "554--575",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "The California consumer privacy act: towards a European-style privacy regime in the United States",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Pardau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "J. Tech. L. & Pol'y",
+            "volume": "23",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Federated database systems for managing distributed, heterogeneous, and autonomous databases",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Sheth",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Larson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "ACM Comput. Surv. (CSUR)",
+            "volume": "22",
+            "issn": "3",
+            "pages": "183--236",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Cloud federation",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kurze",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Klems",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bermbach",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lenk",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Tai",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kunze",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Cloud Computing",
+            "volume": "",
+            "issn": "",
+            "pages": "32--38",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Communicationefficient learning of deep networks from decentralized data",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Moore",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramage",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hampson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1602.05629"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Agnostic federated learning",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mohri",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Sivek",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Suresh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1902.00146"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Federated optimization in heterogeneous networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Sahu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zaheer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sanjabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Talwalkar",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1812.06127"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Federated learning: strategies for improving communication efficiency",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kone\u010dn\u1ef3",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "X"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Richt\u00e1rik",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Suresh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bacon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1610.05492"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Multi-objective evolutionary federated learning",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Trans. Neural Netw. Learn. Syst",
+            "volume": "31",
+            "issn": "4",
+            "pages": "1310--1322",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "FedNER: medical named entity recognition with federated learning",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ge",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2003.09288"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Introduction to the CoNLL-2003 shared task: languageindependent named entity recognition",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Sang",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "De Meulder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:cs/0306050"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Optimal hyperparameters for deep LSTM-networks for sequence labeling tasks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Reimers",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gurevych",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1707.06799"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Increase the number of epochs on local clients. 2. Increase the number of transfers between local clients and the central server where the global model is stored.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Typical three-step architecture for NER. Used blocks are shown in blue. (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Results of the capacity test of two abstract models. On the left we see the model with low capacity, on the right with high capacity. Before training model in federated approach we should estimate model capacity for expediency of realisation.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Local losses. Mean value and 3 sigma interval for user distribution.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Baseline and federated learning process.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Impact to learning speed.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Comparison of learning time. Symbol x means 5.97 h on GCP Instance (8CPU, 64 GB) CNN, scratch CNN, GloVe LSTM, GloVe",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The research was supported by the Russian Science Foundation grant 19-11-00281.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgments."
+        }
+    ]
+}

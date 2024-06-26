@@ -1,0 +1,2650 @@
+{
+    "paper_id": "5ffa3544088f7f4ac380e89c2eabcd3b8239123f",
+    "metadata": {
+        "title": "Improving Predictions of Tail-end Labels using Concatenated BioMed-Transformers for Long Medical Documents",
+        "authors": [
+            {
+                "first": "Vithya",
+                "middle": [],
+                "last": "Yogarajan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Waikato",
+                    "location": {}
+                },
+                "email": "vithya.yogarajan@auckland.ac.nz"
+            },
+            {
+                "first": "Bernhard",
+                "middle": [],
+                "last": "Pfahringer",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Waikato",
+                    "location": {}
+                },
+                "email": "bernhard.pfahringer@waikato.ac.nz"
+            },
+            {
+                "first": "Tony",
+                "middle": [],
+                "last": "Smith",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Waikato",
+                    "location": {}
+                },
+                "email": ""
+            },
+            {
+                "first": "Jacob",
+                "middle": [],
+                "last": "Montiel",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Waikato",
+                    "location": {}
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Multi-label learning predicts a subset of labels from a given label set for an unseen instance while considering label correlations. A known challenge with multi-label classification is the long-tailed distribution of labels. Many studies focus on improving the overall predictions of the model and thus do not prioritise tail-end labels. Improving the tail-end label predictions in multi-label classifications of medical text enables the potential to understand patients better and improve care. The knowledge gained by one or more infrequent labels can impact the cause of medical decisions and treatment plans. This research presents variations of concatenated domain-specific language models, including multi-BioMed-Transformers, to achieve two primary goals. First, to improve F1 scores of infrequent labels across multi-label problems, especially with long-tail labels; second, to handle long medical text and multi-sourced electronic health records (EHRs), a challenging task for standard transformers designed to work on short input sequences. A vital contribution of this research is new state-of-the-art (SOTA) results obtained using TransformerXL for predicting medical codes. A variety of experiments are performed on the Medical Information Mart for Intensive Care (MIMIC-III) database. Results show that concatenated BioMed-Transformers outperform standard transformers in terms of overall micro and macro F1 scores and individual F1 scores of tail-end labels, while incurring lower training times than existing transformer-based solutions for long input sequences.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Multi-label text classification techniques enable predictions of treatable risk factors in patients, aiding in better life expectancy and quality of life [3] . The goal of multi-label learning is to predict a subset of labels for an unseen instance from a given label set while considering label correlations [34] . One of the known challenges with multi-label classification is the long-tailed distribution of labels. In general, with multi-label problems, a small subset of the labels are associated with a large number of instances, and a significant fraction of the labels are associated with a small number of instances (as shown in Figure 1 ).",
+            "cite_spans": [
+                {
+                    "start": 154,
+                    "end": 157,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 309,
+                    "end": 313,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 638,
+                    "end": 646,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "There are some examples of studies that focus on exploiting label structure [35] and label co-occurrence patterns [18] . However, in studies especially relating to medical text, the focus is on improving the overall performance of the model instead of individual tail-end labels [21, 1] . There are also examples of studies, such as Wei and Li (2019) [27] , which demonstrate that tail-end labels have minimal impact on the overall performance. However, prediction of infrequent labels in order to understand all aspects of a patient's prognosis is as crucial as predicting frequent labels [10] . The knowledge gained by one or more infrequent labels can impact the cause of medical decisions, treatment plans and patient care.",
+            "cite_spans": [
+                {
+                    "start": 76,
+                    "end": 80,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 114,
+                    "end": 118,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 279,
+                    "end": 283,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 284,
+                    "end": 286,
+                    "text": "1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 351,
+                    "end": 355,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 590,
+                    "end": 594,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This research explores the opportunity to improve predictions of tail-end labels using transformers for medical-domain specific tasks by exploiting models pre-trained on health data. We consider the option of using three variations of concatenated language models: multi-CNNText, multi-BioMed-Transformers and CNNText with Transformers. We show concatenated BioMed-Transformers improve tail-end predictions compared to other neural networks and single transformers.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In addition to improving the tail-end performance, we demonstrate concatenated domain-specific transformer models are a solution for handling text data with extended text and multi-sources of texts. For short or truncated electronic health records (EHRs), medical domain-specific transformer models outperform state-of-the-art (SOTA) methods for many classification tasks, including predicting medical codes and name entity recognition [31, 14, 13] . However, given that most transformer models are limited to a maximum sequence length of 512 tokens, with some exceptions, there is still a gap in alternative solutions for long documents. Transformer models such as Longformer [4] and TransformerXL [8] can handle longer sequences and perform better than other language models for long documents. Unfortunately, these models require considerable amounts of memory and processing time. In contrast, concatenated domain-specific transformers require fewer resources.",
+            "cite_spans": [
+                {
+                    "start": 436,
+                    "end": 440,
+                    "text": "[31,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 441,
+                    "end": 444,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 445,
+                    "end": 448,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 677,
+                    "end": 680,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 699,
+                    "end": 702,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We also present new SOTA results using TransformerXL for predicting medical codes. We compare these results directly with the most recent (Nov, 2021) published SOTA [19] for the exact same multi-label text classification problem. Fig. 1 : Percentage frequency of labels for ICD-9 level-3 codes with 923 labels (left) and systemic fungal or bacterial infection with 73 labels (right) for MIMIC-III data. The labels are ordered from most frequent (left) to least frequent (right) for each plot. The threshold for tail-end labels with % Freq of occurrences < 1% is indicated for reference.",
+            "cite_spans": [
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 230,
+                    "end": 236,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "We compare concatenated domain-specific transformer models with standard language models for increasingly larger multi-label problems with 30, 42, 50, 73, 158 and 923 labels. The multi-label problems considered in this paper are: predicting ICD-9 codes for ICD-9 hierarchy levels, most frequent 50 ICD-9 codes, cardiovascular disease, COVID-19 patient shielding (introduced in Yogarajan et al (2021) [33] ) and systemic fungal or bacterial disease. The contributions of this work are:",
+            "cite_spans": [
+                {
+                    "start": 400,
+                    "end": 404,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "1. analyse the effectiveness of using concatenated domain-specific language models, multi-CNNText, multi-BioMed-Transformers and CNNText with Transformers, for predicting medical codes from EHRs for multiple document lengths, multi-sources of texts and number of labels; 2. show that concatenated domain-specific transformers improve F1 scores of infrequent labels; 3. show improvements in overall micro and macro F1 scores and achieve such improvements with fewer resources; 4. present new SOTA results for predicting medical codes from EHRs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In the last two to three years, there have been considerable advancements in transformer models, which have shown substantial improvements in many NLP tasks, including BioNLP tasks [13, 28] . With minimum effort, transfer learning of pre-trained models by fine-tuning on downstream supervised tasks achieves very good results [2, 1] . Examples of BioNLP tasks where transformers have shown performance improvements include named entity recognition, question answering, relation extraction, and clinical concept extraction tasks [13, 28, 14] .",
+            "cite_spans": [
+                {
+                    "start": 181,
+                    "end": 185,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 186,
+                    "end": 189,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 326,
+                    "end": 329,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 330,
+                    "end": 332,
+                    "text": "1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 528,
+                    "end": 532,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 533,
+                    "end": 536,
+                    "text": "28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 537,
+                    "end": 540,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "A significant obstacle for transformers is the 512 token size limit they impose on input sequences [11] . Gao et al. (2021) [11] presents evidence showing BERT-based models under-perform in clinical text classification tasks with long input data, such as MIMIC-III [15] , when compared to a CNN trained on word embeddings that can process the complete input sequences. Si and Roberts (2021) [24] presents an alternative system to overcome the issue of long documents, where transformer-based encoders are used to learn from words to sentences, sentences to notes and notes to patients progressively. This transformer-based hierarchical attention networks system presents SOTA methods for in-hospital mortality prediction and phenotype predictions using MIMIC-III. However, it requires considerable computational resources [24] . Chalkidis et al. (2020) [6] proposes a similar hierarchical version using SCI-BERT to deal with long documents for predicting medical codes from MIMIC III. Here SCI-BERT reads words of each sentence, resulting in sentence embeddings. This is followed by a self-attention mechanism that reads the sentence embeddings to produce single document embeddings fed through an output layer. Unfortunately, HIER-SCI-BERT performed poorly compared to other neural networks [6] . One possible reason for poor results is the use of a continuously pre-trained BERT model [6] . The continuous training approach would initialise with the standard BERT model, pre-trained using Wikipedia and BookCorpus. It then continues the pre-training process with a masked language model and next-sentence prediction using domain-specific data. In this case, the vocabulary is the same as the original BERT model, which is considered a disadvantage for domain-specific tasks [13] . For our research, PubMedBERT [13] , a domain-specific BERT based model trained solely on biomedical text, is used.",
+            "cite_spans": [
+                {
+                    "start": 99,
+                    "end": 103,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 106,
+                    "end": 123,
+                    "text": "Gao et al. (2021)",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 124,
+                    "end": 128,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 265,
+                    "end": 269,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 369,
+                    "end": 390,
+                    "text": "Si and Roberts (2021)",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 391,
+                    "end": 395,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 822,
+                    "end": 826,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 829,
+                    "end": 852,
+                    "text": "Chalkidis et al. (2020)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 853,
+                    "end": 856,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1292,
+                    "end": 1295,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1387,
+                    "end": 1390,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1776,
+                    "end": 1780,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1812,
+                    "end": 1816,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Our research focuses on automatically predicting medical codes from medical text as the multi-label classification task. Examples of predicting medical codes using transformers include ICD-10 predictions from German documents [1, 23] , and predicting frequent medical codes from MIMIC-III [5, 31] . These examples restrict themselves to (1) truncated text sequences of < 512 tokens and (2) predicting frequent labels [5, 2] . MIMIC-III consists of many infrequent labels, as shown in Figure 1 , where most codes only occur in a small number of clinical documents. This research focuses on improving the predictive accuracy for infrequent labels and using long medical texts. Moons et al. (2020) [21] presents a survey of deep learning methods for ICD coding of medical documents and indicates Convolutional Attention for Multi-Label classification (CAML) [22] as the SOTA method for automatically predicting medical codes from EHRs. [31] presents evidence to show that domain-specific transformers outperform CAML for truncated sequences. Liu et al (2021) [19] presents the most recent evidence where EffectiveCAN -an effective convolution attention network-outperforms SOTA for predicting medical codes. We extend the findings in [31] by providing evidence to show TransformerXL outperforms CAML and sets new SOTA results for predicting medical codes. We also present a direct comparison with EffectiveCAN for the same multi-label problem with the same labels and data to show transformers such as TransformerXL outperform SOTA.",
+            "cite_spans": [
+                {
+                    "start": 226,
+                    "end": 229,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 230,
+                    "end": 233,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 289,
+                    "end": 292,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 293,
+                    "end": 296,
+                    "text": "31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 417,
+                    "end": 420,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 421,
+                    "end": 423,
+                    "text": "2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 675,
+                    "end": 694,
+                    "text": "Moons et al. (2020)",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 695,
+                    "end": 699,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 855,
+                    "end": 859,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 933,
+                    "end": 937,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1039,
+                    "end": 1055,
+                    "text": "Liu et al (2021)",
+                    "ref_id": null
+                },
+                {
+                    "start": 1056,
+                    "end": 1060,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1231,
+                    "end": 1235,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 484,
+                    "end": 492,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "Medical Information Mart for Intensive Care (MIMIC-III) is one of the most extensive publicly available medical databases [15, 12] with more than 50,000 patient EHRs. It contains data including billing, laboratory, medications, notes, physiological information, and reports. Among the available free-form medical text, more than 90% of the unique hospital admissions contain at least one discharge summary (dis). In addition to the free-form medical text from dis, this research also makes use of text summary of categories ECG (ecg) and Radiology(rad). As with most free form EHRs, MIMIC-III text data includes acronyms, abbreviations, and spelling errors. For example (data as presented in MIMIC III with errors):",
+            "cite_spans": [
+                {
+                    "start": 122,
+                    "end": 126,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 127,
+                    "end": 130,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "82 yo M with h/o CHF, COPD on 5 L oxygen at baseline, tracheobronchomalacia s/p stent, presents with acute dyspnea over several days, and lethargy...",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "MIMIC-III data includes long documents, where dis ranges from 60 to 9,500 tokens with an average of 1,513 tokens and rad with an average of 2,500 tokens. The document lengths of ecg are short with an average of 84 tokens. In this research, MIMIC-III text is pre-processed by removing tokens that contain non-alphabetic characters, including all special characters and tokens that appear in less than three training documents.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "The discharge summary is split into equal segments for a given hospital admission, and each section is labelled text 1, ..., 4. For example, for two splits, if a given discharge summary is 700 tokens long, text 1 is the first 350 tokens, and text 2 is the last 350 tokens. In the case of a lengthy document, if the discharge summary is 2500 tokens long, text 1 is the first 1, 250 tokens, and text 2 is the last 1, 250 tokens. For multi-BioMed-Transformers where the maximum sequence length is 512, each of text 1, ..., 4 is truncated to 512 tokens. There are many other ways to split the text, including sequential splits. For instance, with the first example above, text 1 being the first 512 tokens, and text 2 being the remainder 238 tokens. Each of these decisions has some advantages and disadvantages. After preliminary experiments, the decision was made to split the discharge summary into equal sections. This research presents results for the following configurations:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "We consider predicting ICD-9 codes (standards for international Statistical Classification of Diseases and Related Health Problems) from EHRs as flat multi-label problems. ICD codes are used to classify diseases, symptoms, signs, Table 1 : Statistics of multi-label classification problems. Counts for frequent and infrequent, or tail-end labels, are also provided. * MIMIC III Top50 is the most frequent 50 labels, hence no tail labels, and is only used in this research for direct SOTA comparison. and causes of diseases. Almost all health conditions can be assigned a unique code. Manual assigning of medical codes requires expert knowledge and is very time-consuming. Thus, the ability to predict and automate medical coding is vital. ICD-9 codes are grouped in a hierarchical tree-like structure by the World Health Organisation. In this research, we focus on levels 2 and 3 for MIMIC-III data containing 158 labels at level 2 and 923 labels at level 3 with associated medical text for the patient. In addition, we consider case studies, cardiovascular disease, COVID-19 patient shielding, and systemic fungal or bacterial infections, where commonly used medical codes are used as labels.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 230,
+                    "end": 237,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Multi-label Datasets and Labels"
+        },
+        {
+            "text": "As mentioned earlier, for the purposes of direct comparison with the recently published SOTA, the most frequent 50 ICD-9 codes in MIMIC-III are also considered. Table 1 Table 1 provides the number of labels selected for experiments presented in this paper, with the frequency of occurrences < 1%, tail-end labels, and the number of labels \u2265 1%.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 161,
+                    "end": 168,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 169,
+                    "end": 176,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Multi-label Datasets and Labels"
+        },
+        {
+            "text": "This research mainly focuses on transformer models. Transformers are feedforward models based on the self-attention mechanism with no recurrence. Selfattention takes into account the context of a word while processing it. Similar to the sequence-to-sequence attention mechanism, self-attention is considered a soft measure where multiple words are considered. Transformer models take all the tokens in the sequence at once in parallel, enabling the capture of longdistance dependencies. Vaswani et al. (2017) [26] provides an introduction to the transformer architecture.",
+            "cite_spans": [
+                {
+                    "start": 487,
+                    "end": 508,
+                    "text": "Vaswani et al. (2017)",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 509,
+                    "end": 513,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Language Models"
+        },
+        {
+            "text": "BERT (Bidirectional Encoder Representations from Transformers) [9] is one of the early transformer models that applies bidirectional training of encoders [26] to language modelling. The 12-layer BERT-base model with a hidden size of 768, 12 self-attention heads, 110M parameter neural network architecture, was pre-trained from scratch on BookCorpus and English Wikipedia. PubMedBERT [13] uses the same architecture, and is domain-specifically pretrained from scratch using abstracts from PubMed and full-text articles from PubMedCentral to better capture the biomedical language [13] .",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 66,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 154,
+                    "end": 158,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 384,
+                    "end": 388,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 580,
+                    "end": 584,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Language Models"
+        },
+        {
+            "text": "BioMed-RoBERTa-base [14] is based on the RoBERTa-base [20] architecture. RoBERTa-base, originally trained using 160GB of general domain training data, was further continuously pre-trained using 2.68 million scientific papers from the Semantic Scholar corpus. Gururangan et al. (2020) [14] show that BioMED-RoBERTa-base, which was specifically pre-trained on medical text data, outperforms the generically trained RoBERTa-base model on biomedical domain-specific tasks.",
+            "cite_spans": [
+                {
+                    "start": 20,
+                    "end": 24,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 54,
+                    "end": 58,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 259,
+                    "end": 283,
+                    "text": "Gururangan et al. (2020)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 284,
+                    "end": 288,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Language Models"
+        },
+        {
+            "text": "TransformerXL [8] is an architecture that enables the representation of language beyond a fixed length. It can learn dependency that is longer than recurrent neural networks and vanilla transformers. The Longformer [4] model is designed to handle longer sequences without the limitation of the maximum token size of 512. Longformer reduces the model complexity from quadratic to linear by reformulating the self-attention computation. Compared to Transformer-XL [8] , Longformer is not restricted to the left-to-right approach of processing documents.",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 17,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 215,
+                    "end": 218,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 462,
+                    "end": 465,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Language Models"
+        },
+        {
+            "text": "In addition to transformer models, CNNText [16] with domain-specific fastText pre-trained 100-dimensional embeddings is used. CNNText combines one-dimensional convolutions with a max-over-time pooling layer and a fully connected layer. The final prediction is made by computing a weighted combination of the pooled values and applying a sigmoid function. A simple architecture of CNNText is presented in Figure 2 .",
+            "cite_spans": [
+                {
+                    "start": 43,
+                    "end": 47,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 404,
+                    "end": 412,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Language Models"
+        },
+        {
+            "text": "CAML [22] is also used to compare with TransformerXL and other languange models. CAML combines convolution networks with an attention mechanism. Simultaneously, a second module is used to learn embeddings of the descriptions of ICD-9 codes to improve the predictions of less frequent labels and target regularisation. For each word in a given document, word embeddings are concatenated into a matrix, and a one-dimensional convolution layer is used to combine these adjacent embeddings.",
+            "cite_spans": [
+                {
+                    "start": 5,
+                    "end": 9,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Language Models"
+        },
+        {
+            "text": "Multi-BioMed-Transformers use an architecture where two or more domainspecific transformer models are concatenated together to enable the usage of multiple text inputs. Algorithm 1 presents an outline of multi-Bio-Med-Transformer models concatenated together. We explore the options of two to four PubMedBERT models that are concatenated together. See Figure 2 for for each document i do 5:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 352,
+                    "end": 360,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Multi-BioMed-Transformers"
+        },
+        {
+            "text": "x i = BioMed-Transformer(document i ) 6:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-BioMed-Transformers"
+        },
+        {
+            "text": "pooled features.append( AVG POOL(x i )) 7:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-BioMed-Transformers"
+        },
+        {
+            "text": "end for 8:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-BioMed-Transformers"
+        },
+        {
+            "text": "combined features = CONCATENATE(pooled features) 9:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-BioMed-Transformers"
+        },
+        {
+            "text": "drop output = DROPOUT(combined features) 10: output = FC \u03b8 l (drop output) 11: L = L BCE (output, targets) 12:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-BioMed-Transformers"
+        },
+        {
+            "text": "\u03b8 = [\u03b8 1 , \u03b8 2 , \u03b8 3 , . . . , \u03b8n, \u03b8 l ] 13: \u03b8 = \u03b8 \u2212 \u2207 \u03b8 L 14: end for an example of TriplePubMedBERT architecture. Concatenated transformer models enable the processing of longer sequences, where the longer input sequence is split into multiple smaller segments with a maximum length of 512 tokens. The average length of discharge summaries in MIMIC-III is approximately 1, 500 tokens, hence the choice to concatenate two to four PubMed-BERT models. Moreover, as indicated in Section 3, MIMIC-III contains text from other categories, such as ecg and rad. Multi-BioMed-Transformers provides the option to explore using these other available texts as additional input text.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-BioMed-Transformers"
+        },
+        {
+            "text": "Multi-CNNText adopts the same idea as multi-BioMed-Transformers, where two or more CNNText models are concatenated together. Figure 2 presents an example of DualCNNText where two CNNText models are concatenated together. Although CNNText can handle longer sequence length as input text, concatenating multiple CNNText models provides the option of using input text from different categories such as ECG and radiology, as mentioned before, as the features of different categories can be captured separately.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 125,
+                    "end": 133,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Multi-CNNText"
+        },
+        {
+            "text": "The third variation is combining CNNText with transformers (see Figure 2 ). Although many variations are possible, this research only considers a couple of variations. BERT-base and PubMedBERT are the two transformers that are used with CNNText. However, variations, such as embeddings dimensions, and multiple transformer models can be used for CNNText. It is also important to ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 64,
+                    "end": 72,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "CNNText with Transformers"
+        },
+        {
+            "text": "We present overall micro and macro F1 scores and individual label F1 scores for the multi-label problems outlined in Table 1 . Critical difference plots are presented as supportive statistical analysis. The Nemenyi posthoc test (95% confidence level) identifies statistical differences between learning methods. CD graphs show the average ranking of individual F1 scores obtained using various language models. The lower the rank, the better it is. The difference in average ranking is statistically significant if there is no bold line connecting the two settings. All experimental results are obtained from a random seeds trainingtesting scheme and averaged over three runs. The variation of these three independent runs are within a range of \u00b10.015. We explore several different transformer models and compare the performance to concatenated BioMed-Transformers.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 117,
+                    "end": 124,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Transformer implementations are based on the open-source PyTorch transformer repository. 1 Transformer models are fine-tuned on all layers without freezing. For the optimiser, we use Adam [17] with learning rates between 9e-6, and 1e-5. Training batch sizes were varied between 1 and 16. A non-linear sigmoid function f (z) = 1 1+e \u2212z , with a range of 0 to 1 is used as the activation function. Binary-cross-entropy [7] loss, Loss BCE (X, y) = \u2212 L l=1 (y l log(\u0177 l ) + (1\u2212y l )log(1\u2212\u0177 l )), over each label is used for multi-label classification. Domainspecific fastText embeddings [29, 30] of a 100-dimensional skipgram model are used for neural networks. 2 ",
+            "cite_spans": [
+                {
+                    "start": 188,
+                    "end": 192,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 417,
+                    "end": 420,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 583,
+                    "end": 587,
+                    "text": "[29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 588,
+                    "end": 591,
+                    "text": "30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 658,
+                    "end": 659,
+                    "text": "2",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Results are presented in three parts. First we present the overall performance of the language models, followed by SOTA comparison, and finally we present tail-end performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "We present an extensive comparison across models for cardiovascular disease, followed by selected results for other multi-label problems. Table 2 presents the results for various language model variations for cardiovascular disease, using MIMIC-III data with 28,154 hospital admissions of patients and 30 labels. Multi-PubMedBERT and multi-BioMed-RoBERTa show a consistent improvement of 3% to 7% in micro-F1 scores over single PubMedBERT and BioMed-RoBERTa, respectively. The macro-F1 score of TriplePubMedBERT option is better than other language models presented with at least 3% improvement, except for TransformerXL with 3,072 tokens. Macro F1 scores of multi-CNNText and CNNText with transformers perform poorly compared to all other language models presented. For cardiovascular disease, incorporating ecg and rad does show some improved overall results, especially with TriplePubMedBERT options. Critical difference plots for individual label F1 scores obtained using various language models in Table 2 are presented in Figure 3 . Both Table 2 and Figure 3 show that TransformerXL with dis 3,072 tokens is the best option. However, multi-BioMed-Transformers show improvements, especially when compared to single-BioMed-Transformers. Table 3 presents micro and macro F1 scores for various language model variations for COVID-19 patient shielding and systemic fungal or bacterial infection using MIMIC-III data. For systemic fungal or bacterial infections multi-PubMedBERT show improvements of 12% to 19 % in micro-F1, and 2% to 10% in macro-F1 scores over single PubMedBERT, except for TriplePub-MedBERT with rad and ecg, where the macro-F1 score is on par with single Fig. 3 : Critical difference plots. Nemenyi post-hoc test (95% confidence level), identifying statistical differences between language models for cardiovascular disease presented in Table 2 . PubMedBERT. Contrary to the case of cardiovascular disease, here the additional inputs of ecg and rad do not result in better performance. It is likely that ecg and rad are not that relevant for coding fungal or bacterial infections. Table 3 for COVID-19 patient shielding shows TransformerXL with dis 3,072 tokens to be the best option, as observed with the other case studies. DualPubMedBERT show improvements over single PubMedBERT and other variations of multi-PubMedBERT. All three case studies show that TransformerXL with dis 3,072 tokens is the top performer in terms of predictive performance. However, concatenated BioMed-Transformers show improvements, especially when compared to single BioMed-Transformers. Table 3 also presents the time per epoch in seconds for systemic fungal or bacterial infection to provide a direct comparison among the language models. TransformerXL (3,072) requirements are much greater than that of other language models, including multi-PubMedBERT, for example, needing 240 hours (for dis 3,072) when DualPubMedBERT only requires 22 hours. Table 3 also presents micro and macro F1 scores for levels 2 and 3 of ICD-9 codes using MIMIC-III data. As mentioned above, due to the processing time required by TransformerXL (3,072), we only use Longformer for encoding long Table 3 , where critical difference is calculated for individual label F1 scores. documents for ICD-9 level 3. For MIMIC-III Level 2 codes, TransformerXL with dis 3,072 tokens is the top performer. DualPubMedBERT shows improvements in both micro and macro F1 scores by 3% to 5% over other PubMed-BERT variations, and macro-F1 of DualPubMedBERT and Longformer are equal and only marginally behind TransformerXL. For MIMIC-III Level 3 codes, the macro-F1 score of DualPubMedBERT is better than other transformer models, including Longformer. However, CAML (T100SG) outperforms all variations of transformer models. Figure 4 presents the critical difference plots for results presented in Table 3. The Nemenyi posthoc test (95% confidence level) shows statistical differences between learning methods. TransformerXL (3,072) and Longformer (3,000) are the overall top performers. However, the difference between them and DualPubMedBERT is not statistically significant.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 138,
+                    "end": 145,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1003,
+                    "end": 1010,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1028,
+                    "end": 1036,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1044,
+                    "end": 1051,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1056,
+                    "end": 1064,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1241,
+                    "end": 1248,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1676,
+                    "end": 1682,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1858,
+                    "end": 1865,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 2102,
+                    "end": 2109,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 2588,
+                    "end": 2595,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 2948,
+                    "end": 2955,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 3175,
+                    "end": 3182,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 3788,
+                    "end": 3796,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Overall performance"
+        },
+        {
+            "text": "This section compares the overall performance of multiple language models for MIMIC-III data for the number of labels being 30, 42, 73, 158 and 923. TransformerXL (3,072) consistently outperformed other language models. Multi-CNNText and CNNText with Transformers performed poorly when compared to other language model variations. Hence, only results for cardiovascular disease are presented in this research for the CNNText variations. Multi-BioMed-transformers outperforms single BioMed-Transformers with a more noticeable improvement in micro-F1 scores for cardiovascular disease and systemic fungal or bacterial infections. Due to computational restrictions, ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overall performance"
+        },
+        {
+            "text": "Micro-F1 Macro-F1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Models"
+        },
+        {
+            "text": "CAML [22] 0.614 0.532 DR-CAML [22] 0.633 0.576 EffectiveCAN (Sum-pooling attention) [19] 0.702 0.644 EffectiveCAN (Multi-layer attention) [19] 0 only Longformer was used to handle long text sequences for level 3 of ICD-9 codes. DualPubMedBERT macro-F1 score was the same as Longformer and TransformerXL for level 2 ICD-9 codes, and better than Longformer for for level 3 ICD-9 codes with 923 labels.",
+            "cite_spans": [
+                {
+                    "start": 5,
+                    "end": 9,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 30,
+                    "end": 34,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 84,
+                    "end": 88,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Models"
+        },
+        {
+            "text": "Both Tables 2 and 3 and Figures 3 and 4 show that TransformerXL outperforms CAML across all multi-label problems for predicting medical codes.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 5,
+                    "end": 19,
+                    "text": "Tables 2 and 3",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 24,
+                    "end": 39,
+                    "text": "Figures 3 and 4",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "SOTA Results"
+        },
+        {
+            "text": "In addition, there are other language models, including concatenated models, that perform on par with or above CAML, especially when macro-F1 scores are compared. Table 4 provides the overall micro and macro F1 scores of the most frequent 50 ICD-9 codes in MIMIC III with discharge summary. In this particular case, for direct comparison, the labels and input data are all matched to the exact specifications of the compared published methods. This is the only section in this research where Top 50 ICD-9 codes are used for experimental evaluations. Evidently TransformerXL (3,072) with a learning rate of 1e-5 presents new SOTA results.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 163,
+                    "end": 170,
+                    "text": "Table 4",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "SOTA Results"
+        },
+        {
+            "text": "This section presents a comparison of individual label F1 scores for the multilabel problems presented in Section 8.1. The focus here is on showing the differences and the improvements in F1 scores of tail-end labels with multi-BioMed-Transformers compared to single transformer models including Longformer and TransformerXL. Table 1 presents the number of labels with frequency \u2265 1% , and tail-end labels (with label frequency < 1%). With the exception of a few specific labels, including ICD-9 code 508 for COVID-19 patient shielding problem, in general F1-scores of concatenated Bio-Med-Transformers for tail-end labels are consistently better. This improvement is more evident for long tail-end cases such as levels 2 and 3 of ICD-9 codes where there is also an improvement in the number of labels with F1-score = 0. Tables 2 and 3 show the overall performance of Longformer and Trans-formerXL in general are better, especially when compared to single Bio-Med-Transformers. To analyse the difference in tail-end label F1 scores we also present the actual difference between F1-scores by calculating the differences of F1 scores between a particular language model variation and Longformer or TransformerXL, hence, negative values indicate Longformer or TransformerXL have a better F1 score. Table 5 : The number of wins, draws and losses of concatenated language models compared to Longformer (LF) and TransformerXL (TXL) for systemic fungal or bacterial infections and levels 2 and 3 of ICD-9 codes.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 326,
+                    "end": 333,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 821,
+                    "end": 835,
+                    "text": "Tables 2 and 3",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1295,
+                    "end": 1302,
+                    "text": "Table 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Tail-end Labels"
+        },
+        {
+            "text": "Freq \u2265 1% Freq < 1% wins draws losses wins draws losses PubMedBERT -TXL  1  1  32  11  12  16  DualPubMedBERT -TXL  3  3  28  15  9  15  TriplePubMedBERT -TXL  4  0  30  8  13  18  QuadruplePubMedBERT -TXL  3  0  31  10  12  17 PubMedBERT Figure 6 presents the difference in F1 scores for level 2 and 3 ICD-9 codes for the following combinations: dualPubMedBERT -Longformer (3,000), triplePubMedBERT -Longformer (3,000) and dualBioMed-RoBERTa -Longformer (3,000). Due to space restrictions only tail-end labels are presented. However, it is important to note that for frequent labels, the F1 scores of Longformer are on par or better than the other three models. Smaller differences in F1 scores are noticed among the most frequent labels, and occasional dual and triple models perform slightly better than Longformer for specific labels. In general, Longformer has the most wins over other models for label frequency \u2265 1%. This pattern is reversed for tail-end labels, with Longformer losing more to the dual and triple models where the difference in F1 scores is noted. For some tail-end labels, these differences are noticeably higher than other labels. Level 3 contains 923 labels, with more than 650 labels being infrequent. Figure 6 also shows Longformer losing more to dual transformers at tail-end labels. Table 5 presents the number of per-label wins, draws, and losses for levels 2 and 3 ICD-9 codes, and fungal or bacterial infections. For multi-label problems, F1-scores of many infrequent labels are zero. This observation is also evident in Figures 5 and 6 . To quantify the observations, differences of F1 scores are presented as wins, draws and losses. For most cases, draws are where the F1 scores are zero. We acknowledge that there is a need for further analysis to understand the behaviour observed in Table 5 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 56,
+                    "end": 227,
+                    "text": "PubMedBERT -TXL  1  1  32  11  12  16  DualPubMedBERT -TXL  3  3  28  15  9  15  TriplePubMedBERT -TXL  4  0  30  8  13  18  QuadruplePubMedBERT -TXL  3  0  31  10  12  17",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 239,
+                    "end": 247,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 1230,
+                    "end": 1238,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 1314,
+                    "end": 1321,
+                    "text": "Table 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 1555,
+                    "end": 1570,
+                    "text": "Figures 5 and 6",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 1822,
+                    "end": 1829,
+                    "text": "Table 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Models"
+        },
+        {
+            "text": "As observed in Figure 6 for tail-end labels, more wins are observed for concatenated models. DualPubMedBERT is the best performing option with the fewest losses among the more frequent label groups and most wins among the tail-end labels. For MIMIC-III Level 3 codes, the results in Table 5 show Longformer losing more to dual transformers at tail-end labels. For frequent labels for systemic fungal or bacterial infection, the F1 scores of TransformerXL are consistently better than the PubMedBERT variations and a clear winner. For infrequent labels, multi-PubMedBERT variations perform better than Trans-formerXL for many labels.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 15,
+                    "end": 23,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 283,
+                    "end": 290,
+                    "text": "Table 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Models"
+        },
+        {
+            "text": "We presented concatenated domain-specific language model variations to improve the overall performance of the many infrequent labels in multi-label problems with long input sequences. Although TransformerXL and Longformer can encode long sequences, and in general, TransformerXL outperforms other models setting new SOTA results, the required computational resources are prohibitive. Concatenated PubMedBERT models outperformed single BioMed-Transformers. There was a noticeable improvement in micro-F1 for multi-BioMed-transformers with cardiovascular disease and systemic fungal or bacterial infection. For larger multi-label problems, dualPubMedBERT, TransformerXL and Longformer achieve the same macro-F1 for MIMIC-III Level 2, but dualPubMedBERT wins for MIMIC-III Level 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "We also study the impact on predictive performance for less frequent labels. Label frequency is highly biased by the hospital/department the data were collected. If the data were from a fertility ward, the label frequency of pregnancy-related medical codes would be high, while for the cardiovascular ward this may not be the case. However, only being able to predict highly frequent labels well poses risks to a patient's health and well being. Hence, this research also compared individual label F1 scores for multi-label problems focusing on tail-end labels. For larger multi-label problems with long tail-end labels, such as level 2 and 3 ICD-9 codes, multi-BioMed-transformers had more wins than Longformer and TransformerXL.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "This provided experimental evidence shows that, with fewer resources, concatenated BioMed-Transformers can improve overall micro and macro F1 scores for multi-label problems with long medical text. In addition, for multilabel problems with many tail-end labels, multi-BioMed-Transformers outperform other language models when F1 scores of tail-end labels are compared directly.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "There are many avenues of research that arise directly from this research. If processing time or resources are not an issue, then continuous training of TransformerXL and Longformer on health-related data might improve prediction accuracy possibly even for tail-end labels. Concatenating TransformerXL or Longformer is also a possibility. ICD-9 codes have a tree-like hierarchy nature. Hence, predicting ICD-9 codes as a hierarchical multi-label classification problem using transformers to encode medical text is another relevant avenue to explore.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "MLT-DFKI at CLEF eHealth 2019: Multi-label Classification of ICD-10 Codes with BERT",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Amin",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Neumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Dunfield",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vechkaeva",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Chapman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Wixted",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Exploring Transformer Text Generation for Medical Dataset Augmentation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Amin-Nejad",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ive",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Velupillai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of The 12th Language Resources and Evaluation Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "4699--4708",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Patterns of multimorbidity associated with 30-day readmission: a multinational study",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Aubert",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Schnipper",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fankhauser",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Marques-Vidal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Stirnemann",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Auerbach",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Zimlichman",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kripalani",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Vasilevskis",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Robinson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "BMC public health",
+            "volume": "19",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Longformer: The long-document transformer",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Peters",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.05150"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Transicd: Transformer based code-wise attention model for explainable icd coding",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Biswas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Pham",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2104.10652"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Androutsopoulos, I.: An empirical study on large-scale multi-label text classification including few and zero-shot labels",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Chalkidis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fergadiotis",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kotitsas",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Malakasiotis",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Aletras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "7503--7515",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "The regression analysis of binary sequences",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Cox",
+                    "suffix": ""
+                }
+            ],
+            "year": 1958,
+            "venue": "Journal of the Royal Statistical Society: Series B (Methodological)",
+            "volume": "20",
+            "issn": "2",
+            "pages": "215--232",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Transformer-XL: Attentive language models beyond a fixed-length context",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Carbonell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "What we need to learn about multimorbidity",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Flegel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CMAJ",
+            "volume": "190",
+            "issn": "34",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Limitations of transformers on clinical text classification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Alawad",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Young",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gounley",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Schaefferkoetter",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Durbin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Doherty",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Stroup",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Coyle",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Tourassi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "IEEE Journal of Biomedical and Health Informatics",
+            "volume": "",
+            "issn": "",
+            "pages": "1--12",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/JBHI.2021.3062322"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "PhysioBank, PhysioToolkit, and PhysioNet: components of a new research resource for complex physiologic signals",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Goldberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Amaral",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Glass",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hausdorff",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Ivanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Mark",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Mietus",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Moody",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Stanley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "",
+            "volume": "101",
+            "issn": "",
+            "pages": "215--220",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Domain-specific language model pretraining for biomedical natural language processing",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tinn",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lucas",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usuyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Naumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Poon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2007.15779"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Don't Stop Pretraining: Adapt Language Models to Domains and Tasks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gururangan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Marasovi\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Swayamdipta",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Downey",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "MIMIC-III, a freely accessible critical care database",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Pollard",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Li-Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ghassemi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Moody",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Szolovits",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Celi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Mark",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Scientific data",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Convolutional neural networks for sentence classification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "1746--1751",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Adam: A method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Conference on Learning Representations (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Improved neural network-based multi-label classification with better initialization leveraging label co-occurrence",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kurata",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Xiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "",
+            "issn": "",
+            "pages": "521--526",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Effective convolutional attention network for multi-label clinical document classification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Klopfer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schaaf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Gormley",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "RoBERTa: A robustly optimized BERT pretraining approach",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ott",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zettlemoyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Stoyanov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1907.11692"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A comparison of deep learning methods for icd coding of clinical records",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Moons",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Khanna",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Akkasi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Moens",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Applied Sciences",
+            "volume": "10",
+            "issn": "15",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Explainable prediction of medical codes from clinical text",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mullenbach",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wiegreffe",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Duke",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Eisenstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Classifying German Animal Experiment Summaries with Multi-lingual BERT at CLEF eHealth 2019 Task 1",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "S\u00e4nger",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Weber",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kittner",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Leser",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Hierarchical transformer networks for longitudinal clinical document classification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Si",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2104.08444"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Mining multi-label data",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tsoumakas",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Katakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Vlahavas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Data mining and knowledge discovery handbook",
+            "volume": "",
+            "issn": "",
+            "pages": "667--685",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Attention is all you need. Advances in neural information processing systems",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Shazeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Parmar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Uszkoreit",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Gomez",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Kaiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Polosukhin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "30",
+            "issn": "",
+            "pages": "5998--6008",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Does tail label help for large-scale multi-label learning?",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE transactions on neural networks and learning systems",
+            "volume": "31",
+            "issn": "",
+            "pages": "2315--2324",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Clinical concept extraction using transformers",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bian",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Hogan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "27",
+            "issn": "12",
+            "pages": "1935--1942",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Comparing High Dimensional Word Embeddings Trained on Medical Text to Bag-of-Words For Predicting Medical Codes",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Yogarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Gouk",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mayo",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pfahringer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Asian Conference on Intelligent Information and Database Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "97--108",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Seeing the whole patient: Using multi-label medical text classification techniques to enhance predictions of medical codes",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Yogarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pfahringer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.00430"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Transformers for multi-label classification of medical text: An empirical comparison",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Yogarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pfahringer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Artificial Intelligence in Medicine",
+            "volume": "",
+            "issn": "",
+            "pages": "114--123",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Transformers for multi-label classification of medical text: An empirical comparison",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Yogarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pfahringer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Artificial Intelligence in Medicine",
+            "volume": "",
+            "issn": "",
+            "pages": "114--123",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Predicting covid-19 patient shielding: A comprehensive study",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Yogarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pfahringer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Australasian Joint Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "A review on multi-label learning algorithms",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE transactions on knowledge and data engineering",
+            "volume": "26",
+            "issn": "8",
+            "pages": "1819--1837",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Deep extreme multi-label learning",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zha",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 ACM on International Conference on Multimedia Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "100--107",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "provides a summary of the multi-label problems used in this research. For multi-label problems, the notations as per Tsoumakas et al., (2009) [25] are used, where L = {\u03bb j : j = 1...q} refers to the finite set of labels and D = {(x i , Y i ), i = 1...m} refers to set of multi-label training examples. Here x i is the feature vector, and Y i \u2286 L is the set of labels of the i-th example. Label cardinality (LCard) is the average number of labels of the examples in a dataset, and label density (LDens) is cardinality divided by q.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Input: Fixed length multi-sourced or long document text input with set of labels Y \u2286 L, domain specific pre-trained transformer models x i with parameters \u03b8 1,2,...,n , Linear layer (FC) with L number of output units having \u03b8 l parameters and loss function Binary-crossentropy (BCE). 2: for each mini-batch do 3:pooled f eatures = [] 4:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Concatenated Language Model architectures. point out that CNNText is just one possible choice, and there are many other deep learning models that could be used instead of CNNtext.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Critical difference plots. Nemenyi post-hoc test (95% confidence level), identifying statistical differences between language models in",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "F1-score for tail-end labels (frequency < 1%), where single PubMed-BERT (in red) is compared with multi-BioMed-transformer models.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "MIMIC-III Level 2 and 3 codes, where the difference between F1 scores of dual/triple language model variations and Longformer (3,000 tokens) is presented. Tail-end labels (frequency < 1%) -labels ordered based on frequency with the least frequent label at the right end. Legend is presented for reference. Negative values indicate better F1 scores for Longformer(3,000).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "presents tail end F1 scores across all five multi-label problems.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Comparison of micro-F1, macro-F1 of cardiovascular disease among various language models and input text for MIMIC-III data. Input text options include the maximum sequence length and reference to the options. Bold is used to indicate the best results for each grouping in the table, and underline is used for overall best results. Results are averaged over three runs.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Comparison of micro-F1, macro-F1 of cardiovascular disease, systemic fungal or bacterial infection, levels 2 and 3 of ICD-9 codes among various language models. Time required per epoch 3 of systemic fungal or bacterial infection and MIMIC-III Level 3 is also presented. Input text options are included for reference. Bold is used to indicate the best results among the groups except for time where it is the lowest time, and underline is used for overall best results. Published results are also presented for direct comparison. Results are averaged over three runs.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Overall results for MIMIC-III Top 50 ICD-9 codes. Bold is used to indicate the best results. Published results are presented for direct comparison. Description Regularized-CAML is referred by DR-CAML. Both variations of EffectiveCAN is presented.4 Our results are averaged over three runs.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

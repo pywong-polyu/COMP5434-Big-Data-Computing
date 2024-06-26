@@ -1,0 +1,1929 @@
+{
+    "paper_id": "eeb4d6e1d3dff3d99f874c700e8c8a845296d65e",
+    "metadata": {
+        "title": "It's the Best Only When It Fits You Most: Finding Related Models for Serving Based on Dynamic Locality Sensitive Hashing",
+        "authors": [
+            {
+                "first": "Lixi",
+                "middle": [],
+                "last": "Zhou",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Zijie",
+                "middle": [],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Amitabh",
+                "middle": [],
+                "last": "Das",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Jia",
+                "middle": [],
+                "last": "Zou",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In recent, deep learning has become the most popular direction in machine learning and artificial intelligence. However, preparation of training data is often a bottleneck in the lifecycle of deploying a deep learning model for production or research. Reusing models for inferencing a dataset can greatly save the human costs required for training data creation. Although there exist a number of model sharing platforms such as TensorFlow Hub, PyTorch Hub, DLHub, most of these systems require model uploaders to manually specify the details of each model and model downloaders to screen keyword search results for selecting a model. They are in lack of an automatic model searching tool. This paper proposes an end-to-end process of searching related models for serving based on the similarity of the target dataset and the training datasets of the available models. While there exist many similarity measurements, we study how to efficiently apply these metrics without pair-wise comparisons and evaluate the effectiveness of these metrics. We find that our proposed adaptivity measurement which is based on Jensen-Shannon divergence, is an effective measurement, and its computation can be significantly accelerated by using the technique of locality sensitive hashing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Pre-trained models can be reused directly or through transfer learning so that the substantial efforts required for collecting and annotating training data on the new problems can be greatly saved [30] . This has motivated a number of model sharing platforms, such as TensorFlow Hub [3], PyTorch Hub [2], and DLHub [1] . However, the selection of proper models for serving is mostly through the intuition of domain experts and trial-error processes. Consider To address such problem, most of the model sharing platforms like DLHub [1] provides a model search tool based on the indexing of model metadata that mostly covers: (1) publication schemas such as author, creation date, description;",
+            "cite_spans": [
+                {
+                    "start": 197,
+                    "end": 201,
+                    "text": "[30]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 315,
+                    "end": 318,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 450,
+                    "end": 458,
+                    "text": "Consider",
+                    "ref_id": null
+                },
+                {
+                    "start": 531,
+                    "end": 534,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "(2) model information such as algorithm, software version, network architecture; (3) development provenance such as versions, contributors; (4) training information such as training datasets and training parameters; (5) performance information such as accuracy on benchmark datasets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "However, none of this information can directly tell which model should be selected for inference on a target dataset. The prediction of the serving accuracy of a model in a target dataset is inherently a complex problem. It is related not only to the model architecture, but also to the similarity and relationships between the source and target datasets. The model is the best only if it fits your dataset [13] . However, we observe that existing model serving platforms are lack of the capability to automatically search for a model that is trained on the best fitting dataset. People need to perform a textbased search using keywords, scrutinize each search result, and manually check the similarity of each training dataset to their own dataset. Such human-centered model selection is inefficient, which delays the model deployment and incurs significant human costs. To alleviate this problem, it is critical to automate the model selection process for model serving. The technical challenges include: (1) Storing training datasets with the models incurs significant storage overheads and privacy concerns.",
+            "cite_spans": [
+                {
+                    "start": 407,
+                    "end": 411,
+                    "text": "[13]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "(2) The similarity measurements with all candidate datasets are time-consuming. The computational overhead not only scales to the number of available models in a domain, but also scales to the sizes of the training datasets to be compared. Taking TensorFlow Hub for example, text embedding domain has 134 models, and image feature vector domain has 130 models. In addition, the datasets used by models in TensorFlow Hub may have up to several hundreds of terabytes in size, as illustrated in Fig. 1 , which also significantly slows down similarity measurements.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 492,
+                    "end": 498,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we address these two problems using locality sensitive hashing (LSH) for the probability distributions [10, 23] . While LSH is a popular technique to solve nearest neighbor problems, most of existing LSH families, are designed to measure the Hamming distance [12] and Euclidean distance [16] of two vectors with fixed dimensions, or the Jaccard similarity [6] and cosine similarity of two high-dimensional binary vectors [8] . Until very recently, the LSH for measuring similarity of probability distributions is studied [10, 23] . S2JSD-LSH [23] is first proposed to provide LSH functions for a new measurement S2JSD approx new , which is obtained by only keeping the linear terms in the Taylor expansion of the logarithm in the expression of S2JSD, the square root of two times the Jensen-Shannon (JS) divergence. However, their LSH design doesn't provide any bound on the actual JS-divergence. Then Chen et al. [10] propose a new LSH scheme for the generalized JS-divergence through the approximation of the squared Hellinger distance, which is in the form of the L2-LSH family [12] , and called as JS-LSH in this paper.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[10,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 122,
+                    "end": 125,
+                    "text": "23]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 273,
+                    "end": 277,
+                    "text": "[12]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 301,
+                    "end": 305,
+                    "text": "[16]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 370,
+                    "end": 373,
+                    "text": "[6]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 435,
+                    "end": 438,
+                    "text": "[8]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 535,
+                    "end": 539,
+                    "text": "[10,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 540,
+                    "end": 543,
+                    "text": "23]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 556,
+                    "end": 560,
+                    "text": "[23]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 928,
+                    "end": 932,
+                    "text": "[10]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1095,
+                    "end": 1099,
+                    "text": "[12]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A significant problem is that JS-divergence is symmetric, however the serving accuracy may not be symmetric. For example, a dataset A may contain only a subset of labels of another dataset B; then supposing we have a model M A that is trained on A, and a model M B that is trained on B, the accuracy of M A on B, and the accuracy of M B on A could be very different. Obviously, simply applying the symmetric JS-divergence to the model selection problem may be problematic. While there exist asymmetric measurements of two probability distributions, such as Kullback-Leibler (KL) divergence, there doesn't exist efficient LSH families for these metrics. To address the problem, we propose to split a dataset into a number of partitions and compute the JS-LSH for each partition, so that each dataset is associated with multiple LSH signatures. Thus we propose a new metric, called adaptivity, based on the number of equivalent LSH signatures shared by two datasets and the size of the target dataset, which indicates the portion of samples in the target dataset that have been seen by the model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Another problem is that before we can apply the adaptivity measurement for fast nearest neighbor search, we need first determine the overlapping feature space between the source domain and the target domain, because the features in the source domain may be very different from the target domain. It is straightforward to use MinHash [35] , another LSH technique based on Jaccard similarity, to find all of the shared features between two datasets. However, because the overlapping space can only be determined at the query time, there is no way to pre-compute the JS-LSH signatures. To address the problem, we propose to use a compressed and indexed probability distribution to represent each model's training dataset by encoding occurrences of feature values falling into each hash bin, so that the storage overhead and runtime JS-LSH computation time can be significantly reduced without losing the effectiveness.",
+            "cite_spans": [
+                {
+                    "start": 333,
+                    "end": 337,
+                    "text": "[35]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our main contributions are summarized as following: (1) As far as to our knowledge, we are the first to systematically explore the problem of finding related models for serving a target domain by comparing various metrics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "(2) We propose an adaptivity metric and an end-to-end system, called as ModelHub, to automate the process of finding related models for serving based on dynamic computation over the features shared by the source and target domains using LSH techniques.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "(3) We conduct extensive experiments to compare the effectiveness of the proposed system to alternative solutions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "2 Background 2.1 Jensen-Shannon (JS) Divergence JS-divergence [21] is a measurement of the similarity of two probability distributions, which is a symmetric metric derived from the asymmetric Kullback-Leibler (KL) divergence [18] .",
+            "cite_spans": [
+                {
+                    "start": 62,
+                    "end": 66,
+                    "text": "[21]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 225,
+                    "end": 229,
+                    "text": "[18]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Let P and Q be two probability distributions associated with a common sample space \u2126, and let M = (P + Q)/2. The JS-divergence is defined by:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Here, D KL denotes the Kullback-Leibler divergence, which is defined as following for discrete distributions:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "and as following for continuous distributions:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we mainly consider to leverage JSdivergence to select models for serving. First, JS-divergence is a widely used similarity metric for probability distributions [19] . Second, it is easier to find LSH schemes for JSdivergence, compared to other similarity measurements of probability distributions [23] . While other metrics such as Maximum Mean Discrepancy (MMD) could measure the domain adaptivity more accurately, it requires an optimization process and significantly higher computational costs, as illustrated in Tab. 1.",
+            "cite_spans": [
+                {
+                    "start": 174,
+                    "end": 178,
+                    "text": "[19]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 311,
+                    "end": 315,
+                    "text": "[23]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "2.2 Locality Sensitive Hashing (LSH) LSH was developed for general approximate nearest neighbor search problem [16] . It requires a family of LSH functions, each of which is a hash function whose collision probability increases with the similarity of the inputs. The (r 1 , r 2 , p 1 , p 2 )sensitive LSH family is formally defined in Definition. 1.",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[16]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "LSH is first proposed by Indyk and et al [16] for measuring the Hamming distance in a d-dimensional Euclidean space, which requires the data to be vectors with fixed dimensions. MinHash [6] is a widely used family of hash functions for Jaccard similarity. SimHash is an LSH scheme for Cosine distance [8] . Both of MinHash and SimHash are only applicable to high-dimensional binary vectors or sets of values (without fixed dimensions), and MinHash is usually considered to be more computationally efficient than SimHash [35] . However none of these popular LSH schemes are applicable to our problem where each dataset is a variable number of high-dimensional vectors.",
+            "cite_spans": [
+                {
+                    "start": 41,
+                    "end": 45,
+                    "text": "[16]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 186,
+                    "end": 189,
+                    "text": "[6]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 301,
+                    "end": 304,
+                    "text": "[8]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 520,
+                    "end": 524,
+                    "text": "[35]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "As mentioned, the LSH schemes for probability distributions are recently studied [10, 23] . S2JSD-LSH [23] provides LSH functions for a measurement that approximates the square root of two times the JS-divergence. Unfortunately, their LSH design doesn't provide any bound on the actual JS-divergence. Then Chen et al. [10] propose a new LSH scheme for the generalized JS-divergence through the approximation of the squared Hellinger distance, which is proved to be bounded with the actual JS-divergence and thus used in this work as JS-LSH, as defined in Eq. 2.4:",
+            "cite_spans": [
+                {
+                    "start": 81,
+                    "end": 85,
+                    "text": "[10,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 86,
+                    "end": 89,
+                    "text": "23]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 102,
+                    "end": 106,
+                    "text": "[23]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 318,
+                    "end": 322,
+                    "text": "[10]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "where P is a probability distribution in the sample space \u2126, a \u223c N (0, I) is a |\u2126|-dimensional standard normal random vector, \u00b7 represents the inner product operation, b is a random variable uniformly distributed on [0, r], and r is a positive real number. This approximation is proved to be lower bounded by a factor 0.69 for the JS-divergence [10] . ",
+            "cite_spans": [
+                {
+                    "start": 345,
+                    "end": 349,
+                    "text": "[10]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "and q j (0 \u2264 j < nt) are partitions that have equivalent sizes (except for the last residue partition), given a threshold t, we can join D s and D t to identify all pairs in form of (p i , q j ), so that D JS (p i , q j ) \u2264 t. We denote the total number of pairs that satisfy above condition as num matches. Then we can derive a new metric to measure the adaptivity of the models trained in the source domain to the target domain, denoted as: adaptivity(D s , D t ) = num matches nt .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We divide the problem of selecting a model for reuse in two sub-problems. The first subproblem is to obtain the overlapping features of the training data (i.e. source domain) and the query data (i.e. target domain). The second sub-problem is to measure the adaptivity over the overlapping feature space. The two sub-problems are formulated as following.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "DEFINITION 3. Suppose we have a database of n pretrained models (i.e., source tasks in a source domain), rep-",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "Given a query q that has k q features, denoted as F q = {f 1 , ..., f kq }, and two thresholds t 1 , t 2 \u2208 [0, 1], the database should return a set of relevant models, denoted as M q \u2282 M, so that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "DEFINITION 4. Supposing each model M i \u2208 M has a source domain represented as D i . Given a query that has a target domain D q , as well as a threshold t adaptivity or t JS , depending on which metric is used, the database should return a set of relevant models, denoted as M q \u2282 M,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "Here, D i and D q are defined over the overlapped feature space as defined in Def. 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "We propose ModelHub as an end-to-end solution to address the above two problems. ModelHub is a model sharing platform, which requires that for each model, following information must be provided: (1) A MinHash signature for each feature in the training data. MinHash is a widely used technique to efficiently search nearest neighbors based on the Jaccard similarity. For a feature that contains continuous numerical values, we first quantize the values into a number of bins based on the range and distribution of data, to improve the effectiveness of Jaccard similarity estimation for such features [29] .",
+            "cite_spans": [
+                {
+                    "start": 599,
+                    "end": 603,
+                    "text": "[29]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Solution Architecture"
+        },
+        {
+            "text": "(2) A compressed data sketch for each partition of the training dataset, which can be used to easily derive the probability distribution over any subset of features in this partition. This structure is used to derive the JS-LSH signatures for efficiently measuring JS-divergence in the dynamic overlapping feature space shared by the training dataset of this model (i.e. the source domain) and the querying dataset (i.e. the target domain). Most training datasets are multi-dimensional, and to compute the multi-variate probability distribution of a multi-dimensional dataset is difficult [27] . To solve the problem, we first flatten a multi-dimensional dataset into a single-dimensional dataset [10] and then create a set of histogram bins over the flattened dataset. Finally, we create an index, each entry contains a feature ID followed by the feature's occurrences in each bin, as illustrated in Fig. 2 . All partitions across all datasets have equivalent size m. Based on these information, the system can efficiently compute the adaptivity based on Def. 2, without uploading the training dataset. The process is depicted as following.",
+            "cite_spans": [
+                {
+                    "start": 589,
+                    "end": 593,
+                    "text": "[27]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 697,
+                    "end": 701,
+                    "text": "[10]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 901,
+                    "end": 907,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Solution Architecture"
+        },
+        {
+            "text": "Step 1. Given a query dataset, we need first determine all models that have significant overlaps in feature space with the query dataset using the MinHash signatures. (Sec. 3.4) Step 2. For each of the models returned from Step 1, we use adaptivity to select the best model. We compute the JS-LSH signatures over the shared features for each partition, store the signatures of the larger dataset that has more partitions to hash tables, and then use the signatures of the smaller dataset to look up in the hash tables to determine the number of similar partitions. Then we estimate the adaptivity of the source domain and the target domain, as defined in Def. 2 and Def. 4.(Sec. 3.5)",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 167,
+                    "end": 177,
+                    "text": "(Sec. 3.4)",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Solution Architecture"
+        },
+        {
+            "text": "The search of the overlapping features of a source dataset and the target dataset are based on MinHash [6] , a widely used locality sensitive hashing technique for Jaccard similarity. The search process contains an offline and an online stage. We first describe the offline stage. First, for each model, we expand each feature into a vector of values based on its succinct representation of the training data, by replicating the value associated with each bin by the number of its occurrences. Then for each feature vector, we will create L minhash MinHash signatures corresponding to L minhash bands. Each band is associated with K minhash MinHash functions, and each signature is a concatenation of K minhash MinHash values produced by the band's functions. A hash table is created for each band, so that for each model, each of the L minhash signatures is stored to the corresponding hash table.",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 106,
+                    "text": "[6]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Overlap Search"
+        },
+        {
+            "text": "Then at the online stage, a model search request regarding a target dataset is issued. The target dataset's MinHash signatures will be computed for each feature on each band using the aforementioned approach. Then for each feature, the signature of each band will be used to query the corresponding hash table to find out all models that have a matching signature. Finally, models having a significant portion of features overlapping with the target dataset, as defined in Def. 3, will be identified and returned.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overlap Search"
+        },
+        {
+            "text": "In this section, we mainly describe how the adaptivity metric is computed over the identified overlapping feature space at runtime. First, for each partition in the training dataset of a model M i , we expand the succinct representation into a one-dimensional dataset that concatenates all expanded feature vectors. Then for each partition's dataset, we create L jslsh bands, and each band is associated with K jslsh hash functions based on Eq. 2.4, we create a JS-LSH signature of length K jslsh by concatenating values computed by these hash functions. Each band is constructed with a hash table and each signature is stored into the corresponding band's hash table.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Search"
+        },
+        {
+            "text": "Then, we do the same for the target dataset to obtain L jslsh signatures for each band in each partition, which are used to query the corresponding hash table to find all models, of which a partition of the training data has a matching signature in the same band. Based on the matches, we can compute the adaptivity as defined in Def. 2. Finally, we will select the models whose adaptivity with the target dataset passes a threshold t adaptivity as described in Def. 4. The computation of JS-divergence is a special case of the above process where the number of partitions is set to 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Search"
+        },
+        {
+            "text": "We evaluate our proposed methodology using four workloads. 1. Activity Recognition. Human activity recognition (HAR), is to predict the activities (e.g. walking, sitting, running, lying) based on data collected from multiple sensors attached to human body. HAR is a hot research topic in the pervasive computing area, and has been widely applied to indoor localization, sleep state detection, smart home sensing, and virtual reality [4] . In this work, we use three public activity recognition datasets, including OPPORTUNITY [9] , PAMAP2 [26] , and UCI DSADS [5] . Each dataset is extracted with 81 features [28] . The OPPORTUNITY dataset is collected from four human subjects executing various activities with sensors attached to more than five body parts. The PAMAP2 dataset is collected from nine subjects performing 18 activities with sensors attached to three body parts. The UCI DSADS dataset is collected from eight subjects wearing sensors on five body parts. We create 162 tables by sampling these datasets, so that each table represents samples collected from a body part for specific subject. Then we apply our approach to a series of scenarios where models are trained on each of these tables, and given a target dataset collected from a subject on a specific body part, we want to select a model to achieve the best accuracy on the target dataset. 2. Entity Matching (EM). Entity matching is to tell whether two tuples are referring to the same entity [7, 14, 15, 20, 33] . We mainly apply DeepMatcher [24] , which is an EM tool based on deep learning, to four datasets 1 : Walmart-Amazon, Abt-Buy, DBLP-Scholar, DBLP-ACM; and 11 smaller datasets from the Magellan Data Repository [11] 2 . Each task contains training and testing samples collected from two different datasets. For example, IMDB-TMD is to match movie tuples collected from IMDB and TMD respectively. Each EM task may have different features, and some tasks share a significant portion of common features. We focus on the model selection scenarios where a dataset is used for query, and a set of models are trained for the EM tasks on the rest of the datasets as candidates, and then we try to select a candidate model to serve the query dataset. 3. Image Recognition. To create five image datasets with distinct probability distributions, we randomly sample images from the Cifar-10 dataset without replacement. Cifar-10 is a collection of images with labels of ten classes, each containing 5, 000 images. Then we make four of the subsets skewed by adding 5000 images of the fourth class to the second and the fourth subset; 5000 images of the second class to the third subset; 5000 images of the eighth class to the third subset. These five datasets are called as Balanced, Skewed-1, Skewed-2, Skewed-3, Skewed-4 correspondingly. To evaluate the effectiveness of our proposed metrics for the image recognition scenario, we train ResNet56v1 model on each of the subsets respectively, and then perform five experiments of searching for the best model to be reused on each of the five datasets. 4. Natural Language Processing (NLP). We are mainly interested in two types of NLP tasks. The first task is to identify whether sentence pairs have equivalent semantic meanings. For this task, we train models on three different datasets: Microsoft Research Paraphrase Corpus (MRPC) that includes 3, 549 samples; Quora Question Pairs (QQP) that consists of 363, 192 samples; and Paraphrase Adversaries from Word Scrambling (PAWS) which has 49, 401 samples. The second task is about natural language inference (NLI), which is to identify the textual entailment relationship [22] between sentence pairs. Similar to the first task, we train models on three different datasets: Recognizing Textual Entailment (RTE) that has 2, 490 samples; Question NLI, which contains 510, 711 samples; and the SCITAIL dataset including 5, 302 samples, which is an entailment dataset created from multiple-choice science exams and web sentences. We train models for these tasks using the same pre-trained BERT base model 3 , denoted as uncased L-12 H-768 A-12, which contains 12 layers and 110 millions of parameters. Then for each task, we use one of the three datasets as the target dataset, and try to choose the best model to serve on the target dataset.",
+            "cite_spans": [
+                {
+                    "start": 433,
+                    "end": 436,
+                    "text": "[4]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 526,
+                    "end": 529,
+                    "text": "[9]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 539,
+                    "end": 543,
+                    "text": "[26]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 560,
+                    "end": 563,
+                    "text": "[5]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 609,
+                    "end": 613,
+                    "text": "[28]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1466,
+                    "end": 1469,
+                    "text": "[7,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1470,
+                    "end": 1473,
+                    "text": "14,",
+                    "ref_id": null
+                },
+                {
+                    "start": 1474,
+                    "end": 1477,
+                    "text": "15,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1478,
+                    "end": 1481,
+                    "text": "20,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1482,
+                    "end": 1485,
+                    "text": "33]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1516,
+                    "end": 1520,
+                    "text": "[24]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1695,
+                    "end": 1699,
+                    "text": "[11]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 3645,
+                    "end": 3649,
+                    "text": "[22]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Empirical Evaluation 4.1 Workloads and Datasets"
+        },
+        {
+            "text": "In these experiments, we mainly compare our proposed adaptivity metric (as defined in Def. 2) to other alternatives, including (1) JS-divergence (a special case of adaptivity when each dataset has only one partition), which is computed using the JS-LSH for JSdivergence; (2) L2-distance, which is to get the center of the overlapping features for the source and target datasets, and then compute the L2-LSH for Euclidean distance [16] ;",
+            "cite_spans": [
+                {
+                    "start": 430,
+                    "end": 434,
+                    "text": "[16]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Methodology"
+        },
+        {
+            "text": "(3) source accuracy, which is the testing accuracy of the candidate model on the source dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Methodology"
+        },
+        {
+            "text": "To compare the effectiveness of these metrics, we compute the Pearson correlation coefficient values to show the impact of various metrics, including the adaptivity, the JSdivergence, the L2-distance, and the source accuracy, to the target accuracy (i.e. the prediction accuracy of the source model on the target dataset). In most of the cases, JSdivergence and L2-distance have the negative relationships with the target accuracy, so their Pearson correlation coefficient values are often negative. In addition, we also evaluate and compare the error rate for each metric, while the top1error and top2-error are defined as the number of wrong predictions in identifying the best model or one of the top two models to the total predictions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Methodology"
+        },
+        {
+            "text": "We first compare the accuracy and latency of our proposed approach based on LSH for JS-divergence to a baseline approach that computes the JSdivergences between the target dataset and each of the source datasets directly without using LSH techniques. The results are illustrated in Fig. 3 , in which each bar represents a test case that uses one table as the query (i.e. target dataset), and the rest of the tables as the sources. In this experiment, for each test, we assume the source datasets that have the JS-divergence with the query dataset smaller than 0.1 compose the ground truth. We observe that using LSH can significantly accelerate the overall latency required for JSdivergence comparison, and achieve 5\u00d7 speedup on average, while the precision of our proposed approach is 100% and recall is above 93%, which are both acceptable results. We further evaluate how hyperparameters, such as r (as in Eq. 2.4), the number of concatenated hash functions (i.e., K l2hash ) of each band, the number of bands (i.e., L l2hash ), and the number of hash bins, will affect the accuracy of the JS-divergence computed using LSH compared to the baseline, which are illustrated in Fig. 4 . The comparison of Pearson correlation coefficient values of various metrics, including the adaptivity, the JSdivergence, the L2-distance, and the source accuracy, to the target accuracy are illustrated in Tab. 2. It shows that our proposed adaptivity metric can achieve better performance. Also among the four metrics, the source accuracy exhibits the least relevance with the target accuracy, which demonstrates our assumption that \"It's the best only when it fits you most\", and indicates that the similarity between the source and the target plays a more important role in determining model adaptivity.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 282,
+                    "end": 288,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1177,
+                    "end": 1183,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Activity Recognition"
+        },
+        {
+            "text": "We also compute the top-1 and top-2 error rates, as illustrated in Tab. 3. It shows that all of the metrics including adaptivity, JS-divergence, and L2-distance can serve as a metric for finding related models with zero top-2 errors in our test cases. In addition, adaptivity and L2-distance have better top-1 error rate than JS-divergence.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Activity Recognition"
+        },
+        {
+            "text": "In this experiment, different from activity recognition, most attributes contain text-based values. We represent the training dataset of each entity matching task as a bag of words over a shared dictionary for computing the JS-divergence and adaptivity. We compare the Pearson correlation coefficient values of the JS-divergence metric, the adaptivity metric, and source accuracy, to the target accuracy for each EM task, as illustrated in Tab. 4. We also compare the overall accuracy in terms of top1-error and top2-error for all fifteen tasks, as illustrated in Tab. 5. The results show that the adaptivity metric outperforms other metrics in selecting the model to serve with the best accuracy. We evaluate and compare the effectiveness of adaptivity, JS-divergence, L2-distance, and source accuracy for searching the best model to serve on a target dataset. The Pearson correlation coefficient of each metric to the target accuracy in each experiment is illustrated in Tab. 6. The top-1 and top-2 error rate for searching the best model for each experiment is illustrated in Tab. 9.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entity Matching"
+        },
+        {
+            "text": "For this experiment, as mentioned in Sec. 4.1, because each task involves merely three datasets, a model search scenario for a target dataset only requires to compare two datasets. Therefore, instead of computing the Pearson coefficient for each search scenario, we choose to compute for each task that contains three search scenarios. For the same reason, we only consider top-1 error for this experiment, which is counted over all six search scenarios across the two tasks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Natural Language Processing"
+        },
+        {
+            "text": "The results are illustrated in Tab. 8 and Tab. 9, which show that while adaptivity has less correlation with the target accuracy compared to JS-divergence, it can more effectively predict the best model for serving with zero error rate for all six search scenarios. The source accuracy performs much worse than other metrics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Natural Language Processing"
+        },
+        {
+            "text": "One thing to note is that the computation of adaptivity is more complicated than JSdivergence and takes more time. For most of above experiments, we choose the partition size of each dataset between 300 to 800. For the NLP experiment, when the source dataset and the target dataset has a significant size discrepancy, we choose the size of the smaller dataset to be the partition size, so that the smaller dataset has only one partition. Then we compare the latency of computing JS-divergence and adaptivity by using different partition sizes and for different sizes of source and target datasets. The results are illustrated in Fig. 5 , which illustrates that when partition size is around 500, the computational overhead for adaptivity is 1.7 \u2212 3\u00d7 of JS-divergence. In recent, numerous works are proposed to address open data discovery problems, including automatically discover table unionability [25] and joinability [34, 35] , and related tables [32] . Most of these works are trying to identify all similar features using LSH techniques based on Jaccard similarity or variants. While these works are helpful to this study in identifying the overlapping feature space, they are not di-rectly applicable in selecting related models, because the existence of a significant portion of shared features between the source and target datasets doesn't mean the probability distribution of the feature space of the two datasets are similar. Zamir and et al [31] propose a computational approach to find the transferable relationships, abstracted as taskonomy among the different computation vision tasks, e.g. depth estimation, edge detection, point matching and etc., so that some tasks can be trained using other tasks' output and thus require less training data and supervision budget. Their work is focused on the adaptivity from a task's output domain to another task's input domain. In contrast, our work is focused on the adaptivity of tasks' input domains. Also while their work is limited to computer vision, our work is targeting at a more generalized scenario. Kornblith and et al [17] study the relationship between the ImageNet model architectures such as ResNet, MobileNet, Inception-ResNet, etc., and the transfer learning performance. They observe that transfer learning based on finetune techniques (i.e., just tune the last two layers) even using a \"better\" model architecture may not achieve \"better\" accuracy. This means in regard of the effectiveness of transfer learning, the divergence of features between the source and target domains is more important than the difference of model architectures. Their observation indicates that our work may be applicable to find related models for transfer learning.",
+            "cite_spans": [
+                {
+                    "start": 900,
+                    "end": 904,
+                    "text": "[25]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 921,
+                    "end": 925,
+                    "text": "[34,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 926,
+                    "end": 929,
+                    "text": "35]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 951,
+                    "end": 955,
+                    "text": "[32]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 1454,
+                    "end": 1458,
+                    "text": "[31]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 2089,
+                    "end": 2093,
+                    "text": "[17]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 629,
+                    "end": 635,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Further Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Deep learning hub",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Activity recognition using inertial sensing for healthcare, wellbeing and sports applications: A survey",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Avci",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bosch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Marin-Perianu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Marin-Perianu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Havinga",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "23th International conference on architecture of computing systems 2010",
+            "volume": "",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Recognizing daily and sports activities in two open source machine learning environments using body-worn sensor units",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Barshan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Y\u00fcksek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "The Computer Journal",
+            "volume": "57",
+            "issn": "11",
+            "pages": "1649--1667",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "On the resemblance and containment of documents",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Broder",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Proceedings. Compression and Complexity of SEQUENCES 1997 (Cat. No. 97TB100171)",
+            "volume": "",
+            "issn": "",
+            "pages": "21--29",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Creating embeddings of heterogeneous relational datasets for data integration tasks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Cappuzzo",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Papotti",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Thirumuruganathan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 ACM SIGMOD International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "1335--1349",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Similarity estimation techniques from rounding algorithms",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Charikar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the thiry-fourth annual ACM symposium on Theory of computing",
+            "volume": "",
+            "issn": "",
+            "pages": "380--388",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "The opportunity challenge: A benchmark database for on-body sensorbased activity recognition",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Chavarriaga",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Sagha",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Calatroni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Digumarti",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tr\u00f6ster",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D R"
+                    ],
+                    "last": "Mill\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Roggen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Pattern Recognition Letters",
+            "volume": "34",
+            "issn": "15",
+            "pages": "2033--2042",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Localitysensitive hashing for f-divergences: Mutual information loss and beyond",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Esfandiari",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Mirrokni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "10044--10054",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "The magellan data repository",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Doan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S G C"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Gokhale",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Konda",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Govind",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Paulsen",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Locality-sensitive hashing scheme based on p-stable distributions",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Datar",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Immorlica",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Mirrokni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the twentieth annual symposium on Computational geometry",
+            "volume": "",
+            "issn": "",
+            "pages": "253--262",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Model selection techniques: An overview",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Tarokh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Signal Processing Magazine",
+            "volume": "35",
+            "issn": "6",
+            "pages": "16--34",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Seeping semantics: Linking datasets using word embeddings for data discovery",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Fernandez",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Mansour",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Qahtan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Elmagarmid",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ilyas",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Madden",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ouzzani",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Stonebraker",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE 34th International Conference on Data Engineering (ICDE)",
+            "volume": "",
+            "issn": "",
+            "pages": "989--1000",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Approximate nearest neighbors: towards removing the curse of dimensionality",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Proceedings of the thirtieth annual ACM symposium on Theory of computing",
+            "volume": "",
+            "issn": "",
+            "pages": "604--613",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Do better imagenet models transfer better?",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kornblith",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shlens",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "2661--2671",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "On information and sufficiency. The annals of mathematical statistics",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kullback",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Leibler",
+                    "suffix": ""
+                }
+            ],
+            "year": 1951,
+            "venue": "",
+            "volume": "22",
+            "issn": "",
+            "pages": "79--86",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Measures of distributional similarity",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Deep entity matching with pre-trained language models",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Suhara",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Doan",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-C",
+                    "middle": [],
+                    "last": "Tan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.00584"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Divergence measures based on the shannon entropy",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "IEEE Transactions on Information theory",
+            "volume": "37",
+            "issn": "1",
+            "pages": "145--151",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Natural language inference",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Maccartney",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "S2jsd-lsh: A locality-sensitive hashing schema for probability distributions",
+            "authors": [
+                {
+                    "first": "X.-L",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "B.-S",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.-J",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Nie",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Wen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the Thirty-First AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "3244--3251",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Deep learning for entity matching: A design space exploration",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mudgal",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Rekatsinas",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Doan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Krishnan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Deep",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Arcaute",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Raghavendra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "19--34",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Table union search on open data",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Nargesian",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Pu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Miller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the VLDB Endowment",
+            "volume": "11",
+            "issn": "",
+            "pages": "813--825",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Introducing a new benchmarked dataset for activity monitoring",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Reiss",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Stricker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "2012 16th International Symposium on Wearable Computers",
+            "volume": "",
+            "issn": "",
+            "pages": "108--109",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Statistics: Theory and methods i chapter 3",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Stigler",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Stratified transfer learning for cross-domain activity recognition",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Philip",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE International Conference on Pervasive Computing and Communications (PerCom)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "A review for weighted minhash algorithms",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Transactions on Knowledge and Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Deep learning for fixed model reuse",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D.-C",
+                    "middle": [],
+                    "last": "Zhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z.-H",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "AAAI",
+            "volume": "",
+            "issn": "",
+            "pages": "2831--2837",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Taskonomy: Disentangling task transfer learning",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Zamir",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sax",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Guibas",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Savarese",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3712--3722",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Finding related tables in data lakes for interactive data science",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Ives",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 ACM SIGMOD International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "1951--1966",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Auto-em: End-to-end fuzzy entitymatching using pre-trained deep models and transfer learning",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "2413--2424",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Josie: Overlap set similarity search for finding joinable tables in data lakes",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Nargesian",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Miller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "847--864",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Lsh ensemble: Internet-scale domain search",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Nargesian",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Pu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Miller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1603.07410"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "TensorFlow Hub Models. The value and size of the circle denote the number of models trained on the dataset.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Succinct representation of a (partition of) dataset",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Comparison of LSH for JS-divergence (denoted as LSH) to a pair-wise computation of JS-divergence (denoted as baseline) for 162 activity recognition tables.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Hyperparameter tuning for LSH of JS-divergence.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Latency comparison of computing JS-divergence and adaptivity, m is the size of each partition 5 Related Works",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "the following example: In TensorFlow Hub [3], there are now 134 text embedding models available for downloads. Supposing we want to select one of these models to work on integrated open tables regarding coronavirus disease 2019 (COVID-19), which model can achieve optimal accuracy in the target domain and should be chosen? * lixi.zhou@asu.edu, Arizona State University \u2020 zijiewang@asu.edu, Arizona State University \u2021 adas59@asu.edu, Arizona State University \u00a7 jia.zou@asu.edu, Arizona State University",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Average latency comparison on Activity Recognition (Sec. 4.1) datasets (Unit: seconds).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Comparison of Pearson correlation coefficient for activity recognition (the best Pearson correlation coefficient values are highlighted in bold).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Comparison of error rate for activity recognition",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF8": {
+            "text": "Comparison of Pearson correlation coefficient for image recognition (the best Pearson correlation coefficient values are highlighted in bold) Image Recognition In this scenario, for each Cifar-10 image, we normalize all pixel values by dividing each value by 255, and then flatten the image from a tensor of the shape (32, 32, 3) into a one-dimensional vector of the shape(1, 3072). Then, we compute the JS-divergence and L2-distance on the flattened dataset.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF9": {
+            "text": "Comparison of error rate for image recognition",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF10": {
+            "text": "Comparison of Pearson correlation coefficient for NLP (the best Pearson correlation coefficient values are highlighted in bold)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF11": {
+            "text": "Comparison of error rate for NLP",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "In this work, we systematically explore the problem of finding related models for serving based on JS-divergence and adaptivity, which are dynamically computed over the features shared by the source and target domains. We propose and implement an end-to-end system, called ModelHub, to efficiently automate the process of finding related models for serving based on various techniques including LSH for JS-divergence, the compressed and indexed probability distribution structure, and MinHash. We demonstrate the accuracy and efficiency of the proposed system through extensive experiments on a number of workloads including activity recognition, entity matching, image recognition, and natural language processing. Our proposed work can greatly save the human costs and shorten the deep learning model deployment time for production and research.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "We would like to thank Dunchuan Wu for his help with Fig. 1 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 53,
+                    "end": 59,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Acknowledgment"
+        }
+    ]
+}

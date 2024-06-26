@@ -1,0 +1,2623 @@
+{
+    "paper_id": "aeb2b9275d129bc4e9f832048abc3ef35dcc77e3",
+    "metadata": {
+        "title": "Low Resource Recognition and Linking of Biomedical Concepts from a Large Ontology",
+        "authors": [
+            {
+                "first": "Sunil",
+                "middle": [],
+                "last": "Mohan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Chan Zuckerberg Initiative Redwood City",
+                    "location": {
+                        "region": "California",
+                        "country": "USA"
+                    }
+                },
+                "email": "smohan@chanzuckerberg.com"
+            },
+            {
+                "first": "Rico",
+                "middle": [],
+                "last": "Angell",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Massachusetts Amherst",
+                    "location": {
+                        "region": "Massachusetts",
+                        "country": "USA"
+                    }
+                },
+                "email": "rangell@cs.umass.edu"
+            },
+            {
+                "first": "Nicholas",
+                "middle": [],
+                "last": "Monath",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Massachusetts Amherst",
+                    "location": {
+                        "region": "Massachusetts",
+                        "country": "USA"
+                    }
+                },
+                "email": "nmonath@cs.umass.edu"
+            },
+            {
+                "first": "Andrew",
+                "middle": [],
+                "last": "Mccallum",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Massachusetts Amherst",
+                    "location": {
+                        "region": "Massachusetts",
+                        "country": "USA"
+                    }
+                },
+                "email": "mccallum@cs.umass.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Tools to explore scientific literature are essential for scientists, especially in biomedicine, where about a million new papers are published every year. Many such tools provide users the ability to search for specific entities (e.g. proteins, diseases) by tracking their mentions in papers. PubMed, the most well known database of biomedical papers, relies on human curators to add these annotations. This can take several weeks for new papers, and not all papers get tagged. Machine learning models have been developed to facilitate the semantic indexing of scientific papers. However their performance on the more comprehensive ontologies of biomedical concepts does not reach the levels of typical entity recognition problems studied in NLP. In large part this is due to their low resources, where the ontologies are large, there is a lack of descriptive text defining most entities, and labeled data can only cover a small portion of the ontology. In this paper, we develop a new model that overcomes these challenges by (1) generalizing to entities unseen at training time, and (2) incorporating linking predictions into the mention segmentation decisions. Our approach achieves new state-of-the-art results for the UMLS ontology in both traditional recognition/linking (+8 F1 pts) as well as semantic indexing-based evaluation (+10 F1 pts).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The rate of publication in science research continues to grow. This is especially true in the biomedical and life sciences. The 2018 STM 1 report [7] indicates that of the approximately 3 million scientific papers published in 2018 (as indexed by Elsevier's Scopus), the MEDLINE database of life sciences articles accounts for 850K 2 (\u223c 30%). Tools that facilitate efficient literature search and exploration have become vital for researchers [11] . These tools (such as PubMed, Meta, and Google Scholar) provide users with the ability to set alerts and follow the mentions of particular scientific entities or topics in new publications. Additionally, the need for building efficient and effective biomedical literature exploration tools is of high public health importance, as seen with efforts such as CORD-19 to support the coronavirus pandemic [38] .",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 149,
+                    "text": "[7]",
+                    "ref_id": null
+                },
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 849,
+                    "end": 853,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Semantic indexes that record the scientific entities (e.g. \"TAS2R38 protein, human\", \"Nipah Virus\", and the drug \"Atorvastatin\") mentioned in each paper are a core component of tools for literature search and exploration. These indexes account for ambiguity in the way entities are mentioned, and map them into a controlled ontology (e.g. the UMLS concepts C1175211, C0751673 and C0286651). This allows users to access information more easily without needing to query for a wide variety of aliases / spellings of an entity name.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "To build such a semantic index, entity mentions must be recognized and linked in the text of scientific papers. These tasks are widely studied with many Wikipedia-based resources and a plethora of training data for newswire domains. The domain of biomedical research papers, however, has a relative lack of training data resources. While datasets for some small ontologies have been widely studied, e.g. Chemicals and Diseases [14] , the more useful comprehensive ontologies are large, lack descriptive text defining most entities, and labeled data can cover only a small portion of the ontology. At the same time, ontologies such as UMLS [1] do contain useful information, supplementing entity names with aliases, acronyms, entity types and other information.",
+            "cite_spans": [
+                {
+                    "start": 427,
+                    "end": 431,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 639,
+                    "end": 642,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In this paper, we describe a new model for detection of mentions and linking them to concepts in an ontology of fine-grained types, that is designed to operate in a 'low resource setting': (i) low coverage of the ontology in the training data, and (ii) with no descriptions for the concepts or their types.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Inspired by the end-to-end linking model by Kolitsas et al. [9] , we take a 'bottom-up' approach, starting with considering all text spans as candidate mentions. These are then linked to concepts that best match the span in context. However, unlike previous work [9] , the final stage then predicts which of the linked spans are actual mentions in the document. Our approach is based on BERT [3] , taking advantage of its rich pre-training as well as leveraging its multilevel self-attention network to provide dynamic cross-attention between mentions and candidate concepts. We also leverage some basic information from the concept ontology. We thus avoid relying on specific trained concept (entity) or type embeddings, for which there are not enough resources in our problem setting.",
+            "cite_spans": [
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 263,
+                    "end": 266,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We evaluate our approach on the largest public benchmark for biomedical entity recognition and linking in research papers: Med-Mentions [22] . This has been a particularly hard problem compared to other datasets for smaller biomedical ontologies; e.g. a simple BERT-based model for the easier NER task (recognizing mentions and their types but without linking) achieves SOTA performance with F1 scores above 0.85 and even as high as 0.935 for several other datasets [13] . The best NER result on MedMentions ST21pv is F1 = 0.64 achieved by a recent much larger model [25] . We attribute the low performance of SOTA models on MedMentions to its 'low resource' nature, a setting our new model is designed to address.",
+            "cite_spans": [
+                {
+                    "start": 136,
+                    "end": 140,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 466,
+                    "end": 470,
+                    "text": "[13]",
+                    "ref_id": null
+                },
+                {
+                    "start": 567,
+                    "end": 571,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We drastically improve the state-of-the-art for MedMentions in both the standard recognition and linking benchmarks, achieving a score 8 F1 points higher than the previous SOTA [19] , while matching the best NER results with our linker. We also evaluate on the document-level linking metric, which is well aligned with the semantic indexing task and similarly provide a 10 F1 point improvement. Finally, we perform an extensive performance analysis of our method.",
+            "cite_spans": [
+                {
+                    "start": 177,
+                    "end": 181,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Our proposed end-to-end recognition and linking model consists of three sequential stages: (i) candidate generation (section \u00a72.2): consider all text spans (of pretokenized text) as candidate mentions and use lexical similarity to generate matching entities from an alias table; (ii) span linking ( \u00a72.3): use contextualized semantic information to refine the lexical matches and select the best entities to link to each span; and finally, (iii) span selection ( \u00a72.4): determine mention span boundaries using both the linking decisions and span representation. Importantly, our model can generalize to entities that are unseen at training time. It achieves this by using no entity-specific parameters; instead, entities are modeled by an encoding of their name spelling, type name, and other attributes. Additionally, the candidate generation and span selection components support generalization to new entities by considering all spans in the document.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "END-TO-END LINKING MODEL"
+        },
+        {
+            "text": "Given a document as a sequence of tokens, and a knowledge-base (KB) of entities E, we consider two tasks: (i) Entity Recognition and Linking requires predicting a set of mention-entity pairs ( , ), where is a token span linked to the entity \u2208 E; (ii) Semantic Indexing requires predicting just the set of entities { } that are mentioned somewhere in the document.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Entity Recognition & Linking Task"
+        },
+        {
+            "text": "UMLS is an ontology of biomedical concepts that are named finegrained types. For convenience, we shall refer to these concepts as Entities, and the combined task of entity recognition and linking as concept recognition.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Entity Recognition & Linking Task"
+        },
+        {
+            "text": "Our model uses a high recall candidate phrase generator that generates a large number of overlapping candidate mention spans. Each span is then associated with a list of potentially matching entities.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidate Mention Spans and Matches"
+        },
+        {
+            "text": "We assume the knowledge base of entities E is structured so that each entity is associated with an entity type, a preferred primary name, and a list of alternative names (aliases), each marked with a name type from an ordered list of name types (see \u00a73.2). In general, the names are not unique, and E is viewed as a list of entity alias entries ( , , , ) where is a name, is an entity associated with that name, is a entity type, and is a name type.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidate Mention Spans and Matches"
+        },
+        {
+            "text": "The candidate generation step begins by considering all token spans of at most tokens contained within a sentence. We exclude spans that start or end with a stop word or punctuation token.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidate Mention Spans and Matches"
+        },
+        {
+            "text": "An enhanced version of the lexical matching scheme from [24] is used to match candidate entities from E to each candidate span. The tokenized candidate span , and each name \u2208 E, are lemmatized and represented as TF-IDF vectors V C ( ), V C ( ) of charactergrams and V W ( ), V W ( ) of word -grams. A lexical similarity score is computed between the span and each name, normalized to the range [-1, 1]:",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 60,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Candidate Mention Spans and Matches"
+        },
+        {
+            "text": "The lexical matcher generates a list of matches",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidate Mention Spans and Matches"
+        },
+        {
+            "text": "which gets sorted on decreasing ( , ( , )) and only the first entry for each unique entity in the sorted list is retained. The output of the candidate generator is the top entries from this final list.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidate Mention Spans and Matches"
+        },
+        {
+            "text": "The span linker takes as input mention spans and their matches from the candidate generator, and is trained to predict the correct entity. The model uses BERT [3] to leverage contextualized semantics to match entities to mentions.",
+            "cite_spans": [
+                {
+                    "start": 159,
+                    "end": 162,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Span Linking"
+        },
+        {
+            "text": "For a gold mention and matching candidate entity pair ( , ), \u2208 ( ) where = ( , , , , ), the input sequence format is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Span Linking"
+        },
+        {
+            "text": "where ( ) is the mention centered in its textual context from the document and ( ) is the textual form of the entity . The span linking model computes the logits",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Span Linking"
+        },
+        {
+            "text": "where is BERT's pooled output, Emb maps its input to trainable embeddings, bin ( ) projects the lexical match score into bins, and FF is a feed-forward network. A trained vector is added to the embeddings of each mention token at BERT's input. The probability distribution across candidate matching entities for a mention is computed using softmax, and the model is trained to optimize cross-entropy loss.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Span Linking"
+        },
+        {
+            "text": "With refined linked entity predictions for each candidate span, the next step is to predict which spans are true mentions. The Linked Span Selection model takes as input all candidate mention spans from the Candidate Generator, and the top scoring \u2208 {1, . . . , } entity matches with their predicted probabilities from the Span Linker. This model is similar to the Span Linker, except the second segment in the input sequence uses the representation ( ) instead of ( ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linked Span Selection"
+        },
+        {
+            "text": "For each input sample ( , , ), where = ( | ) is the probability the entity is the right match for mention as computed by where is BERT's pooled output, and bin ( ) projects the probability into predefined bins. The model is trained to boost the score for correct linked mentions and suppress the score for in-correct inputs by optimizing a thresholded max-margin loss:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linked Span Selection"
+        },
+        {
+            "text": "where 'g.t. ' ('ground truth') marks positive samples, = ( , , ), the margin around threshold 0, and + a weight applied to positive samples.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linked Span Selection"
+        },
+        {
+            "text": "We evaluate performance of two inference modes for this model: the 'Threshold' version selects all input samples with a score above a threshold (i.e. ( , , ) > ), and the 'Greedy' mode adds a greedy selector that prefers higher scores of non-overlapping mentions that start early in the text. The Greedy mode works for the MedMentions dataset because it does not have any nested or overlapping mentions, otherwise the Threshold inference mode would be the better option.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linked Span Selection"
+        },
+        {
+            "text": "This section details the specifics of our approach specialized for biomedical concept recognition.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MODEL SPECIFICS FOR BIOMEDICAL TEXT"
+        },
+        {
+            "text": "With our interest in automated semantic indexing of biomedical literature, we tested our model on MedMentions [22] , the largest available dataset labeled with mentions of biomedical concepts. It consists of about 4,400 paper abstracts from PubMed, with mentions labeled with concepts from the UMLS 2017-AA ontology.",
+            "cite_spans": [
+                {
+                    "start": 110,
+                    "end": 114,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MedMentions and the UMLS Ontology"
+        },
+        {
+            "text": "Concepts in UMLS are named fine-grained types. Each concept is associated with a broader category called a Semantic Type (e.g. C0029343: Influenza A Virus, Avian is associated with T005: Virus). UMLS provides each concept with a preferred primary name, and some known synonyms and acronyms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MedMentions and the UMLS Ontology"
+        },
+        {
+            "text": "There are about 3.2M concepts in UMLS 2017-AA Active. As recommended in [22] for semantic indexing, we focus on the ST21pv subset of MedMentions, which restricts the concepts to a 2.3M large subset of the full ontology. Each concept in this subset is associated with one of 21 selected Semantic Types (the range of values for in \u00a7 2.2). Despite the large number of papers, only \u223c 1% of the concepts are mentioned in the entire labeled corpus, and \u223c 40% of the concepts mentioned in the Validation and Test subsets are not mentioned in the Training subset.",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 76,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MedMentions and the UMLS Ontology"
+        },
+        {
+            "text": "The MedMentions ST21pv corpus was processed as follows: (i) Abbreviations defined in the text of each paper were identified using AB3P [36] . Each definition and abbreviation instance was then replaced with the expanded form (see Appendix A). (ii) The text of each paper was tokenized and split into sentences using CoreNLP [20] . (iii) Overlapping mentions were resolved by preferring longer mentions that begin earlier. (iv) Finally, the corpus was saved in IOB2 tag format [35] .",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 324,
+                    "end": 328,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 476,
+                    "end": 480,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Pre-processing"
+        },
+        {
+            "text": "The UMLS 2017-AA Active ontology was processed to build the knowledge base E of concepts. All names were cleaned by removing supplementary text not likely to appear in a mention: (i) meta-information (e.g. \"Formally\", \"Not Otherwise Specified\"); (ii) Disambiguating qualifiers (e.g. \"Galanga \u27e8insect\u27e9\", distinguishes it from the plant \"Galanga\") were removed from the name, but saved for constructing a canonicalized name. Concepts were mapped to one of the 21 Semantic Types selected in ST21pv [22] through the Semantic Type hierarchy, and unmapped concepts discarded. The resulting alias table contained 2,327,239 concepts and primary names, with 2,290,622 additional synonyms and 74,428 acronyms. Each name entry in E was marked with one of the following ordered list of name types (i.e. in \u00a7 2.2): Primary Name, Primary Name disambiguated, Acronym, Synonym.",
+            "cite_spans": [
+                {
+                    "start": 495,
+                    "end": 499,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Pre-processing"
+        },
+        {
+            "text": "Entities are presented to the model in textual form as described in sections 2.3 and 2.4. The span linker uses the canonicalized name ( ) = \" , \", where is the Semantic Type name (one of the 21 in ST21pv), is its Primary Name from UMLS, with any disambiguating context removed, and is its disambiguating context if present, enclosed in parentheses. For example for entity C4085630, the canonicalized name is \"Eukaryote, Galanga (insect)\". The span selector uses a similar representation: ( ) = \" , \", where is the alias name corresponding to the lexical match. See also Appendix C for more examples.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Textual Representations of Entities"
+        },
+        {
+            "text": "We empirically compare our proposed model to state-of-the-art biomedical concept recognition (CR) approaches on the MedMentions [22] dataset. We compare the performance across two metrics: (1) the standard mention-level metrics and, to better align with use of models as a semantic index, (2) document-level metrics. We also do an extensive analysis of our model, including its performance generalizing to unseen entities in the low-resource setting and its performance handling acronym mention spellings.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "EXPERIMENTS"
+        },
+        {
+            "text": "We compare our proposed model to the following recent approaches:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baseline Approaches"
+        },
+        {
+            "text": "TaggerOne [12] the baseline CR model for MedMentions reported in [22] , does not use deep learning but also follows a bottomup approach, using feature functions on lexical properties of the mention and its context, and does joint optimization of entity type recognition and entity linking.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 14,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 65,
+                    "end": 69,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baseline Approaches"
+        },
+        {
+            "text": "MedLinker [19] is a recent NERL model that also uses a BERTbased NER stage followed by entity linking. They explicitly recognize the problem of low coverage of UMLS entities in training data by combining in the linker a classifier for entities seen during training, and an approximate dictionary matching stage for new entities. Their mention-level prediction metrics for MedMentions ST21pv exceed those of the baseline model in [22] and were state-of-the-art before our model. [37] as the activation function and a dropout with probability 0.1 applied at their input. The length of the input sequence fed into BERT for both models was 128.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 14,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 429,
+                    "end": 433,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 478,
+                    "end": 482,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baseline Approaches"
+        },
+        {
+            "text": "In the linked span selector we used = 1.0, and in keeping with our focus on semantic indexing, we tuned + \u2208 {1, 2, 5, 10, 20} for the best document level F1 scores on the validation data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baseline Approaches"
+        },
+        {
+            "text": "Each input batch to the span linker consists of all candidates for one mention, with = 50 as the batch size. The model was trained for up to 3 epochs with early stopping based on Recall evaluated on the validation data. For the Linked Span Selector, the input batch size is 64, and the model was trained for up to 10 epochs with early stopping based on F1 score for the validation data. Both models were trained using Adam with learning rates of 2 -5 (Span Linker) and 5 -6 (linked span selector), and a linear warmup for 10% of the batches, followed by a linear decay.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baseline Approaches"
+        },
+        {
+            "text": "Both models use BioBERT-base-Cased (ver. 1.0) [13] pre-trained on biomedical literature. BERT-based models use a lot of GPU memory, so for simplicity we tuned and trained each modeling stage separately.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[13]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baseline Approaches"
+        },
+        {
+            "text": "We report the performance of our model for = 1 and the score threshold = 0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baseline Approaches"
+        },
+        {
+            "text": "We evaluate our approach along two metrics, following [22] . The first is the standard mention-level performance using CoNLL chunking task metrics [34] measured against the tokenized and preprocessed documents. To measure effectiveness for semantic indexing, we compute a document-level metric against the raw corpus; this evaluates the set of entities associated with each document without reference to the location of their mention in the text.",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 58,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 147,
+                    "end": 151,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "There Table 2 compares the performance of our model against TaggerOne [22] and MedLinker [19] . For mention-level comparison, we derive metrics for our model against the raw corpus by assuming that all the mentions dropped during pre-processing receive a null entity prediction. This increases the number of false-negatives, lowering the Recall and F1 scores. Even with this conservative estimate, our model outperforms the others. Document level metrics are only available for TaggerOne. Both 'threshold' and 'greedy' inference modes for our model perform better.",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 74,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 89,
+                    "end": 93,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 6,
+                    "end": 13,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "A detailed comparison of the two span selector inference modes can be seen in Table 3 . Mention-level metrics are based on groundtruth from pre-processed documents, and document-level metrics use ground-truth from the unprocessed corpus. The 'threshold' inference mode allows mentions to overlap. Since the 'greedy' mode is a filter on the 'threshold' selections, it lowers the recall while increasing the precision of the predictions, both at the mention and the document level. Finally, since Document-level metrics ignore mention span locations and evaluate only the set of entities predicted for each document, the Recall levels are higher than those for Mention-level predictions. Interestingly, the Precision scores are also higher.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 78,
+                    "end": 85,
+                    "text": "Table 3",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Model Performance"
+        },
+        {
+            "text": "The candidate generator (Table 5 ) generates over 99% of the true mention (post-preprocessing) spans, and with = 50, over 85% of the true mentions have a matching candidate span with a matching entity. Since almost all text spans are considered as candidates, only 3% of the candidate spans contain a true mention. Table 1 Table 4 gives the local Recall performance for the three model stages, where each stage is evaluated on what proportion of the ground-truth in its input is recalled in its output. In inference mode, the span linker is applied to all the candidate spans produced by the candidate generator (Table 5 ). Its main effect is to increase the recall for the top-scoring entity prediction for each mention span from the candidate generator's 0.618 to 0.851 (validation data). Our endto-end model cascades the three stages, so the final recall numbers are a product of the recalls for the three stages.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 24,
+                    "end": 32,
+                    "text": "(Table 5",
+                    "ref_id": "TABREF7"
+                },
+                {
+                    "start": 315,
+                    "end": 322,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 323,
+                    "end": 330,
+                    "text": "Table 4",
+                    "ref_id": "TABREF6"
+                },
+                {
+                    "start": 612,
+                    "end": 620,
+                    "text": "(Table 5",
+                    "ref_id": "TABREF7"
+                }
+            ],
+            "section": "Performance of Each Stage"
+        },
+        {
+            "text": "The span selector is the weakest link in the sequence, with recall lower than the trained span linker model. For validation data, the recall levels at the input to the Span Selector model are 0.726 (mention) and 0.860 (document), which defines the upper-bound on span selector model's performance as reflected in the end-to-end metrics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Performance of Each Stage"
+        },
+        {
+            "text": "Unseen ( ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prec. Recall F1"
+        },
+        {
+            "text": "Generalizing to 'zero-shot' or new entities -those unseen at training time -is particularly important for using such a system as a semantic index in a production application that allows users to search for any entity in the knowledge base. One challenge in the MedMentions dataset is the large proportion of entities mentioned in the validation and test subsets that do not occur in the training subset of the corpus. This is expected in a low-resource problem. In MedMentions, 42.5% of the set of unique entities mentioned in the test data are new. We evaluated the performance of our model on this dimension by comparing its predictions of mentions of new entities against new entity mentions in the test data, and correspondingly for old entities (those mentioned in training data). The metrics for the 'greedy' inference mode are shown in Tables 6  and 7 . Despite the large proportion of new entities in the test data, the model recalls 43% of their mentions (over 54% of the entities at the document level). As expected, this is slightly lower than the recall level for old entities. Furthermore, the high precision of new entity predictions, and the low proportion of predictions that are for new entities, suggest that the model is reluctant to make predictions of new entities unless it has high certainty.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 843,
+                    "end": 858,
+                    "text": "Tables 6  and 7",
+                    "ref_id": "TABREF9"
+                }
+            ],
+            "section": "Zero Shot Cases Evaluation"
+        },
+        {
+            "text": "Some of the entity aliases in the ontology are acronyms, which are usually short and often ambiguous. The full set of entities for Med-Mentions ST21pv includes 67,593 unique (case-sensitive) acronyms, about half of which are 5 characters or shorter, and 4,596 acronyms Table 9 : Breakdown of false-positives in test data.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 269,
+                    "end": 276,
+                    "text": "Table 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Evaluation -Acronyms"
+        },
+        {
+            "text": "map to multiple entities. Examples of ambiguous acronyms mentioned in the test data are \"MS\" which maps to 11 entities in the ontology (e.g. \"MS gene\", \"Mass Spectrometry\") and \"ER\" (7 entities, e.g. \"Endoplasmic Reticulum\", \"ESR1 gene\").",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation -Acronyms"
+        },
+        {
+            "text": "To evaluate the performance of our model on acronyms, we considered all predicted mentions whose predicted entity (from the Span Linker) was obtained by a lexical match to an alias name that is an acronym. We compared these predictions to all true mentions for the same spans. The results are in Table 8 . As expected the Precision is lower than for all mentions (e.g. greedy precision 0.584 for acronyms is lower than the overall precision 0.650), but both Recall and F1 scores are significantly higher (e.g. greedy F1: 0.630 > 0.579).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 296,
+                    "end": 303,
+                    "text": "Table 8",
+                    "ref_id": "TABREF11"
+                }
+            ],
+            "section": "Evaluation -Acronyms"
+        },
+        {
+            "text": "A detailed analysis of the model's false-positive mention predictions is shown in Table 9 . About 30% of the cases have the correct span but not the correct entity. An interesting subset of this is where the span and semantic type are correct, but the entity is wrong (a fifth of the false-positives). Evaluating the predicted mention span and type, without the entity, measures typed entity recognition (aka NER). Both inference modes correspond to an NER F1 = 0.642. While this is computed on the pre-processed documents' mentions, even though our model is actually doing end-to-end linking, it compares favorably with the NER F1 of 0.64 reported in [25] .",
+            "cite_spans": [
+                {
+                    "start": 652,
+                    "end": 656,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 82,
+                    "end": 89,
+                    "text": "Table 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Error Cases"
+        },
+        {
+            "text": "The last two rows depict the proportion of false-positive predicted mentions whose span overlaps with or contains a true span with matching entity. These numbers explain why the documentlevel metrics are higher than the mention-level metrics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Error Cases"
+        },
+        {
+            "text": "Finally, we tested how well our model handled updates to the target ontology without re-training. For this we used UMLS 2020-AA, a more recent version of the UMLS ontology than the one (UMLS 2017-AA) used for training. The ST21pv subset [22] of UMLS 2020-AA adds 720k new concepts (an increase of 31%) with a total of over 1M new names (+ 22%) to the concept knowledge base ( \u00a73.2). The new ontology also drops some concepts from UMLS 2017-AA: 52 concepts mentioned in the test subset of MedMentions ST21pv were no longer part of UMLS 2020-AA.",
+            "cite_spans": [
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Robustness: Updating the Target Ontology"
+        },
+        {
+            "text": "We replaced the model's concept KB with this new knowledge base, and then generated concept predictions for documents in the test subset of MedMentions by running the model in inference mode as before. We then evaluated the model's document-level predictions using the Greedy inference mode, against the UMLS We also wanted to evaluate how well the model recognized new concepts that were not present in the version of the ontology the model was trained with. For this we randomly selected 100 abstracts published in March from the LitCovid 3 dataset, to see how well our model recognized new concepts related to COVID-19. Since we did not have reference labeled data, we asked some expert biologists to do a quick evaluation of the model output. They were asked to rate each predicted concept on a 3-level scale: (i) Correct (is mentioned in the document), (ii) Related (is related to at least one mention in the document), or (iii) Incorrect. This is a much simpler criterion than that used in computing our precision-recall metrics; for example, the experts were not asked to evaluate how many concepts were missed, or whether the predicted concepts were the most specific concepts for that document.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness: Updating the Target Ontology"
+        },
+        {
+            "text": "As a reference, we also asked the biologists to perform the same task for predictions on 100 randomly selected documents from the test subset of MedMentions ST21pv, for both the original and new ontologies. The results are listed in table 11 . They confirm that the degradation in performance when moving to a new ontology is quite small, even though the new ontology adds many new concepts and names. The model also performs quite well in recognizing concepts in documents from the LitCovid dataset, where 9.1% of the predictions were for new concepts not present in UMLS 2017-AA. 3 https://www.ncbi.nlm.nih.gov/research/coronavirus/",
+            "cite_spans": [
+                {
+                    "start": 239,
+                    "end": 241,
+                    "text": "11",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 582,
+                    "end": 583,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Robustness: Updating the Target Ontology"
+        },
+        {
+            "text": "Concepts in UMLS are named fine-grained types, and each concept is also associated with a broader category called a Semantic Type in UMLS (e.g. C0029343: Influenza A Virus, Avian associated with T005: Virus). This makes the task of Concept Recognition (CR) very similar to that of Named Entity Recognition and Linking (NERL).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "The recognition of entities and concepts in natural language text is a widely studied task in NLP [10, 30, 33, inter alia] as is the linking of these mention spans to unambiguous knowledge-base entities [2, 16, 21, 29, 31, inter alia] .",
+            "cite_spans": [
+                {
+                    "start": 98,
+                    "end": 110,
+                    "text": "[10, 30, 33,",
+                    "ref_id": null
+                },
+                {
+                    "start": 203,
+                    "end": 234,
+                    "text": "[2, 16, 21, 29, 31, inter alia]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Even with the emergence of Deep Learning, most research in this field has focused on individual subproblems of NERL. Work on Named Entity Recognition (NER), also known as (typed) Mention Detection, typically treats it as a problem of classifying individual tokens in the text on whether they belong to a mention of one of the targeted types [6, 10] . Similarly, work on Entity Linking (aka Entity Normalization / Disambiguation) takes as input a golden mention and a list of candidate matching entities with the goal of selecting the correct entity, usually taking advantage of entity descriptions available in Wikipedia [4, 5] . The implication is that an end-to-end NERL system would follow this 'top-down' approach, performing NER followed by EL.",
+            "cite_spans": [
+                {
+                    "start": 341,
+                    "end": 344,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 345,
+                    "end": 348,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 621,
+                    "end": 624,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 625,
+                    "end": 627,
+                    "text": "5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Research on deep learning models for Biomedical CR has followed a similar pattern, mostly focusing on the NER subproblem and employing various combinations of CNN, LSTM and CRF e.g. [15] , and language model based pre-training, e.g. [32] . The BERN end-to-end Biomedical NERL model [8] applies a Bio-BERT based NER stage followed by rules and pre-existing type-specific linkers (Genes/Proteins, Diseases, Drugs and Mutations) or dictionary lookup (Species) for linking.",
+            "cite_spans": [
+                {
+                    "start": 182,
+                    "end": 186,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 282,
+                    "end": 285,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Taking a different perspective, the Large Scale Semantic Indexing Challenge tasks [26] in the BioASQ 4 workshops use a large dataset published by NCBI where documents are labeled with biomedical concepts from the MeSH ontology [17] , without identifying their mentions in the text. The ontology is much smaller than UMLS, with less than 30k concepts, and its coverage in the training data is above 95%, compared to less than 1% coverage in MedMentions, the dataset for our model. Leading approaches treat this as a multi-label document classification problem [28, 39] .",
+            "cite_spans": [
+                {
+                    "start": 82,
+                    "end": 86,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 227,
+                    "end": 231,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 559,
+                    "end": 563,
+                    "text": "[28,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 564,
+                    "end": 567,
+                    "text": "39]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "In a recent neural model for end-to-end NERL, Kolitsas et al. [9] actually take a 'bottom-up' approach, where all text spans are considered candidate mentions, and they jointly solve the problem of selecting the best mentions and linking them to correct entities. Their domain is named entities with Wikipedia pages, and they take advantage of the information available in Wikipedia, using internal hyperlinks to generate candidate entity matches to mentions, and training entity embeddings on their Wikipedia description pages to aid with the linking task. Our model also follows a bottom-up approach, however in our low-resource problem setting we do not have an external Wikipedia-like source of information with hyperlinks or entity descriptions. We use lexical and string matching techniques similar to [23] to generate candidate concept matches to a text span.",
+            "cite_spans": [
+                {
+                    "start": 62,
+                    "end": 65,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 808,
+                    "end": 812,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "The Zeshel model [18] presents an approach for zero-shot entity linking that allows for linking mentions to entities unseen at training time. However, this work also relies on entity description resources, and they do not do entity recognition, instead assuming that gold mentions are provided. Similar to Zeshel, our span linker and selector models use a trained vector to mark mention tokens. Instead of using entity descriptions, which are not available in our setting, we leverage the ontology.",
+            "cite_spans": [
+                {
+                    "start": 17,
+                    "end": 21,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "TaggerOne [12] , the baseline CR model for MedMentions [22] , does not use deep learning but also follows a bottom-up approach, using feature functions on lexical properties of the mention and its context, and does joint optimization of entity type recognition and entity linking. We use this as a baseline in our experiments.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 14,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 55,
+                    "end": 59,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "The first model published on MedMentions [24] addressed entity (concept) linking to gold mentions by taking advantage of the concept hierarchy in the UMLS ontology. They rely on learning concept embeddings as part of the model training, and use an unspecified subset of the MedMentions corpus. We do not consider this approach to training concept embeddings feasible even for the full ST21pv subset of MedMentions due to the low coverage of the ontology in the labeled data. Our model takes a more dynamic approach to matching entities to mentions, relying on a canonicalized name derived from the ontologycoupled with BERT-based cross-attention.",
+            "cite_spans": [
+                {
+                    "start": 41,
+                    "end": 45,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "In a more recent entity linking model [40] , authors use a latent type modeling layer, with type prediction as an auxiliary task. Bi-directional attention flow is used to compute the interaction between the contextualized mention and concept names, combining this with latent type similarity to get the final score. On the full Med-Mentions corpus, authors report recall = 88.46 for the top-scoring candidate. However, the ground-truth entity is always included in the top 10 candidates. They use the same TF-IDF based candidate generator as [24] ; our candidate generator is an enhanced version of the same approach.",
+            "cite_spans": [
+                {
+                    "start": 38,
+                    "end": 42,
+                    "text": "[40]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 542,
+                    "end": 546,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Nejadgholi et al. [25] consider NER models for MedMentions, finding that a Bi-LSTM layer after BERT produces better results than a simple linear layer. Best results on MedMentions ST21pv (mention F1 = 0.64) are obtained by concatenating BERT-base and Bio-BERT [13] . Authors also noted that \u223c 12% of the errors were the wrong type label on a correctly predicted text span. We show MedLinker [19] is a recent NERL model that also uses a BERTbased NER stage followed by entity linking. They explicitly recognize the problem of low coverage of UMLS concepts in training data, arguing that 'traditional' approaches would not perform well on MedMentions. Accordingly, their linker stage combines a classifier for concepts seen during training, and an approximate dictionary match for new concepts. Their mention-level prediction metrics for MedMentions ST21pv were the SOTA, exceeding those of the baseline model in [22] , as well as the traditional deep learning approach of ScispaCy [27] (which achieves a mention-level F1 = 0.3424 on MedMentions ST21pv). We compare our results to MedLinker above, exceeding their performance by +8 F1 points.",
+            "cite_spans": [
+                {
+                    "start": 18,
+                    "end": 22,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 260,
+                    "end": 264,
+                    "text": "[13]",
+                    "ref_id": null
+                },
+                {
+                    "start": 391,
+                    "end": 395,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 911,
+                    "end": 915,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 980,
+                    "end": 984,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "In this paper, we present a new model for the recognition and linking of concepts in biomedical research papers. Our model is well suited for large low-resource ontologies which do not provide descriptions that semantically define the member entities, and most entities are not covered in the labeled training data. Our approach overcomes this challenge by starting with recall-biased candidate generation, uses dynamic entity encoding based on ontology features, and bases mention span selection on predicted entity links.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "Our proposed approach achieves state-of-the-art results across two metrics of recognition and linking -mention span level as well as semantic indexing evaluation using document level metricson the MedMentions dataset. We perform a detailed analysis of our method that studies the performance of the three components of our bottom-up model (candidate generation, linking, and span selection) as well as the performance on low resource entities and ambiguous acronym mentions. We also demonstrate the robustness of our approach in its ability to handle ontology updates without new training data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "In future work, our model could be improved with better span selection, as that is the weakest link in the pipeline. Training a co-reference recognition component could improve recall for cases where the reference is indirect or too abbreviated to generate a good lexical match from the entity KB. A global cost model like that used in conditional random fields may also help improve span selection.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "Better performance might also be possible by developing a smarter candidate span generator, and improving the recall of the lexical entity matcher. Finally, our model is sequential, and the errors from each stage cascade. Jointly optimizing the trained stages may result in improved performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "Candidate Generator:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameter Description"
+        },
+        {
+            "text": "Character -gram TF-IDF vector V W ( \u00b7)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameter Description"
+        },
+        {
+            "text": "Word -gram TF-IDF vector Weighting factor on V W ( \u00b7) similarity Nbr. of top-ranked matches forwarded to the Linker ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameter Description"
+        },
+        {
+            "text": "Here is an example to illustrate how abbreviations are processed. AB3P recognizes that a document defines \"E. coli\" as an abbreviation for \"Escherichia coli\" in the text \". . . phosphorus and Escherichia coli (E. coli) in overland . . . \". After processing, this text containing the definition is replaced by just the expanded form: \". . . phosphorus and Escherichia coli in overland . . . \". If the abbreviated form was tagged as a mention, that mention also gets dropped. All other occurrences of the abbreviation \"E. coli\" in that document are replaced with the expanded form \"Escherichia coli\", and mention tags from the abbreviated form are copied to the inserted expansion. Table 12 lists the notation used in the paper for the main hyperparameters for the model.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 680,
+                    "end": 688,
+                    "text": "Table 12",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "LOW RESOURCE RECOGNITION AND LINKING OF BIOMEDICAL CONCEPTS FROM A LARGE ONTOLOGY: SUPPLEMENTARY MATERIAL A ABBREVIATION PROCESSING"
+        },
+        {
+            "text": "Acronyms can often refer to multiple biomedical concepts. An example is \"MS\", which maps to 11 different entities in our targeted ontology. Figure 2 shows some example mentions that are correctly linked by our model, including the acronym \"HRMS\" (an acronym for \"High Resolution Mass Spectrometry\"), which actually does not occur as an alias for any of the entities in the ontology or entity KB. It gets linked correctly because of its lexical similarity to the known acronym \"MS\" for the entity \"Mass Spectrometry\", which also has a good semantic match to the context of that mention.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 140,
+                    "end": 148,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "C LINKING AMBIGUOUS MENTIONS"
+        },
+        {
+            "text": "In these examples, the candidate generator finds lexical matches for \"HRMS\" and \"MS\" to the following concepts (among others): (1) \"Biologic Function , Multiple Sclerosis\" (2) \"Health Care Activity , Mass Spectrometry\" The corresponding representation ( ) ( \u00a72.4) of these matches to the Span Selector are:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C LINKING AMBIGUOUS MENTIONS"
+        },
+        {
+            "text": "(1) \"Biologic Function , MS\" (2) \"Health Care Activity , MS\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C LINKING AMBIGUOUS MENTIONS"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The Unified Medical Language System (UMLS): integrating biomedical terminology",
+            "authors": [
+                {
+                    "first": "Olivier",
+                    "middle": [],
+                    "last": "Bodenreider",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Large-scale named entity disambiguation based on Wikipedia data",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Silviu Cucerzan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Joint conference on empirical methods in natural language processing and computational natural language learning",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+            "authors": [
+                {
+                    "first": "Jacob",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ming-Wei",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kenton",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kristina",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Capturing Semantic Similarity for Entity Linking with Convolutional Neural Networks",
+            "authors": [
+                {
+                    "first": "Matthew",
+                    "middle": [],
+                    "last": "Francis-Landau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Greg",
+                    "middle": [],
+                    "last": "Durrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Klein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies. Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "1256--1261",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Entity Linking via Joint Encoding of Types, Descriptions, and Context",
+            "authors": [
+                {
+                    "first": "Nitish",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sameer",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "2671--2680",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Bidirectional LSTM-CRF Models for Sequence Tagging",
+            "authors": [
+                {
+                    "first": "Zhiheng",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wei",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kai",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1508.01991"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "A Neural Named Entity Recognition and Multi-Type Normalization Tool for Biomedical Text Mining",
+            "authors": [
+                {
+                    "first": "Donghyeon",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jinhyuk",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chan",
+                    "middle": [],
+                    "last": "Ho So",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hwisang",
+                    "middle": [],
+                    "last": "Jeon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Minbyul",
+                    "middle": [],
+                    "last": "Jeong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yonghwa",
+                    "middle": [],
+                    "last": "Choi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wonjin",
+                    "middle": [],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mujeen",
+                    "middle": [],
+                    "last": "Sung",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jaewoo",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE Access",
+            "volume": "7",
+            "issn": "",
+            "pages": "73729--73740",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "End-to-End Neural Entity Linking",
+            "authors": [
+                {
+                    "first": "Nikolaos",
+                    "middle": [],
+                    "last": "Kolitsas",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Octavian-Eugen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thomas",
+                    "middle": [],
+                    "last": "Ganea",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hofmann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 22nd Conference on Computational Natural Language Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "519--529",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1808.07699"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Neural Architectures for Named Entity Recognition",
+            "authors": [
+                {
+                    "first": "Guillaume",
+                    "middle": [],
+                    "last": "Lample",
+                    "suffix": ""
+                },
+                {
+                    "first": "Miguel",
+                    "middle": [],
+                    "last": "Ballesteros",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sandeep",
+                    "middle": [],
+                    "last": "Subramanian",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kazuya",
+                    "middle": [],
+                    "last": "Kawakami",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Dyer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "",
+            "issn": "",
+            "pages": "260--270",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/N16-1030"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Scientific literature: Information overload",
+            "authors": [
+                {
+                    "first": "Esther",
+                    "middle": [],
+                    "last": "Landhuis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Nature",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "TaggerOne: Joint named entity recognition and normalization with semi-Markov Models",
+            "authors": [
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Leaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhiyong",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Bioinformatics",
+            "volume": "32",
+            "issn": "",
+            "pages": "2839--2846",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/bioinformatics/btw343"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "BioBERT: a pre-trained biomedical language representation model for biomedical text mining",
+            "authors": [
+                {
+                    "first": "Jinhyuk",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wonjin",
+                    "middle": [],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sungdong",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donghyeon",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sunkyu",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chan",
+                    "middle": [],
+                    "last": "Ho So",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jaewoo",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Bioinformatics",
+            "volume": "36",
+            "issn": "4",
+            "pages": "1234--1240",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/bioinformatics/btz682"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "BioCreative V CDR task corpus: a resource for chemical disease relation extraction",
+            "authors": [
+                {
+                    "first": "Jiao",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yueping",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robin",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniela",
+                    "middle": [],
+                    "last": "Sciaky",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chih-Hsuan",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Leaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Allan",
+                    "middle": [
+                        "Peter"
+                    ],
+                    "last": "Davis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carolyn",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mattingly",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thomas",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wiegers",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhiyong",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Database",
+            "volume": "2016",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/database/baw068"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Biomedical Named Entity Recognition Based on Extended Recurrent Neural Networks",
+            "authors": [
+                {
+                    "first": "Lishuang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Liuke",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhenchao",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dingxin",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "Degen",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 2015 IEEE International Conference on Bioinformatics and Biomedicine (BIBM) (BIBM '15)",
+            "volume": "",
+            "issn": "",
+            "pages": "649--652",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/BIBM.2015.7359761"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Design challenges for entity linking",
+            "authors": [
+                {
+                    "first": "Xiao",
+                    "middle": [],
+                    "last": "Ling",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sameer",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Weld",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Transactions of the Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Medical Subject Headings (MeSH)",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Lipscomb",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Bull Med Libr Assoc",
+            "volume": "88",
+            "issn": "",
+            "pages": "265--266",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Zero-Shot Entity Linking by Reading Entity Descriptions",
+            "authors": [
+                {
+                    "first": "Lajanugen",
+                    "middle": [],
+                    "last": "Logeswaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ming-Wei",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kenton",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kristina",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jacob",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Honglak",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "3449--3460",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/P19-1335"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "MedLinker: Medical Entity Linking with Neural Representations and Dictionary Matching",
+            "authors": [
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Loureiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "Al\u00edpio M\u00e1rio Jorge",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ECIR",
+            "volume": "2020",
+            "issn": "",
+            "pages": "230--237",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-45442-5_29"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "The Stanford CoreNLP Natural Language Processing Toolkit",
+            "authors": [
+                {
+                    "first": "Christopher",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mihai",
+                    "middle": [],
+                    "last": "Surdeanu",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Bauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jenny",
+                    "middle": [],
+                    "last": "Finkel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Steven",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bethard",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Mcclosky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Association for Computational Linguistics (ACL) System Demonstrations. 55-60",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Learning to link with wikipedia",
+            "authors": [
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Milne",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ian H Witten",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Conference on Information and knowledge management (CIKM)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "MedMentions: A Large Biomedical Corpus Annotated with UMLS Concepts",
+            "authors": [
+                {
+                    "first": "Sunil",
+                    "middle": [],
+                    "last": "Mohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donghui",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 Conference on Automated Knowledge Base Construction",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Finer Grained Entity Typing with TypeNet",
+            "authors": [
+                {
+                    "first": "Shikhar",
+                    "middle": [],
+                    "last": "Murty",
+                    "suffix": ""
+                },
+                {
+                    "first": "Patrick",
+                    "middle": [],
+                    "last": "Verga",
+                    "suffix": ""
+                },
+                {
+                    "first": "Luke",
+                    "middle": [],
+                    "last": "Vilnis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Mccallum",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "6th Workshop on Automated Knowledge Base Construction (AKBC 2017). at NIPS 2017 in",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Hierarchical Losses and New Resources for Fine-grained Entity Typing and Linking",
+            "authors": [
+                {
+                    "first": "Shikhar",
+                    "middle": [],
+                    "last": "Murty",
+                    "suffix": ""
+                },
+                {
+                    "first": "Patrick",
+                    "middle": [],
+                    "last": "Verga",
+                    "suffix": ""
+                },
+                {
+                    "first": "Luke",
+                    "middle": [],
+                    "last": "Vilnis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Irena",
+                    "middle": [],
+                    "last": "Radovanovic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Mccallum",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "1",
+            "issn": "",
+            "pages": "97--109",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/P18-1010"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Recognizing UMLS Semantic Types with Deep Learning",
+            "authors": [
+                {
+                    "first": "Isar",
+                    "middle": [],
+                    "last": "Nejadgholi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kathleen",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Fraser",
+                    "suffix": ""
+                },
+                {
+                    "first": "Muqun",
+                    "middle": [],
+                    "last": "Berry De Bruijn",
+                    "suffix": ""
+                },
+                {
+                    "first": "Astha",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Khaldoun Zine El",
+                    "middle": [],
+                    "last": "Laplante",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Abidine",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the Tenth International Workshop on Health Text Mining and Information Analysis (LOUHI 2019)",
+            "volume": "",
+            "issn": "",
+            "pages": "157--167",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/D19-6219"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Results of the Seventh Edition of the BioASQ Challenge",
+            "authors": [
+                {
+                    "first": "Anastasios",
+                    "middle": [],
+                    "last": "Nentidis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Bougiatiotis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anastasia",
+                    "middle": [],
+                    "last": "Krithara",
+                    "suffix": ""
+                },
+                {
+                    "first": "Georgios",
+                    "middle": [],
+                    "last": "Paliouras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Machine Learning and Knowledge Discovery",
+            "volume": "",
+            "issn": "",
+            "pages": "553--568",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "ScispaCy: Fast and Robust Models for Biomedical Natural Language Processing",
+            "authors": [
+                {
+                    "first": "Mark",
+                    "middle": [],
+                    "last": "Neumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "King",
+                    "suffix": ""
+                },
+                {
+                    "first": "Iz",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Waleed",
+                    "middle": [],
+                    "last": "Ammar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 18th BioNLP Workshop and Shared Task (BWST 2019)",
+            "volume": "",
+            "issn": "",
+            "pages": "319--327",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/W19-5034"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "DeepMeSH: deep semantic representation for improving large-scale MeSH indexing",
+            "authors": [
+                {
+                    "first": "Shengwen",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ronghui",
+                    "middle": [],
+                    "last": "You",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hongning",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengxiang",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hiroshi",
+                    "middle": [],
+                    "last": "Mamitsuka",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shanfeng",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Bioinformatics",
+            "volume": "32",
+            "issn": "",
+            "pages": "70--79",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Deeptype: multilingual entity linking by neural type system evolution",
+            "authors": [
+                {
+                    "first": "Jonathan",
+                    "middle": [],
+                    "last": "Raphael Raiman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Olivier",
+                    "middle": [],
+                    "last": "Michel Raiman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Design challenges and misconceptions in named entity recognition",
+            "authors": [
+                {
+                    "first": "Lev",
+                    "middle": [],
+                    "last": "Ratinov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Conference on Computational Natural Language Learning (CoNLL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Local and global algorithms for disambiguation to wikipedia",
+            "authors": [
+                {
+                    "first": "Lev",
+                    "middle": [],
+                    "last": "Ratinov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                },
+                {
+                    "first": "Doug",
+                    "middle": [],
+                    "last": "Downey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mike",
+                    "middle": [],
+                    "last": "Anderson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Association for computational linguistics: Human language technologies (ACL-HLT)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Effective Use of Bidirectional Language Modeling for Transfer Learning in Biomedical Named Entity Recognition",
+            "authors": [
+                {
+                    "first": "Devendra",
+                    "middle": [],
+                    "last": "Singh Sachan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pengtao",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mrinmaya",
+                    "middle": [],
+                    "last": "Sachan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 3rd Machine Learning for Healthcare Conference (Proceedings of Machine Learning Research)",
+            "volume": "85",
+            "issn": "",
+            "pages": "383--402",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Introduction to the CoNLL-2003 shared task: Language-independent named entity recognition",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Erik",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fien",
+                    "middle": [],
+                    "last": "Sang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "De Meulder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Conference on Computational Natural Language Learning (CoNLL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Introduction to the CoNLL-2000 Shared Task: Chunking",
+            "authors": [
+                {
+                    "first": "Erik",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Tjong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kim",
+                    "middle": [],
+                    "last": "Sang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sabine",
+                    "middle": [],
+                    "last": "Buchholz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Proceedings of CoNLL-2000 and LLL-2000",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Representing Text Chunks",
+            "authors": [
+                {
+                    "first": "Erik",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Tjong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kim",
+                    "middle": [],
+                    "last": "Sang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jorn",
+                    "middle": [],
+                    "last": "Veenstra",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Proceedings of the Ninth Conference on European Chapter of the Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "173--179",
+            "other_ids": {
+                "DOI": [
+                    "10.3115/977035.977059"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Abbreviation definition identification based on automatic precision estimates",
+            "authors": [
+                {
+                    "first": "Sunghwan",
+                    "middle": [],
+                    "last": "Sohn",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donald",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Comeau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Won",
+                    "middle": [],
+                    "last": "Gu Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "W. John",
+                    "middle": [],
+                    "last": "Wilbur",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "BMC Bioinformatics",
+            "volume": "9",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Attention is All you Need",
+            "authors": [
+                {
+                    "first": "Ashish",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Noam",
+                    "middle": [],
+                    "last": "Shazeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Niki",
+                    "middle": [],
+                    "last": "Parmar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jakob",
+                    "middle": [],
+                    "last": "Uszkoreit",
+                    "suffix": ""
+                },
+                {
+                    "first": "Llion",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aidan",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Gomez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Illia",
+                    "middle": [],
+                    "last": "Kaiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Polosukhin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "30",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "CORD-19: The Covid-19 Open Research Dataset. ArXiv",
+            "authors": [
+                {
+                    "first": "Lucy",
+                    "middle": [
+                        "Lu"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kyle",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yoganand",
+                    "middle": [],
+                    "last": "Chandrasekhar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Russell",
+                    "middle": [],
+                    "last": "Reas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiangjiang",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Darrin",
+                    "middle": [],
+                    "last": "Eide",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kathryn",
+                    "middle": [],
+                    "last": "Funk",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rodney",
+                    "middle": [],
+                    "last": "Kinney",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ziyang",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Merrill",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "MeSHProbeNet: a self-attentive probe net for MeSH indexing",
+            "authors": [
+                {
+                    "first": "Guangxu",
+                    "middle": [],
+                    "last": "Xun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kishlay",
+                    "middle": [],
+                    "last": "Jha",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ye",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yaqing",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aidong",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Bioinformatics",
+            "volume": "35",
+            "issn": "",
+            "pages": "3794--3802",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/bioinformatics/btz142"
+                ]
+            }
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "LATTE: Latent Type Modeling for Biomedical Entity Linking",
+            "authors": [
+                {
+                    "first": "Ming",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Busra",
+                    "middle": [],
+                    "last": "Celikkaya",
+                    "suffix": ""
+                },
+                {
+                    "first": "Parminder",
+                    "middle": [],
+                    "last": "Bhatia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chandan",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Reddy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the Thirty-Fourth AAAI Conference on Artificial Intelligence (AAAI-20)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Bottom-Up Architecture: We start with all possible mention spans in the document, and lexically match them to the Entity KB. The Span Linker improves this match with contextualized semantics. The Span Selector takes the linking predictions and mention span representations, and determines which of the candidate spans and their linked entities should be labeled as concept mentions in the document. the Span Linker, the Span Selector computes the score: ( , , ) = FF ( , ), Emb( ), , Emb(bin ( )), , Emb(bin ( ))",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Nbr. of top linked matches forwarded to the Span Selector ( ) Textual representation of entity (concept) bin ( ) Projects the lexical match score into bins Span Selector: ( ) Textual representation of entity (concept) bin ( ) Projects the lexical match score into bins bin ( ) Projects the probability from the Linker into bins Margin in the max-margin loss function + Weight applied to positive samples in the loss function Score threshold used during inference",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "... NMR spectroscopic data as well as CD and MS analysis. All isolates were tested for their ... \u2026 damage does not explain cognitive impairment in MS. We combined double inversion recovery and diffusion .... . .... The structures of the target compounds were confirmed by IR, (1) H-NMR, (13) C-NMR, HRMS, and microanalysis \u2026 Ambiguous Mention Linking: An example showing mentions with surface forms which could be attributed to multiple concepts in the ontology, or do not appear as an alias for any concept (\"HRMS\"). Our model is able to correctly link all of these mentions.\u2022 Type T038: Biologic Function, Concept C0026769: Multiple Sclerosis, matched to alias MS. \u2022 Type T058: Health Care Activity, Concept C0037813: Mass Spectrometry, matched to alias MS. The textual representation ( ) (see \u00a72.3) of these concepts presented as input to the Span Linker are:",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "This section describes the various hyperparameters used in our model (summarized in \u00a7 B). The character TF-IDF vector function V C in the candidate generator represents the 200k most frequent character -grams, \u2208 {2 . . . 5}, V W represents the 200k most frequent words in the names in E, and = 0.5. The output is limited to at most = 50 matches for each span. The recall levels for various values of are shown in Table 1. In the span linker model the bins used for bin were divided at {0, 0.2, 0.4, . . . , 1.0}, and for bin in the linked span selector at {0, 0.4, 0.5, . . . , 0.9, 0.91, 0.92, . . . , 1.0}. The embedding dimension used for these and the alias name type was 8. Both FF and FF were 3-layer feed-forward networks with hidden dimensions of 1024 and 256, GeLU",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "are 203,282 mentions in the entire MedMentions ST21pv corpus of 4,392 documents. Tokenization results in a loss of 443 mentions, mostly due to resolving overlapping mentions. AB3P",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "However the essential structure and semantics of the text is not affected. The final mention predictions of the model correspond to the pre-processed versions of the documents.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "shows recall levels at different values of .",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "End-to-end metrics on validation and test data.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "Mention-level Recall for each stage, normalized to the ground-truth in their input.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Candidate Generator metrics.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF9": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF10": {
+            "text": "Predicted and true mention counts in Test data of entities previously Seen in Training v/s Unseen.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF11": {
+            "text": "End-to-end mention-level metrics on Test data, for predicted matches to acronyms.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF12": {
+            "text": "Inference Mode: Thresh. Greedy",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF13": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF14": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF15": {
+            "text": "Model hyper-parameters.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

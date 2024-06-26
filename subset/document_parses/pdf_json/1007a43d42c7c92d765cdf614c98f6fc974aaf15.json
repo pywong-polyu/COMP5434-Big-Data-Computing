@@ -1,0 +1,2584 @@
+{
+    "paper_id": "1007a43d42c7c92d765cdf614c98f6fc974aaf15",
+    "metadata": {
+        "title": "Full-Spectrum Out-of-Distribution Detection",
+        "authors": [
+            {
+                "first": "Jingkang",
+                "middle": [],
+                "last": "Yang",
+                "suffix": "",
+                "affiliation": {},
+                "email": "jingkang001@ntu.edu.sg"
+            },
+            {
+                "first": "Kaiyang",
+                "middle": [],
+                "last": "Zhou",
+                "suffix": "",
+                "affiliation": {},
+                "email": "kaiyang.zhou@ntu.edu.sg"
+            },
+            {
+                "first": "Ziwei",
+                "middle": [],
+                "last": "Liu",
+                "suffix": "",
+                "affiliation": {},
+                "email": "ziwei.liu@ntu.edu.sg"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Existing out-of-distribution (OOD) detection literature clearly defines semantic shift as a sign of OOD but does not have a consensus over covariate shift. Samples experiencing covariate shift but not semantic shift are either excluded from the test set or treated as OOD, which contradicts the primary goal in machine learning-being able to generalize beyond the training distribution. In this paper, we take into account both shift types and introduce full-spectrum OOD (FS-OOD) detection, a more realistic problem setting that considers both detecting semantic shift and being tolerant to covariate shift; and designs three benchmarks. These new benchmarks have a more finegrained categorization of distributions (i.e., training ID, covariate-shifted ID, near-OOD, and far-OOD) for the purpose of more comprehensively evaluating the pros and cons of algorithms. To address the FS-OOD detection problem, we propose SEM, a simple feature-based semantics score function. SEM is mainly composed of two probability measures: one is based on high-level features containing both semantic and non-semantic information, while the other is based on low-level feature statistics only capturing non-semantic image styles. With a simple combination, the non-semantic part is cancelled out, which leaves only semantic information in SEM that can better handle FS-OOD detection. Extensive experiments on the three new benchmarks show",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "State-of-the-art deep neural networks are notorious for their overconfident predictions on out-of-distribution (OOD) data [1] , defined as those not belonging to indistribution (ID) classes. Such a behavior makes realworld deployments of neural network models untrustworthy and could endanger users involved in the systems. To solve the problem, various OOD detection methods have been proposed in the past few years [2, 3, 4, 5, 6, 7, 8] . The main idea for an OOD detection algorithm is to assign to each test image a score that can represent the likelihood of whether the image comes from in-or out-of-distribution. Images whose scores fail to pass a threshold are rejected, and the decision-making process should be transferred to humans for better handling.",
+            "cite_spans": [
+                {
+                    "start": 122,
+                    "end": 125,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 417,
+                    "end": 420,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 421,
+                    "end": 423,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 424,
+                    "end": 426,
+                    "text": "4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 427,
+                    "end": 429,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 430,
+                    "end": 432,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 433,
+                    "end": 435,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 436,
+                    "end": 438,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A critical problem in existing research of OOD detection is that only semantic shift is considered in the detection benchmarks while covariate shift-a type of distribution shift that is mainly concerned with changes in appearances like image contrast, lighting or viewpointis either excluded from the evaluation stage or simply treated as a sign of OOD [1] , which contradicts with the primary goal in machine learning, i.e., to generalize beyond the training distribution [9] .",
+            "cite_spans": [
+                {
+                    "start": 353,
+                    "end": 356,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 473,
+                    "end": 476,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we introduce a more challenging yet realistic problem setting called full-spectrum out-ofdistribution detection, or FS-OOD detection. The new setting takes into account both the detection of semantic shift and the ability to recognize covariate-shifted data as ID. To this end, we design three benchmarks, namely DIGITS, OBJECTS and COVID, each targeting a specific visual recognition task and together constituting a comprehensive testbed. We also provide a more fine-grained categorization of distributions for the purpose of thoroughly evaluating an algorithm. Specifically, we divide distributions into four groups: training ID, covariate-shifted ID, near-OOD, and far-OOD (the latter two are inspired by a recent study [10] ). Figure 1 -a shows example images from the DIGITS benchmark: the covariate-shifted images contain the same semantics as the training images, i.e., digits from 0 to 9, and should be classified as ID, whereas the two OOD groups clearly differ in semantics but represent two different levels of covariate shift.",
+            "cite_spans": [
+                {
+                    "start": 739,
+                    "end": 743,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 747,
+                    "end": 755,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Ideally, an OOD detection system is expected to produce high scores for samples from the training ID and covariate-shifted ID groups, while assign low scores to samples from the two OOD groups. However, when applying a state-of-the-art OOD detection method, e.g. the energy-based EBO [4] , to the proposed benchmarks like DIGITS (see Figure 1 -b), we observe that the resulting scores completely fail to distinguish between ID and OOD. As shown in Figure 1 -b, all data are classified as ID including both near-OOD and far-OOD samples.",
+            "cite_spans": [
+                {
+                    "start": 284,
+                    "end": 287,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 334,
+                    "end": 342,
+                    "text": "Figure 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 448,
+                    "end": 456,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "To address the more challenging but realistic FS-OOD detection problem, we propose SEM, a simple feature-based semantics score function. Unlike existing score functions that are based on either marginal distribution [4] or predictive confidence [2] , SEM leverages features from both top and shallow layers to deduce a single score that is only relevant to semantics, hence more suitable for identifying semantic shift while ensuring robustness under covariate shift. Specifically, SEM is mainly composed of two probability measures: one is based on high-level features containing both semantic and non-semantic information, while the other is based on low-level feature statistics only capturing nonsemantic image styles. With a simple combination, the non-semantic part is cancelled out, which leaves only semantic information in SEM. Figure 1 -c illustrates that SEM's scores are much clearer to distinguish between ID and OOD.",
+            "cite_spans": [
+                {
+                    "start": 216,
+                    "end": 219,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 245,
+                    "end": 248,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 837,
+                    "end": 845,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "We summarize the contributions of this paper as follows. 1) For the first time, we introduce the fullspectrum OOD detection problem, which represents a more realistic scenario considering both semantic and covariate shift in the evaluation pipeline. 2) Three benchmark datasets are designed for research of FS-OOD detection. They cover a diverse set of recognition tasks and have a detailed categorization over distributions. 3) A simple yet effective OOD detection score function called SEM is proposed. Through extensive experiments on the three new benchmarks, we Fig. 1 : Comparison of OOD detection scores obtained by different approaches on the newly introduced full-spectrum OOD detection benchmark: (a) DIGITS Benchmark. Ideally, the scores should be clear enough to separate out OOD data while include covariate-shifted data as in-distribution-which has been ignored by most existing research. (b) The state-of-the-art energy-based approach, EBO [4] , apparently fails in this scenario. (c) Our approach, based on a semantics-oriented score function, can improve the detection performance significantly.",
+            "cite_spans": [
+                {
+                    "start": 955,
+                    "end": 958,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 567,
+                    "end": 573,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "demonstrate that SEM significantly outperforms current state-of-the-art methods in FS-OOD detection. The source code and new datasets are open-sourced in https://github.com/Jingkang50/OpenOOD.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The key idea in out-of-distribution (OOD) detection is to design a metric, known as score function, to assess whether a test sample comes from in-or outof-distribution. The most commonly used metric is based on the conditional probability p(y|x). An early OOD detection method is maximum softmax probability (MSP) [2] , which is motivated by the observation that deep neural networks tend to give lower confidence to mis-classified or OOD data. A follow-up work ODIN [3] applies a temperature scaling parameter to soften the probability distribution, and further improves the performance by injecting adversarial perturbations to the input. Model ensembling has also been found effective in enhancing robustness in OOD detection [11, 12] .",
+            "cite_spans": [
+                {
+                    "start": 314,
+                    "end": 317,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 467,
+                    "end": 470,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 729,
+                    "end": 733,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 734,
+                    "end": 737,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Another direction is to design the metric in a way that it reflects the marginal probability p(x). Liu et al . [4] connect their OOD score to the marginal distribution using an energy-based formulation, which essentially sums up the prediction logits over all classes. Lee et al . [5] assume the source data follow a normal distribution and learn a Mahalanobis distance to compute the discrepancy between test images and the estimated distribution parameters. Generative modeling has also been investigated to estimate a likelihood ratio for scoring test images [11, 6, 13] .",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 114,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 281,
+                    "end": 284,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 562,
+                    "end": 566,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 567,
+                    "end": 569,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 570,
+                    "end": 573,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Some methods exploit external OOD datasets. For example, Hendrycks et al . [14] extend MSP by training the model to produce uniform distributions on external OOD data. Later works introduce re-sampling strategy [15] and cluster-based methodology [16] to better leverage the background data. However, this work do not use external OOD datasets for model design.",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 79,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 211,
+                    "end": 215,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 246,
+                    "end": 250,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Different from all existing methods, our approach aims to address a more challenging scenario, i.e., FS-OOD detection, which has not been investigated in the literature but is critical to real-world applications. The experiments show that current state-of-the-art methods mostly fail in the new setting while our approach gains significant improvements.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Key to detect out-of-distribution (OOD) data lies in the design of a score function, which is used as a quantitative measure to distinguish between in-and out-ofdistribution data. Our idea is to design the function in such a way that the degree of semantic shift is effectively captured, i.e., the designed score to be only sensitive to semantic shift while being robust to covariate shift. For data belonging to the in-distribution classes, the score is high, and vice versa.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Feature-Based Semantics Score Function"
+        },
+        {
+            "text": "Our score function, called SEM, has the following design:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Formulation"
+        },
+        {
+            "text": "where x denotes image features learned by a neural network; and x s denotes features that only capture the semantics. The probability p(x s ) can be computed by a probabilistic model, such as a Gaussian mixture model. The straightforward way to model x s is to learn a neural network for image recognition and hope that the output features x only contain semantic information, i.e., x s = x. If so, the score can be simply computed by SEM(x) = log p(x). However, numerous studies have suggested that the output features x often contain both semantic and non-semantic information while decoupling them is still an open research problem [9, 18, 19] . Let x n denote non-semantic features, we assume that semantic features x s and non-semantic features x n are generated independently, namely",
+            "cite_spans": [
+                {
+                    "start": 635,
+                    "end": 638,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 639,
+                    "end": 642,
+                    "text": "18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 643,
+                    "end": 646,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Formulation"
+        },
+        {
+            "text": "We propose a simple method to model the score function so that it becomes only relevant to the semantics of an image. This is achieved by leveraging low-level feature statistics, i.e., means and standard deviations, learned in a CNN, which have been shown effective in capturing image styles that are essentially irrelevant to semantics [20] . Specifically, the score function in Eq. 1 is rewritten as",
+            "cite_spans": [
+                {
+                    "start": 337,
+                    "end": 341,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Formulation"
+        },
+        {
+            "text": "where p(x) is computed using the output features while p(x n ) is based on low-level feature statistics. Below we first discuss how to compute feature statistics and then detail the approach of how to model the distributions for x and x n .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Formulation"
+        },
+        {
+            "text": "Instance-level feature statistics have been widely used in the style transfer community for manipulating image style [21] . Given a set of CNN feature maps z \u2208 R C\u00d7H\u00d7W with C, H and W denoting the number of channels, height and width, their feature statistics, i.e., means \u00b5 \u2208 R C and standard deviations \u03c3 \u2208 R C , are computed across the spatial dimension within each channel c = {1, 2, ..., C},",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Feature Statistics Computation"
+        },
+        {
+            "text": "As shown in Zhou et al . [20] , the feature statistics in shallow CNN layers are strongly correlated with domain information (i.e., image style) while those in higher layers pick up more semantics. Therefore, we choose to extract feature statistics in the first CNN layer and represent x n by concatenating the means and standard deviations, i.e., x n = [\u00b5, \u03c3] T . The computation of SEM score function for OOD detection. SEM combines the estimation of p(x) (using top-layer features to capture both semantic and non-semantic information) and p(x n ) (using low-level feature statistics to only capture non-semantic information) with Eq. 3 for better concentration on semantics. (b) The fine-tuning scheme to enhance source-awareness for better estimating p(x n ). The main idea is to pull together the instance-level CNN feature statistics of in-distribution data to make them more compact, while pushing away those of synthetic OOD data, which are obtained by negative data augmentation such as Mixup [17] .",
+            "cite_spans": [
+                {
+                    "start": 25,
+                    "end": 29,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1003,
+                    "end": 1007,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Feature Statistics Computation"
+        },
+        {
+            "text": "For simplicity, we model p(x) and p(x n ) in Eq. 3 using the same approach, which consists of two steps: dimension reduction and distribution modeling. Below we only discuss p(x) for clarity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distribution Modeling"
+        },
+        {
+            "text": "Motivated by the manifold assumption in Bengio et al . [22] that suggests data typically lie in a manifold of much lower dimension than the input space, we transform features x to a new low-dimensional space, with a hope that the structure makes it easier to distinguish between in-and out-of-distribution. To this end, we propose a variant of the principal component analysis (PCA) approach. Specifically, rather than maximizing the variance for the entire population, we maximize the sum of variances computed within each class with respect to the transformation matrix. In doing so, we can identify a space that is less correlated with classes.",
+            "cite_spans": [
+                {
+                    "start": 55,
+                    "end": 59,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Distribution Modeling"
+        },
+        {
+            "text": "Given a training dataset, we build a Gaussian mixture model (GMM) to capture p(x). Formally, p(x) is defined as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distribution Modeling"
+        },
+        {
+            "text": "where M denotes the number of mixture components, \u03bb m the mixture weight s.t.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distribution Modeling"
+        },
+        {
+            "text": "M m=1 \u03bb m = 1, and \u03b1 m and \u03b2 m the means and variances of a normal distribution. A GMM model can be efficiently trained by the expectation-maximization (EM) algorithm.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distribution Modeling"
+        },
+        {
+            "text": "While feature statistics exhibit a higher correlation with source distributions [20] , the boundary between in-and out-of-distribution in complicated real-world data is not guaranteed to be clear enough for differentiation. Inspired by Liu et al. [4] who fine-tune a pretrained model to increase the energy values assigned to OOD data and lower down those for ID data, we propose a fine-tuning scheme to enhance source-awareness in feature statistics. An overview of the fine-tuning scheme is illustrated in Figure 2 ",
+            "cite_spans": [
+                {
+                    "start": 80,
+                    "end": 84,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 247,
+                    "end": 250,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 508,
+                    "end": 516,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Source-Awareness Enhancement"
+        },
+        {
+            "text": "The motivation behind our fine-tuning scheme is to obtain a better estimate of non-semantic score, in hope that it will help SEM better capture the semantics with the combination in Eq. 3. This can be achieved by explicitly training feature statistics of ID data to become more compact, while pushing OOD data's feature statistics away from the ID support areas. A straightforward way is to collect auxiliary OOD data like Liu et al . [4] for building a contrastive objective. In this work, we propose a more efficient way by using negative data augmentation [23] to synthesize OOD samples. The key idea is to choose data augmentation methods to easily generate samples with covariate shift. One example augmentation is Mixup [17] .",
+            "cite_spans": [
+                {
+                    "start": 435,
+                    "end": 438,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 559,
+                    "end": 563,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 726,
+                    "end": 730,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Negative Data Augmentation"
+        },
+        {
+            "text": "Given a source dataset S = {(x, y)}, 1 we employ negative data augmentation methods aug(\u00b7) to synthesize an OOD dataset S aug = {(x , y)} where x = aug(x). For fine-tuning, we combine a classification loss L cls with a source-awareness enhancement loss L src . These two losses are formally defined as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Objectives"
+        },
+        {
+            "text": "and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Objectives"
+        },
+        {
+            "text": "where the marginal probability p(x) is computed based on a GMM model described previously. Note that the GMM model is updated every epoch to adapt to the changing features.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Objectives"
+        },
+        {
+            "text": "After fine-tuning, we learn a new GMM model using the original source dataset. This model is then used to estimate the marginal probability p(x) at test time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Objectives"
+        },
+        {
+            "text": "To evaluate full-spectrum out-of-distribution (FS-OOD) detection algorithms, we design three benchmarks: DIG-ITS, OBJECTS, and COVID. Examples for DIGITS are shown in Figure 1 and the other two are shown in Figure 3 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 167,
+                    "end": 175,
+                    "text": "Figure 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 207,
+                    "end": 215,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "FS-OOD Benchmarks"
+        },
+        {
+            "text": "We construct the DIG-ITS benchmark based on the popular digit datasets: MNIST [24] , which contains 60,000 images for training. During testing, the model will be exposed to 10,000 MNIST test images, with 26,032 covariate-shifted ID images from SVHN [25] and another 9,298 from USPS [26] . The near-OOD datasets are notMNIST [27] and Fash-ionMNIST [28] , which share a similar background style with MNIST. The far-OOD datasets consist of a textural dataset (Texture [29] ), two object datasets (CIFAR-10 [30] & Tiny-ImageNet [31] ), and one scene dataset (Places365 [32] ). The CIFAR-10 and Tiny-ImageNet test sets have 10,000 images for each. The Places365 test set contains 36,500 scene images.",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 82,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 249,
+                    "end": 253,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 282,
+                    "end": 286,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 324,
+                    "end": 328,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 347,
+                    "end": 351,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 465,
+                    "end": 469,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 503,
+                    "end": 507,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 524,
+                    "end": 528,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 565,
+                    "end": 569,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Benchmark-1: DIGITS"
+        },
+        {
+            "text": "The OBJECTS benchmark is built on top of CIFAR-10 [30] , which contains 50,000 images for training. During testing, the model will be exposed to 10,000 CIFAR-10 test images, and another 10,000 images selected from ImageNet-22K [31] with the same categories as CIFAR-10 (so it is called ImageNet-10). For ImageNet-10, we choose five ImageNet-22K classes corresponding to one CIFAR-10 class, with each class selecting 1,000 training images and 200 testing images. Details of the selected classes are shown in Table 1 . In addition to ImageNet, CIFAR-10-C is used as a covariate-shifted ID dataset, which is essentially a corrupted version of CIFAR-10. For near-OOD, we choose CIFAR-100 and Tiny-ImageNet. For far-OOD, we choose MNIST, FashionMNIST, Texture and CIFAR-100-C. ",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 54,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 227,
+                    "end": 231,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 507,
+                    "end": 514,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Benchmark-2: OBJECTS"
+        },
+        {
+            "text": "We construct a real-world benchmark to show the practical value of FS-OOD. We simulate the scenario where an AI-assisted diagnostic system is trained to identify COVID-19 infection from chest x-ray images. The training data come from a single source (e.g., a hospital) while the covariate-shifted ID test data are from other hospitals or machines, to which the system needs to be robust and produce reliable predictions. Specifically, we refer to the COVID-19 chest X-ray dataset review [33] , and use the large-scale image collection from Valencian Region Medical Image-Bank [34] (referred to as BIMCV) as training ID images (randomly sampled 2443 positive cases and 2501 negative cases with necessary cleaning). Images from two other sources, i.e., ACTUALMED [35] (referred to as ActMed with 132 positive images), and Hannover [36] (from Hannover Medical School with 243 positive images), are considered as the covariate-shifted ID group. OOD images are from completely different classes. Near-OOD images are obtained from other medical datasets, i.e., the RSNA Bone Age dataset with 200 bone X-ray images [37] and 544 COVID CT images [38] . Far-OOD samples are defined as those with drastic visual and concept differences than the ID images. We use MNIST, CIFAR-10, Texture and Tiny-ImageNet.",
+            "cite_spans": [
+                {
+                    "start": 487,
+                    "end": 491,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 576,
+                    "end": 580,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 761,
+                    "end": 765,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 829,
+                    "end": 833,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1108,
+                    "end": 1112,
+                    "text": "[37]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1137,
+                    "end": 1141,
+                    "text": "[38]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Benchmark-3: COVID"
+        },
+        {
+            "text": "In the FS-OOD setting, different datasets belonging to one OOD type (i.e., near-OOD or far-OOD) are grouped together. We also re- Table 1 : Selected ImageNet-22K classes for OB-JECTS benchmark. We manually find 5 ImageNet-22K classes that belong to each CIFAR-10 classes, and pick the first 1,000 images from every selected class for OBJECTS benchmark. A string such as 'n03365231' is the synset id for downloading the corresponding class from ImageNet API. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 130,
+                    "end": 137,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "We conduct experiments on the three proposed FS-OOD benchmarks, i.e., DIGITS, OBJECTS, and COVID. In terms of architectures, we use LeNet-5 [39] for DIGITS and ResNet-18 [40] for both OBJECTS and COVID. All models are trained by the SGD optimizer with a weight decay of 5 \u00d7 10 \u22124 and a momentum of 0.9. For DIGITS and OBJECTS, we set the initial learning rate to 0.1, which is decayed by the cosine annealing rule, and the total epochs to 100. For COVID benchmark, the initial learning rate is set to 0.001 and the model is trained for 200 epochs. When fine-tuning for source-awareness enhancement, the learning rate is set to 0.005 and the total number of epochs is 10. The batch size is set to 128 for all benchmarks.",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 144,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 170,
+                    "end": 174,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "Notice that the baseline implementations of ODIN [3] and MDS [5] require validation set for hyperparameter tuning, we spare a certain portion of near-OOD for validation. More specifically, we use 1,000 notMNIST images for the DIGITS benchmark, 1,000 CIFAR-100 images for the OBJECTS benchmark, and 54 images from CT-SCAN dataset for the COVID benchmark. The proposed method SEM relies on the hyperparameter of M = 3 for low-layer p(x n ) and number of classes for high-layer p(x) in Gaussian mixture model. For output features with dimensions over 50, PCA is performed to reduce the dimensions to 50.",
+            "cite_spans": [
+                {
+                    "start": 49,
+                    "end": 52,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 61,
+                    "end": 64,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "We first discuss the results on near-and far-OOD datasets. Table 2 summarizes the results where the proposed SEM is compared with current state-of-theart methods including MSP [2] , ODIN [3] , Mahalanobis distance score (MDS), and Energy-based OOD [4] .",
+            "cite_spans": [
+                {
+                    "start": 176,
+                    "end": 179,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 187,
+                    "end": 190,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 248,
+                    "end": 251,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 59,
+                    "end": 66,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results on FS-OOD Setting"
+        },
+        {
+            "text": "For the DIGITS benchmark, SEM gains significant improvements in all metrics (FPR95, AUROC, and AUPR). A huge gain is observed on notMNIST, which is a challenging dataset due to its closeness in background to the training ID MNIST. While none of the previous softmax/logits-based methods (e.g., MSP, ODIN, and EBO) are capable to solve the notMNIST problem, the proposed SEM largely reduces the FPR95 metric from 99% to 10.93%, and the AUROC is increased from around 30% to beyond 95%. One explanation of the clear advantage is that, the previous output-based OOD detection methods largely depend on the covariate shift to detect OOD samples, while the feature-based MDS (partly rely on top-layer semantic-aware features) and the proposed SEM uses more semantic information, which is critical to distinguish MNIST and notMNIST. In other words, in the MNIST/notMNIST scenario where ID and OOD have high visual similarity, large dependency on covariate shift while ignorance on the semantic information will lead to the failure of OOD separation. Similar advantages are also achieved with the other near-OOD dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DIGITS Benchmark"
+        },
+        {
+            "text": "Similar to DIGITS benchmark, the proposed SEM surpasses the previous state-of-the-art methods on the near-OOD scenario of the OBJECTS benchmark, especially on the more robust metrics of AUROC and AUPR. However, the performance gap is not as large as DIGITS. One explanation Table 2 : Comparison between previous state-of-the-art methods and the proposed SEM score on FS-OOD benchmarks. The proposed SEM obtains a consistently better performance on most of the metrics than MSP [2] , ODIN [3] , Energy-based OOD (EBO) score [4] , and Mahalanobis Distance Score (MDS) [5] , especially on the near-OOD scenarios. is that images in OBJECTS benchmark are more complex than DIGITS, leading the neural networks to be more semantics-orientated. Therefore, more semantic information is encoded in the previous output-based methods. Nevertheless, the proposed SEM method still outperforms others on most of the metrics. We also notice that SEM score does not reach the best performance on MNIST and FashionMNIST. One explanation is that two black-and-white images in these two datasets inherently contain significant covariate shifts comparing to both training ID and covariate-shifted ID, so that the scores that efficient on covariate shift detection (e.g., ODIN) can also achieve good results on these datasets. However, these methods fail in near-OOD scenario, as they might believe CIFAR-10-C should be more likely to be OOD than CIFAR-100.",
+            "cite_spans": [
+                {
+                    "start": 477,
+                    "end": 480,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 488,
+                    "end": 491,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 523,
+                    "end": 526,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 566,
+                    "end": 569,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 274,
+                    "end": 281,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "OBJECTS Benchmark"
+        },
+        {
+            "text": "In this new and real-world application of OOD detection, the proposed SEM score achieves an extraordinary performance on all metrics, which surpasses the previous state-of-the-art methods by a large margin in both near and far-OOD scenarios. The result also indicates that previous output-based methods generally breaks down on this setting, e.g., their FPR@95 scores are generally beyond 90% in near-OOD setting which means ID and OOD are totally mixed. However, the proposed SEM achieves around 10% in near-OOD setting. On far-OOD samples, the output-based methods are still unable to be sensitive to the ID/OOD discrepancy. The phenomenon matches the performance in DIGITS dataset, where the training data is simple and the logits might learn much non-semantic knowledge to be cancelled out.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "COVID Benchmark"
+        },
+        {
+            "text": "We summarize the following two take-away messages from the experiments on all three FS-OOD benchmarks: 1) SEM score performs consistently well on near-OOD, which classic outputbased methods (e.g., MSP, ODIN, EBO) majorly fail on. The reason can be that output-based methods use too much covariate shift information for OOD detection, which by nature cannot distinguish between covariateshifted ID and near-OOD. The proposed SEM score also outperforms the similar feature-based baseline MDS. 2) SEM score sometimes underperforms on far-OOD, with a similar reason that classic OOD detectors use covariate shift to distinguish ID and OOD, which is sometimes sufficient to detect far-OOD samples. Nevertheless, SEM reaches more balanced good results on near-OOD and far-OOD. Table 3 : Comparison between previous state-of-the-art methods, the proposed SEM score, and the low-level probabilistic component p(x n ) on classic OOD benchmarks, without the existence of covariate-shifted ID set. The previous methods of MSP [2] , ODIN [3] , EBO score [4] , and MDS [5] reaches a good results on the classic benchmark. However, the value of p(x n ) can exceed all the previous methods and achieve a near-perfect result across all the metrics, showing that only taking covariate shift score can completely solve the classic OOD detection benchmark, which, in fact, contradicts the goal of OOD detection. This phenomenon also advocates the significance of the proposed FS-OOD benchmark. Table 3 shows the performance on the classic OOD detection benchmark. The result shows that without the introduction of covariate-shifted ID data, the previous methods reach a near-perfect performance on the classic benchmark, which matches the reported results in their origin papers. However, by comparing with Table 2, their performance significantly breakdown when covariate-shifted ID is introduced, showing the fragility of previous methods, and therefore we advocate the more realistic FS-OOD benchmark. Furthermore, we also report the results that by using the value of p(x n ), the score from low-layer feature statistics for detecting covariate shift is shown surprisingly effective on classic OOD benchmark, which exceeds all the previous methods and achieve a near-perfect result across all the metrics. This phenomenon shows that only taking covariate shift score can completely solve the classic OOD detection benchmark with MNIST, which, in fact, contradicts the goal of OOD detection. It also advocates the significance of the proposed FS-OOD benchmark.",
+            "cite_spans": [
+                {
+                    "start": 1015,
+                    "end": 1018,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1026,
+                    "end": 1029,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1042,
+                    "end": 1045,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1056,
+                    "end": 1059,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 771,
+                    "end": 778,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1475,
+                    "end": 1482,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Observation Summary"
+        },
+        {
+            "text": "In this section, we validate the effectiveness of the main components that contribute to the proposed SEM score, and also analyze the effects of fine-tuning scheme for source-awareness enhancement. All the experiments in this part are conducted on the DIGITS benchmark.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ablation Study"
+        },
+        {
+            "text": "According to Equation 2 in the Section 3, SEM score can be decomposed by the estimations of p(x) and p(x n ). While our final SEM score uses output flattened features of the CNN model for p(x) estimation and low-layer feature statistics for Table 4 : Ablation study on the SEM components. AUROC is reported for performance evaluation. Several options can be applied to estimate p(x n ) and p(x) in Equation 3 . FS denotes the usage of feature statistics, and FF denotes flattened features. T and L means top-/low-layer feature, e.g., L-FS means low-layer feature statistics. The results show the effectiveness of our SEM score. p(x n ), there are actually several options for the estimation, which is discussed in Table 4 . In this analysis, we set top flattened features as the default usage for p(x) and only explore p(x n ), which is the key part of SEM score. Exp#1 shows the result that only uses p(x) as the final score, which can be interpreted as a simple method using GMM to estimate ID likelihood on the final-layer features. Compared to the MDS result in Table 2 , this simple method already obtains a better performance on near-OOD. Notice that we use LeNet-5 on DIGITS, the final-layer features are identical to their feature statistics (ref. Exp#2). Therefore, everything is cancelled out if p(x n ) is top-layer feature statistics (ref. Exp#3).",
+            "cite_spans": [
+                {
+                    "start": 407,
+                    "end": 408,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 241,
+                    "end": 248,
+                    "text": "Table 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 714,
+                    "end": 721,
+                    "text": "Table 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 1066,
+                    "end": 1073,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Components of SEM"
+        },
+        {
+            "text": "Exp#4 and Exp#6 shows comparison between using low-layer flattened features (L-FF) and low-layer feature statistics (L-FS) only. The performance on detecting covariate-shifted ID shows that both L-FF and L-FS Table 5 : Ablation study on the fine-tuning scheme for source-awareness enhancement. AUROC is reported for performance evaluation. #1 reports the performance before fine-tuning. L src (x) means fine-tuning without negative augmented data. L src (x ) means only data with negative augmentation is used. The results show the effectiveness of each training loss. have significant sensitivity to covariate shifts, but with a poor performance on FS-OOD detection. The result indicates that with only the usage of low-level features, the score has a strong correlation to covariate shift but barely contains semantic information, and the feature statistics show the stronger characteristics compared to flattened feature. This observation indicates our selection of low-level feature statistics for estimating p(x n ), which is further supported by the results of Exp#5 and Exp#7, and visually illustrated by Figure 4 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 209,
+                    "end": 216,
+                    "text": "Table 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 1112,
+                    "end": 1120,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Components of SEM"
+        },
+        {
+            "text": "Here we evaluate the designed fine-tuning scheme of SEM. As elaborated in Section 3.2, this learning procedure is designed to enhance the source-aware compactness. Specifically, a sourceawareness enhancement loss L src is proposed to aggregate the ID training data and separate from the generated negative augmented images at the same time. Table 5 demonstrates the effectiveness of the fine-tuning scheme. When combining both in-distribution training and negative augmented data training, our framework achieves the best performance.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 341,
+                    "end": 348,
+                    "text": "Table 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Fine-Tuning Scheme"
+        },
+        {
+            "text": "Hyperparameter of M Table 6 shows the analysis of hyperparameter M . In the DIGITS dataset, M = 3 leads to a slightly better performance comparing to other choices. Nevertheless, the overall difference among Fig. 4 : T-SNE visualization on DIGITS. It suggests that low-layer feature statistics capture non-semantic information, and top-layer features capture both semantic and non-semantic information.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 20,
+                    "end": 27,
+                    "text": "Table 6",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 208,
+                    "end": 214,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Fine-Tuning Scheme"
+        },
+        {
+            "text": "various M is not obvious on near-OOD, showing that the model is robust to the hyperparameter.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fine-Tuning Scheme"
+        },
+        {
+            "text": "Existing OOD detection literature has shown mostly relied on covariate shift even though they are intended to detect semantic shift. This is very effective when test OOD data only come from the far-OOD group-where the covariate shift is large and is further exacerbated by semantic shift, so using covariate shift as a measure to detect OOD fares well. However, when it comes to near-OOD data, especially with covariate-shifted ID (i.e., data experiencing covariate shift but still belonging to the same in-distribution data), current state-of-the-art methods would suffer a significant drop in performance, as shown in the experiments.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Conclusion"
+        },
+        {
+            "text": "We find the gap is caused by a shortcoming in existing evaluation benchmarks: they either exclude covariateshifted data during testing or treat them as OOD, which is conceptually contradictory with the primary goal that a machine learning model should generalize beyond the training distribution. To fill the gap, we introduce a new problem setting that better matches the design principles of machine learning models: they should be robust in terms of good generalization to covariate-shifted datasets, and trustworthy as they also need to be capable of detecting abnormal semantic shift.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Conclusion"
+        },
+        {
+            "text": "The empirical results suggest that current state-ofthe-art methods rely too heavily on covariate shift and hence could easily mis-classify covariate-shifted ID data as OOD data. In contrast, our SEM score function, despite having a simple design, provides a more reliable measure for solving full-spectrum OOD detection.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Conclusion"
+        },
+        {
+            "text": "In fact, to detecting samples with covariate shift, we find that a simple probabilistic model using low-level feature statistics can reach a near-perfect result.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Conclusion"
+        },
+        {
+            "text": "As the OOD detection community getting common awareness of the saturated performance problem of classic OOD benchmarks, several works have taken one-step further towards the more realistic setting and proposed large-scale benchmarks [41, 42] . However, this paper shows that even under the classic MNIST/CIFAR-scale OOD benchmarks, current OOD methods in fact cannot achieve satisfactory results when the generalization ability is required. We hope that the future OOD detection works could also consider the generalization capability on covariate-shifted ID data, in parallel to exploring larger-scale models and datasets.",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "[41,",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 238,
+                    "end": 241,
+                    "text": "42]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Outlook"
+        },
+        {
+            "text": "Our research aims to improve the robustness of machine learning systems in terms of the capability to safely handle abnormal data to avoid catastrophic failures. This could have positive impacts on a number of applications, ranging from consumer (e.g., AI-powered mobile phones) to transportation (e.g., autonomous driving) to medical care (e.g., abnormality detection). The new problem setting introduced in the paper includes an important but largely missing element in existing research, namely data experiencing covariate shift but belonging to the same in-distribution classes. We hope the new setting, along with the simple approach based on SEM and the findings presented in the paper, can pave the way for future research for more reliable and practical OOD detection.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Broader Impacts"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Generalized out-of-distribution detection: A survey",
+            "authors": [
+                {
+                    "first": "Jingkang",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kaiyang",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yixuan",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ziwei",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2110.11334"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "A baseline for detecting misclassified and out-of-distribution examples in neural networks",
+            "authors": [
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Hendrycks",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kevin",
+                    "middle": [],
+                    "last": "Gimpel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Enhancing the reliability of out-of-distribution image detection in neural networks",
+            "authors": [
+                {
+                    "first": "Shiyu",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yixuan",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rayadurgam",
+                    "middle": [],
+                    "last": "Srikant",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Energy-based out-of-distribution detection",
+            "authors": [
+                {
+                    "first": "Weitang",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaoyun",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Owens",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yixuan",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of Advances in Neural Information Processing Systems (NeurIPS)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A simple unified framework for detecting out-of-distribution samples and adversarial attacks",
+            "authors": [
+                {
+                    "first": "Kimin",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kibok",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Honglak",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jinwoo",
+                    "middle": [],
+                    "last": "Shin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of Advances in Neural Information Processing Systems (NeurIPS)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Likelihood ratios for out-of-distribution detection",
+            "authors": [
+                {
+                    "first": "Jie",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Peter",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emily",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jasper",
+                    "middle": [],
+                    "last": "Fertig",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ryan",
+                    "middle": [],
+                    "last": "Snoek",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mark",
+                    "middle": [],
+                    "last": "Poplin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joshua",
+                    "middle": [],
+                    "last": "Depristo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Balaji",
+                    "middle": [],
+                    "last": "Dillon",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lakshminarayanan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of Advances in Neural Information Processing Systems (NeurIPS)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Uncertainty estimation using a single deep deterministic neural network",
+            "authors": [
+                {
+                    "first": "Joost",
+                    "middle": [],
+                    "last": "Van Amersfoort",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lewis",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yee",
+                    "middle": [
+                        "Whye"
+                    ],
+                    "last": "Teh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yarin",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Detecting out-of-distribution examples with gram matrices",
+            "authors": [
+                {
+                    "first": "Shama",
+                    "middle": [],
+                    "last": "Chandramouli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sageev",
+                    "middle": [],
+                    "last": "Sastry",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Oore",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Domain generalization in vision: A survey",
+            "authors": [
+                {
+                    "first": "Kaiyang",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ziwei",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yu",
+                    "middle": [],
+                    "last": "Qiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tao",
+                    "middle": [],
+                    "last": "Xiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chen Change",
+                    "middle": [],
+                    "last": "Loy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2103.02503"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "On the impact of spurious correlation for out-of-distribution detection",
+            "authors": [
+                {
+                    "first": "Yifei",
+                    "middle": [],
+                    "last": "Ming",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hang",
+                    "middle": [],
+                    "last": "Yin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yixuan",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2109.05642"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "WAIC, but why? Generative ensembles for robust anomaly detection",
+            "authors": [
+                {
+                    "first": "Hyunsun",
+                    "middle": [],
+                    "last": "Choi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Jang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexander",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Alemi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1810.01392"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Outof-distribution detection using an ensemble of self supervised leave-out classifiers",
+            "authors": [
+                {
+                    "first": "Apoorv",
+                    "middle": [],
+                    "last": "Vyas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nataraj",
+                    "middle": [],
+                    "last": "Jammalamadaka",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xia",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dipankar",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bharat",
+                    "middle": [],
+                    "last": "Kaul",
+                    "suffix": ""
+                },
+                {
+                    "first": "Theodore",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Willke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the European Conference on Computer Vision (ECCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Input complexity and out-of-distribution detection with likelihoodbased generative models",
+            "authors": [
+                {
+                    "first": "Joan",
+                    "middle": [],
+                    "last": "Serr\u00e0",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "\u00c1lvarez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Vicen\u00e7",
+                    "middle": [],
+                    "last": "G\u00f3mez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Olga",
+                    "middle": [],
+                    "last": "Slizovskaia",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Jos\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jordi",
+                    "middle": [],
+                    "last": "N\u00fa\u00f1ez",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Luque",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Deep anomaly detection with outlier exposure",
+            "authors": [
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Hendrycks",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mantas",
+                    "middle": [],
+                    "last": "Mazeika",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thomas",
+                    "middle": [],
+                    "last": "Dietterich",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Background data resampling for outlier-aware classification",
+            "authors": [
+                {
+                    "first": "Yi",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nuno",
+                    "middle": [],
+                    "last": "Vasconcelos",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Semantically coherent out-of-distribution detection",
+            "authors": [
+                {
+                    "first": "Jingkang",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Haoqi",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Litong",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaopeng",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Huabin",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wayne",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ziwei",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of the IEEE International Conference on Computer Vision (ICCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "mixup: Beyond empirical risk minimization",
+            "authors": [
+                {
+                    "first": "Hongyi",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Moustapha",
+                    "middle": [],
+                    "last": "Cisse",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Yann N Dauphin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lopez-Paz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Domain-invariant disentangled network for generalizable object detection",
+            "authors": [
+                {
+                    "first": "Chuang",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zehuan",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sicheng",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Peize",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Changhu",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jianfei",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of the IEEE International Conference on Computer Vision (ICCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Domain agnostic learning with disentangled representations",
+            "authors": [
+                {
+                    "first": "Xingchao",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zijun",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ximeng",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kate",
+                    "middle": [],
+                    "last": "Saenko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of International Conference on Machine Learning (ICML)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Domain generalization with mixstyle",
+            "authors": [
+                {
+                    "first": "Kaiyang",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yongxin",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yu",
+                    "middle": [],
+                    "last": "Qiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tao",
+                    "middle": [],
+                    "last": "Xiang",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Arbitrary style transfer in real-time with adaptive instance normalization",
+            "authors": [
+                {
+                    "first": "Xun",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Serge",
+                    "middle": [],
+                    "last": "Belongie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Representation learning: A review and new perspectives",
+            "authors": [
+                {
+                    "first": "Yoshua",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aaron",
+                    "middle": [],
+                    "last": "Courville",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pascal",
+                    "middle": [],
+                    "last": "Vincent",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Burak Uzkent, Hongxia Jin, and Stefano Ermon. Negative data augmentation",
+            "authors": [
+                {
+                    "first": "Abhishek",
+                    "middle": [],
+                    "last": "Sinha",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kumar",
+                    "middle": [],
+                    "last": "Ayush",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiaming",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "The mnist database of handwritten digits",
+            "authors": [
+                {
+                    "first": "Yann",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Corinna",
+                    "middle": [],
+                    "last": "Cortes",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Christopher",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Burges",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Reading digits in natural images with unsupervised feature learning",
+            "authors": [
+                {
+                    "first": "Yuval",
+                    "middle": [],
+                    "last": "Netzer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tao",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "Coates",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alessandro",
+                    "middle": [],
+                    "last": "Bissacco",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bo",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew Y",
+                    "middle": [],
+                    "last": "Ng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of NIPS Workshop on Deep Learning and Unsupervised Feature Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A database for handwritten text recognition research",
+            "authors": [
+                {
+                    "first": "Jonathan",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hull",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "IEEE Transactions",
+            "volume": "16",
+            "issn": "5",
+            "pages": "550--554",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "NotMNIST dataset",
+            "authors": [
+                {
+                    "first": "Yaroslav",
+                    "middle": [],
+                    "last": "Bulatov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Fashionmnist: a novel image dataset for benchmarking machine learning algorithms",
+            "authors": [
+                {
+                    "first": "Han",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kashif",
+                    "middle": [],
+                    "last": "Rasul",
+                    "suffix": ""
+                },
+                {
+                    "first": "Roland",
+                    "middle": [],
+                    "last": "Vollgraf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1708.07747"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Describing textures in the wild",
+            "authors": [
+                {
+                    "first": "Mircea",
+                    "middle": [],
+                    "last": "Cimpoi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Subhransu",
+                    "middle": [],
+                    "last": "Maji",
+                    "suffix": ""
+                },
+                {
+                    "first": "Iasonas",
+                    "middle": [],
+                    "last": "Kokkinos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sammy",
+                    "middle": [],
+                    "last": "Mohamed",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrea",
+                    "middle": [],
+                    "last": "Vedaldi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Learning multiple layers of features from tiny images",
+            "authors": [
+                {
+                    "first": "Alex",
+                    "middle": [],
+                    "last": "Krizhevsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "Geoffrey",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Imagenet large-scale visual recognition challenge",
+            "authors": [
+                {
+                    "first": "Olga",
+                    "middle": [],
+                    "last": "Russakovsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jia",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hao",
+                    "middle": [],
+                    "last": "Su",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jonathan",
+                    "middle": [],
+                    "last": "Krause",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sanjeev",
+                    "middle": [],
+                    "last": "Satheesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sean",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhiheng",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrej",
+                    "middle": [],
+                    "last": "Karpathy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aditya",
+                    "middle": [],
+                    "last": "Khosla",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Bernstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Journal of Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Places: A 10 million image database for scene recognition",
+            "authors": [
+                {
+                    "first": "Bolei",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Agata",
+                    "middle": [],
+                    "last": "Lapedriza",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aditya",
+                    "middle": [],
+                    "last": "Khosla",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aude",
+                    "middle": [],
+                    "last": "Oliva",
+                    "suffix": ""
+                },
+                {
+                    "first": "Antonio",
+                    "middle": [],
+                    "last": "Torralba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Public covid-19 xray datasets and their impact on model bias-a systematic review of a significant problem",
+            "authors": [
+                {
+                    "first": "Beatriz",
+                    "middle": [],
+                    "last": "Garcia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Santa",
+                    "middle": [],
+                    "last": "Cruz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mat\u00edas Nicol\u00e1s",
+                    "middle": [],
+                    "last": "Bossa",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jan",
+                    "middle": [],
+                    "last": "S\u00f6lter",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andreas",
+                    "middle": [
+                        "Dominik"
+                    ],
+                    "last": "Husch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Medical image analysis",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Bimcv covid-19+: a large annotated dataset of rx and ct images from covid-19 patients",
+            "authors": [
+                {
+                    "first": "Maria",
+                    "middle": [],
+                    "last": "De La Iglesia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jose",
+                    "middle": [
+                        "Manuel"
+                    ],
+                    "last": "Vay\u00e1",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joaquim",
+                    "middle": [
+                        "Angel"
+                    ],
+                    "last": "Saborit",
+                    "suffix": ""
+                },
+                {
+                    "first": "Antonio",
+                    "middle": [],
+                    "last": "Montell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aurelia",
+                    "middle": [],
+                    "last": "Pertusa",
+                    "suffix": ""
+                },
+                {
+                    "first": "Miguel",
+                    "middle": [],
+                    "last": "Bustos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joaquin",
+                    "middle": [],
+                    "last": "Cazorla",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xavier",
+                    "middle": [],
+                    "last": "Galant",
+                    "suffix": ""
+                },
+                {
+                    "first": "Domingo",
+                    "middle": [],
+                    "last": "Barber",
+                    "suffix": ""
+                },
+                {
+                    "first": "Francisco",
+                    "middle": [],
+                    "last": "Orozco-Beltr\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Garc\u00eda-Garc\u00eda",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2006.01174"
+                ]
+            }
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Covidnet: a tailored deep convolutional neural network design for detection of covid-19 cases from chest x-ray images",
+            "authors": [
+                {
+                    "first": "Linda",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexander",
+                    "middle": [],
+                    "last": "Zhong Qiu Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Scientific Reports",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Covid-19 image repository",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hinrich",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hans",
+                    "middle": [],
+                    "last": "Winther",
+                    "suffix": ""
+                },
+                {
+                    "first": "Svetlana",
+                    "middle": [],
+                    "last": "Laser",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sabine",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Gerbel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jan",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Maschke",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jens",
+                    "middle": [],
+                    "last": "Hinrichs",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Vogel-Claussen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Frank",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marius",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Wacker",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bernhard",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "H\u00f6per",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Meyer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Lenet-5",
+            "authors": [
+                {
+                    "first": "Yann",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Deep residual learning for image recognition",
+            "authors": [
+                {
+                    "first": "Kaiming",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiangyu",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shaoqing",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jian",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Vim: Out-of-distribution with virtual-logit matching",
+            "authors": [
+                {
+                    "first": "Haoqi",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhizhong",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Litong",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wayne",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Out of distribution detection on imagenet",
+            "authors": [
+                {
+                    "first": "Anugya",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shriya",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mugdha",
+                    "middle": [],
+                    "last": "Thigle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2022,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2201.09352"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Overview of our Methodology. (a)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Examples for the two FS-OOD detection benchmarks: COVID and OBJECTS. Each benchmark consists of a training ID dataset, two covariateshifted ID datasets, two near-OOD datasets, and four far-OOD datasets.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF5": {
+            "text": "Hyperparameter Selection of the Number of GMM Components K. The result shows that M = 3 in low-layer statistics and M = 10 for top-layer features (equal to number of classes) can reach the best results in MNIST benchmark.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

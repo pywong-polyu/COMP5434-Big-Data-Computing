@@ -1,0 +1,1586 @@
+{
+    "paper_id": "8df55596099e56ce2990629dac96129e4080a0c5",
+    "metadata": {
+        "title": "COVID-19 Time-series Prediction by Joint Dictionary Learning and Online NMF",
+        "authors": [
+            {
+                "first": "Hanbaek",
+                "middle": [],
+                "last": "Lyu",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Christopher",
+                "middle": [],
+                "last": "Strohmeier",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Georg",
+                "middle": [],
+                "last": "Menz",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Deanna",
+                "middle": [],
+                "last": "Needell",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Predicting the spread and containment of COVID-19 is a challenge of utmost importance that the broader scientific community is currently facing. One of the main sources of difficulty is that a very limited amount of daily COVID-19 case data is available, and with few exceptions, the majority of countries are currently in the \"exponential spread stage,\" and thus there is scarce information available which would enable one to predict the phase transition between spread and containment.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "In this paper, we propose a novel approach to predicting the spread of COVID-19 based on dictionary learning and online nonnegative matrix factorization (online NMF). The key idea is to learn dictionary patterns of short evolution instances of the new daily cases in multiple countries at the same time, so that their latent correlation structures are captured in the dictionary patterns. We first learn such dictionary patterns by minibatch learning from the entire time-series and then further adapt them to the time-series by online NMF. As we progressively adapt and improve the learned dictionary patterns to the more recent observations, we also use them to make one-step predictions by the partial fitting. Lastly, by recursively applying the one-step predictions, we can extrapolate our predictions into the near future. Our prediction results can be directly attributed to the learned dictionary patterns due to their interpretability.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The rapid spread of coronavirus disease (COVID-19) has had devastating effects globally. The virus first started to grow significantly in China and then in South Korea around January of 2020, and then had a major outbreak in European countries within the next month, and as of April the US alone has over 400,000 cases with over 12,000 deaths. Predicting the rapid spread of COVID-19 is a challenge of utmost importance that the broader scientific community is currently facing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "A conventional approach to this problem is to use compartmental models (see, e.g. [15] , [8] ), which are mathematical models used to simulate the spread of infectious diseases governed by stochastic differential equations describing interactions between different compartments of the population (e.g. susceptible, infectious, and recovered). Namely, one may postulate a compartmental model tailored to COVID-19 and find optimal parameters for the model by fitting it them the available data. An alternative approach is to use data-driven machine learning techniques, especially deep learning algorithms [11] , [2] , [10] , which have had great success in various CS and DN supported in part by NSF CAREER #1348721 and NSF BIGDATA #1740325.",
+            "cite_spans": [
+                {
+                    "start": 82,
+                    "end": 86,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 89,
+                    "end": 92,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 604,
+                    "end": 608,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 611,
+                    "end": 614,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 617,
+                    "end": 621,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Authors are with the Department of Mathematics, University of California, Los Angeles CA 90095 USA (e-mail: hlyu@math.ucla.edu).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Codes are available at https://github.com/HanbaekLyu/ONMF-COVID19 problems including image classification, computer vision, and voice recognition [16] , [6] , [13] , [1] .",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 150,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 153,
+                    "end": 156,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 159,
+                    "end": 163,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 166,
+                    "end": 169,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "In this paper, we propose an entirely different approach to predicting the spread of COVID-19 based on dictionary learning (or topic modeling), which is a machine learning technique that is typically applied to text or image data in order to extract important features of a complex dataset so that one can represent said dataset in terms of a reduced number of extracted features, or dictionary atoms [24] , [5] . Although dictionary learning has seen a wide array of applications in data science, to our best knowledge this work is the first to apply such an approach to time-series data and time-series prediction.",
+            "cite_spans": [
+                {
+                    "start": 401,
+                    "end": 405,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 408,
+                    "end": 411,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Our proposed method has four components: 1. (Minibatch learning) Use online nonnegative matrix factorization (online NMF) to learn \"elemental\" dictionary atoms which may be combined to approximate short time evolution patterns of correlated time-series data. 2. (Online learning) Further adapt the minibatch-learned dictionary atoms by traversing the time-series data using online NMF. 3. (Partial fitting and one-step prediction) Progressively improve our learned dictionary atoms by online learning while concurrently making one-step predictions by partial fitting. 4. (Recursive extrapolation) By recursively using the onestep predictions above, extrapolate into the future to predict future values of the time-series. Our method enables us to learn dictionary atoms from a diverse collection of correlated time-series data (e.g. new daily cases of COVID-19, number of fatal and recovered cases, and degree of observance of social distancing measures). The learned dictionary atoms describe \"elemental\" short-time evolution patterns from the correlated data which may be superimposed to recover and even predict the original timeseries data. Online Nonnegative Matrix Factorization is at the core of our learning algorithm, which continuously adapts and improves the learned dictionary atoms to newly arrived timeseries data sets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "There are a number of advantages of our proposed approach that may complement some of the shortcomings of the more traditional model-based approach or large-data-based machine learning approach. First, Our method is completely modelfree and has the universality of data types, as the dictionary atoms directly learned from the data serve as the 'model' for prediction. Hence a similar method could be applied to predict not only the spread of the virus but also other related parameters. These include the spread of COVID-19 media information, medical and food supply shortages and demands, patient subgroup infections, immunity and many more. Second, our method does not lose interpretability as some of the deep-learning-based approaches do, which is particularly important in making predictions for health-related areas. Third, our method is computationally efficient and can be executed on a standard personal computer in a short time. This enables our method to be applied in real-time in onlinesetting to generate continuously improving prediction. Lastly, our method has a strong theoretical foundation based on the recent work [19] .",
+            "cite_spans": [
+                {
+                    "start": 1135,
+                    "end": 1139,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "In this article, we demonstrate our general online NMFbased time-series prediction method on COVID-19 time-series data by learning a small number of fundamental time evolution patterns in joint time-series among the six countries in three different cases (confirmed/death/recovered) concurrently. Our analysis shows that we can indeed extract interpretable dictionary atoms for short-time evolution of such correlated time-series and use them to get accurate short-time predictions with a small variation. This approach could further be extended by augmenting various other types of correlated timeseries data set that may contain nontrivial information on the spread of COVID-19 (e.g. time-series quantifying commodity, movement, and media data). This paper is organized as follows. In Section II, we give a brief overview of dictionary learning by nonnegative matrix factorization, and provide the full statement of our learning and prediction algorithms. In Subsection III-A, we give a description of the time-series data set of new COVID-19 cases and discuss a number of pre-processing methods for regularizing high fluctuations in the data set. Then we discuss our data analysis scheme and simulation setup in Subsection III-B. In the following subsections III-C-III-E, we present our main simulation results. Finally, we conclude and suggest further directions in Section IV.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Matrix factorization provides a powerful mathematical setting for dictionary learning problems. We first organize n observations of d-dimensional samples a data matrix X \u2208 R d\u00d7n , and then seek a factorization of X into the product W H for some W \u2208 R d\u00d7r and H \u2208 R r\u00d7n . This means that each column of the data matrix is approximated by the linear combination of the columns of the dictionary matrix W with coefficients given by the corresponding column of the code matrix H (see Figure 1 ). This problem has been extensively studied under many names, each with different constraints: dictionary learning, factor analysis, topic modeling, component analysis. It has also found applications in text analysis, image reconstruction, medical imaging, bioinformatics, and many other scientific fields [23] , [3] , [4] , [9] , [25] , [7] , [21] . Nonnegative matrix factorization (NMF) is an instance of matrix factorization where one seeks two nonnegative matrices whose product approximates a given nonnegative data matrix. Below we give an extension of NMF with an extra sparsity constraint on the code matrix which is particularly suited for dictionary learning problems [14] . Given a data matrix X \u2208 R d\u00d7n \u22650 , the goal is to find a nonnegative dictionary W \u2208 R d\u00d7r and nonnegative code matrix H \u2208 R r\u00d7n by solving the following optimization problem:",
+            "cite_spans": [
+                {
+                    "start": 796,
+                    "end": 800,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 803,
+                    "end": 806,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 809,
+                    "end": 812,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 815,
+                    "end": 818,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 821,
+                    "end": 825,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 828,
+                    "end": 831,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 834,
+                    "end": 838,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1169,
+                    "end": 1173,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 480,
+                    "end": 488,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "A. Dictionary learning by nonnegative matrix factorization"
+        },
+        {
+            "text": "where A 2 F = i,j A 2 ij denotes the matrix Frobenius norm and \u03bb \u2265 0 is the L 1 -regularization parameter for the code matrix H.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Dictionary learning by nonnegative matrix factorization"
+        },
+        {
+            "text": "A consequence of the nonnegativity constraints is that one must represent the data using the dictionary W without exploiting cancellation. This is a critical mechanism that gives a parts-based representation of the data (see [17] ). Many efficient iterative algorithms for NMF are based on block optimization schemes that have been proposed and studied following the introduction of the first, and most well-known, multiplicative update method by Lee and Seung [18] (see [12] for a survey).",
+            "cite_spans": [
+                {
+                    "start": 225,
+                    "end": 229,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 461,
+                    "end": 465,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 471,
+                    "end": 475,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Dictionary learning by nonnegative matrix factorization"
+        },
+        {
+            "text": "In this section, we provide algorithms for online dictionary learning and prediction for ensembles of correlated time-series. At the core of our online dictionary learning algorithm is the well-known online nonnegative matrix factorization (ONMF) algorithm [20] , [19] , which is an online extension of NMF that learns a sequence of dictionary matrices from a sequence of data matrices.",
+            "cite_spans": [
+                {
+                    "start": 257,
+                    "end": 261,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 264,
+                    "end": 268,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Our algorithms"
+        },
+        {
+            "text": "We first illustrate the key idea in the simplest setting of timeseries data for a single entity. Suppose we observe a single numerical value x s \u2208 R at each discrete time s. By adding a suitable constant to all observed values, we may assume without loss of generality that x s \u2265 0 for all s \u2265 0. Fix integer parameters k, N, r \u2265 0. Suppose we only store N past data points at any given time, due to memory constraints. So at time t, we hold the vector D t = [x t\u2212N +1 , x t\u2212N +2 , \u00b7 \u00b7 \u00b7 , x t ] in our memory. The goal is to learn a dictionary of k-step evolution patterns from the observed history (x s ) 0\u2264s\u2264t up to time t. A possible approach is to form a k by N \u2212k+1 Hankel matrix X t (see, e.g., [22] ), whose ith column consists of the k consecutive values of D t starting from its ith coordinate. We can then factorize this into k by r dictionary matrix W and r by t \u2212 k code matrices using an NMF algorithm:",
+            "cite_spans": [
+                {
+                    "start": 702,
+                    "end": 706,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Our algorithms"
+        },
+        {
+            "text": "This approximate factorization tells us that we can approximately represent any k-step evolution pattern from our past data (x s ) t\u2212N <s\u2264t by a nonnegative linear combination of the r columns of W . Hence the columns of W can be regarded as dictionary patterns for all k-step time evolution patterns in our current data set D t for each time t.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Our algorithms"
+        },
+        {
+            "text": "Below we provide an online mini-batch implementation of the above sketch of dictionary learning for time-series data in an online setting, as well as an online prediction algorithm.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Our algorithms"
+        },
+        {
+            "text": "for t = k, \u00b7 \u00b7 \u00b7 , T do Update sparse code:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "t\u22121 ), whose mode-1 slices X t (1), \u00b7 \u00b7 \u00b7 , X t (d) are given by the following Hankel matrix",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "Aggregate data:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "Update dictionary:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "end for",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "The dictionary update rule in both Algorithms 1 and 3 are based on the well-known online NMF algorithm in [20] , [19] . Furthermore, in Algorithms 1 and 2, we also outline how to make predictions using the online-learned dictionary atoms via partial fitting (Algorithm 2) and extrapolation. Algorithm 3 is useful for initializing the dictionary tensor W 0 in Algorithm 1, especially when the time-series data is limited (small T ) so that one may not expect the online dictionary learning in Algorithm 2 Partial fitting and Prediction",
+            "cite_spans": [
+                {
+                    "start": 106,
+                    "end": 110,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 113,
+                    "end": 117,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "Dictionary tensor W t \u2208 R d\u00d7k\u00d7r Output: Predictionx t+1 for x t+1 Variables: \u03bb > 0 Do: Partial fitting:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "is obtained by concatenating the columns of the following matrix (7) in Algorithm 1. end for Algorithm 1 in T steps. Also, we may use a different timeseries (y t ) 1\u2264t\u2264T to find a dictionary tensor W M and use it as the initial dictionary for the given time-series (x t ) 1\u2264t\u2264T in Algorithm 1. This \"transfer learning\" would be effective when the two time-series share a similar structure.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "The sparse coding problems in (3) and (8) can be solved by LASSO, whereas the constrained quadratic problem (7) can be solved by projected gradient descent algorithms. See [19] for more details and background. For practical use, we provide a python implementation of our algorithms in our GihHub repository (see the footnote of the front page).",
+            "cite_spans": [
+                {
+                    "start": 172,
+                    "end": 176,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "We also remark that, using the recent contribution of Lyu, Needell, and Balzano [19] on online matrix factorization",
+            "cite_spans": [
+                {
+                    "start": 80,
+                    "end": 84,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 1 Online dictionary learning for time-series data"
+        },
+        {
+            "text": "Death Recovered algorithms on dependent data streams, we can give a theoretical guarantee of convergence of the sequence of learned dictionary atoms by Algorithm 1 under suitable assumptions. The essential requirement is that the time-series data satisfies a weak \"stochastic periodicity\" condition. A complete statement of this result and proof will be provided in our follow-up paper. While this is a substantial extension of the usual independence assumption in the streaming data set, unfortunately, most COVID-19 time-series do not verify any type of weak periodicity condition directly, which is one of the biggest challenges in predicting the spread of COVID-19. In the next section, we describe our experiment setting and how we may overcome this issue of \"lack of periodicity\" by combining the minibatch and online learning algorithms. It is important to note that minibatch learning algorithm (Algorithm 3) converges for fixed T as M \u2192 \u221e, as it is a version of online NMF on a i.i.d. sequence of data, which satisfies our stochastic periodicity condition.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Confirmed"
+        },
+        {
+            "text": "A. Data set and pre-processing",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "III. APPLICATION TO COVID-19 TIME-SERIES DATA SETS"
+        },
+        {
+            "text": "To illustrate our dictionary learning and prediction algorithms for time-series data, we analyze the historical daily reports of confirmed/death/recovered COVID-19 cases in six countries -South Korea, China, US, Italy, Spain, and Germany -from Jan 19, 2020 to Apr. 12, 2020. The input data can be represented as a tensor of shape 6 \u00d7 80 \u00d7 3 corresponding to countries, days, and types of cases, respectively 1 . In order to apply our dictionary learning algorithms, we first unfold this data tensor into a matrix X of shape (d \u00d7 T ) = (6 \u00d7 3) \u00d7 80, whose tth column, which we denote by x t , gives the full 18 dimensional observation in day t, 0 \u2264 t \u2264 80. Also, we find that the fluctuation in the original data set is too large to yield stable representations, let alone predictions. In order to remedy this, we pre-process the time-series data by taking a 5-day moving average and then entry-wise log-transform x \u2192 log(x + 1). After applying dictionary learning and prediction algorithms, we take the inverse transform x \u2192 exp(x) \u2212 1 and plot the result.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "III. APPLICATION TO COVID-19 TIME-SERIES DATA SETS"
+        },
+        {
+            "text": "As the COVID-19 time-series data set we analyze here only consists of T = 80 highly non-repetitive observations, applying the online dictionary learning algorithm (Algorithm 1) with random initialization is not sufficient for proper learning and accurate prediction. We overcome this by using the minibatch learning algorithm (Algorithm 3) for the initialization for the online learning and prediction. Namely, we use the following scheme: 1. (Minibatch learning) Use minibatch Algorithm 3 for the time-series (x t ) 0\u2264t\u2264T to obtain dictionary tensor W M \u2208 R d\u00d7k\u00d7r \u22650 and aggregate matrices A M \u2208 R r\u00d7r \u22650 , B M \u2208 R r\u00d7dk \u22650 . 2. (Online learning and one-step prediction) Use the output in step 1 as the initialization for Algorithm 1. For each t = 1, \u00b7 \u00b7 \u00b7 , T , iterates the steps in Algorithm 1 as well as Algorithm 2. This outputs a dictionary tensor W T and a prediction (x t ) k\u2264t\u2264T +1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Analysis scheme and experiment setup"
+        },
+        {
+            "text": "Prediction of COVID-19 daily new confirmed cases Joint dictionary of 6-day evolution Prediction of COVID-19 daily new deaths Joint dictionary of 6-day evolution Prediction of COVID-19 daily new recovered cases Joint dictionary of 6-day evolution The role of the parameter \u03b2 becomes clear when examining the equations (5) and (6) . It weights how much of the past data is used when updating the new dictionary matrix W t . For example, in (7), in the extreme case \u03b2 = 0 the present observation at time t is not used, wherease in the other extreme case \u03b2 = \u221e only the present observation is used.",
+            "cite_spans": [
+                {
+                    "start": 325,
+                    "end": 328,
+                    "text": "(6)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Analysis scheme and experiment setup"
+        },
+        {
+            "text": "An example of dictionary atoms obtained from the minibatch learning algorithm (Algorithm 3) from the COVID-19 daily new cases time-series data set is presented in Figure 2 . We note that the time evolution structure in the data set is not used in this minibatch learning process, as slices of length k evolution are sampled independently and uniformly at random from the entire history. Each dictionary atom is a 6 * 6 * 3 = 108 dimensional vector corresponding to time * country * case type.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 163,
+                    "end": 171,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "C. Simulation results -Minibatch learning"
+        },
+        {
+            "text": "To each atom, we associate an \"importance metric\" first introduced in [19] as a measure of the total contribution of the atom in representing the original data set. Namely, the importance metric of each atom is the total sum of its linear coefficients in the sparse coding problem (3) during the entire learning process. This is computed as the row sums of the sum of all code matrices H t in (3) obtained from the learning process.",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 74,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. Simulation results -Minibatch learning"
+        },
+        {
+            "text": "For example, the (1, 1) atom (in matrix coordinates) with importance 0.23 in Figure 2 indicates that the number of daily new confirmed cases in all six countries are almost constant and that China has significantly higher values than other countries. Also, the (1, 4) atom (in matrix coordinates) with importance 0.07 in Figure 2 indicates that the number of daily new confirmed cases are growing rapidly in Korea and Italy, while for the other four countries the values are almost constant. It is important to note that these dictionary atoms are learned by a nonnegative matrix factorization algorithm, so they maintain their individual interpretation we described before in representing the entire data set. Indeed, such patterns Prediction of COVID-19 daily new deaths Joint dictionary of 6-day evolution Prediction of COVID-19 daily new recovered cases Joint dictionary of 6-day evolution were dominant in the COVID-19 time-series data during the period of Jan. 21 -Mar. 1, 2020 (see e.g. the blue plot in Figure 3 ). Similarly, a direct interpretation of other dictionary atoms can be associated with features in the original data set.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 77,
+                    "end": 85,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 321,
+                    "end": 329,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1011,
+                    "end": 1019,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "C. Simulation results -Minibatch learning"
+        },
+        {
+            "text": "The learned dictionary atoms in Figure 2 are not only directly interpretable but also provide a compressed representation of the original data set. Namely, we will be able to approximate any 6-day evolution pattern in the data set by only using the 24 atoms in Figure 2 with suitable nonnegative linear coefficients found from the sparse coding problem (3). Obtaining a global approximation of the entire data set based on such local approximations by dictionary atoms is called reconstruction (see for instance the image reconstruction example in [19] ). Our partial fitting and prediction algorithm (Algorithm 2) extends this reconstruction procedure by using the learned patterns to make one step predictions adapted to the time-series data.",
+            "cite_spans": [
+                {
+                    "start": 548,
+                    "end": 552,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 32,
+                    "end": 40,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 261,
+                    "end": 269,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "D. Simulation results -Online learning and one-step prediction"
+        },
+        {
+            "text": "The main point of our application is to illustrate that we may obtain reasonable predictions on our very limited T = 80 COVID-19 time-series data set by learning a small number of fundamental patterns in joint time evolution among the six countries in three different cases (confirmed/death/recovered) concurrently. This approach could further be extended by augmenting various other types of correlated time-series which contain nontrivial information on the spread of COVID-19 (e.g. time-series quantifying commodity, movement, and media data trends). One can think of learning the highly correlated temporal evolution patterns across different countries and cases as a model construction process for the joint time evolution of the data set. There are relatively few hyper-parameters to train in our algorithm compared to deep neural network-based models, and parameters in our method are in some sense built-in to the temporal dictionary atoms so that one does not need to begin by choosing the model to use.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Simulation results -Online learning and one-step prediction"
+        },
+        {
+            "text": "However, recall that the dictionary atoms learned by the minibatch algorithm are not adapted to the temporal structure of the data set. We find that further adapting them in the direction of time evolution by using our online learning algorithm (Algorithm 1) according to the scheme in subsection III-B significantly improves the prediction accuracy by reducing the standard deviation of the prediction curves over a number of trials. An example of the result of this further adaptation of the minibatch-learned dictionary atoms is shown in Figures  3, 4 , and 5. In each figure, the online-improved dictionary atoms are shown in the right, and the original time-series data and its prediction computed by Algorithms 1-2 are shown in blue and red, respectively. Prediction curves also show error bars of one standard deviation from 1000 trials of the entire scheme (minibatch + online + extrapolation) under the same hyperparameters in Subsection III-B.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 541,
+                    "end": 554,
+                    "text": "Figures  3, 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "D. Simulation results -Online learning and one-step prediction"
+        },
+        {
+            "text": "By comparing the corresponding dictionary atoms in Figures 2 and 3 for example, we find that the online learning process does not change the importance metric on the top 24 atoms, and only a few atoms change in their shape significantly (especially the curves for China in atoms at (1, 1), (1, 2) , (1, 3) , (2, 1) , and (4, 2)). Such new patterns were not able to be learned by the minibatch learning, but they were picked up by traversing the time-series data from the past to the present with our online learning algorithm. The \"correctness\" of the learned dictionary atoms can be verified by the accuracy of the 1-step prediction up to time T = 80 (the end of blue curve in Figure 3 ) in Figures 3, 4 , and 5.",
+            "cite_spans": [
+                {
+                    "start": 290,
+                    "end": 293,
+                    "text": "(1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 294,
+                    "end": 296,
+                    "text": "2)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 299,
+                    "end": 302,
+                    "text": "(1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 303,
+                    "end": 305,
+                    "text": "3)",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 308,
+                    "end": 311,
+                    "text": "(2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 312,
+                    "end": 314,
+                    "text": "1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 51,
+                    "end": 66,
+                    "text": "Figures 2 and 3",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 678,
+                    "end": 686,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 692,
+                    "end": 704,
+                    "text": "Figures 3, 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "D. Simulation results -Online learning and one-step prediction"
+        },
+        {
+            "text": "We remark that our one-step predictions up to time T = 80",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Simulation results -Online learning and one-step prediction"
+        },
+        {
+            "text": "Prediction of COVID-19 daily new recovered cases Joint dictionary of 6-day evolution are not exact predictions, as our initial dictionary tensor for this step, learned by the minibatch algorithm, uses all information in the entire time-series data. More precisely, one can think of this as a reconstruction procedure without seeing the last coordinate. This would have been a proper prediction if our initialization were independent of the data, but we find that online learning alone without the minibatch initialization gives inferior reconstruction results. We believe this is due to the fact that the COVID-19 time-series data set is too short (and far from periodic) for the online dictionary learning algorithm to converge in a single run. Nevertheless, in some sense the mini-batch method is implemented to compensate for the lack of data; given a sufficient amount of data, we could omit this step.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Simulation results -Online learning and one-step prediction"
+        },
+        {
+            "text": "NextNext, we discuss the recursive extrapolation step, which gives the 30-day prediction of the new daily cases of all three types and all six countries simultaneously, shown as in Figures  3, 4 , and 5. For instance, by partially fitting the first five coordinates of the length-6 dictionary atoms to the last five days of the data, we can use Algorithm 2 to obtain a prediction of the future values at time T + 1. We can then recursively continue this extrapolation step using the predicted data into the future ad infinitum. Our 30-day prediction results show reasonable variation among trials. However, the variation in prediction grows in the prediction length, so only a moderate range of predictions would have meaningful implications.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 181,
+                    "end": 194,
+                    "text": "Figures  3, 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "E. Simulation results -Recursive extrapolation"
+        },
+        {
+            "text": "We remark that we did not enforce any additional assumption on the prediction curves (e.g. finite carrying capacity, logistic-like growth for the total, SIR-type structure) that are standard in many epidemiological models. Instead, we chose our hyperparameters in subsection III-B so that the future prediction curves approximately satisfy such assumptions, highlighting the model-free nature of our approach. This highlevel fitting is not without compromise in the uncertainty of the prediction. For example, choosing large values of the L 1regularization parameter \u03bb used in the recursive extrapolation step reduces the variability of prediction significantly, but the prediction curve drops to zero very rapidly right after the end of the current data, which is absurd.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Simulation results -Recursive extrapolation"
+        },
+        {
+            "text": "Lastly, we also mention that our recursive extrapolation defines a deterministic dynamical system in multidimensional space (dimension 18 in this case). The evolution is determined by the hyperparameters and the set of dictionary atoms at the end of the given time-series data (T = 80 in this case). Even though our dictionary learning algorithms are randomzied, we find our 30-day predictions over many trials are within a modest standard error. However, we find that the mean trajectory of the prediction could vary significantly with respect to changes in the hyperparameters. Developing a more systematic method of choosing these hyperparameters is a future direction of inquiry.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Simulation results -Recursive extrapolation"
+        },
+        {
+            "text": "With the rapidly changing situation involving COVID-19, it is critical to have accurate and effective methods for predicting short-term and long-term behavior of many parameters relating to the virus. In this paper, we proposed a novel approach that uses dictionary learning to predict time-series data. We then applied this approach to analyze and predict the new daily reports of COVID-19 cases in multiple countries. Usually, dictionary learning is used for text and image data; often with impressive results. To our best knowledge, our work is the first to implement dictionary learning to time-series data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "IV. CONCLUSION"
+        },
+        {
+            "text": "There are a number of advantages of our approach that may complement some of the shortcomings of the more traditional model-based approach or the large-data-based machine learning approach. First, our method is completely model-free as the dictionary atoms directly learned from the data serve as the 'model' for prediction. Our approach also works with universal data types. For example, it could be applied to predict not only the spread of the virus but also other related parameters. These include the spread of COVID-19 media information, medical and food supply shortages and demands, subgroup infections, immunity and many more. Second, the method works with small data sets. Most machine-learning methods need either model-specific input or large data sets. Because COVID19 only appeared recently, there are no large data sets yet available. Third, the method does not lose interpretability as some of the deep-learning-based approaches do. This is particularly important when making predictions for health-related areas. The learned dictionary atoms are not only interpretable but also identify hidden correlations between multiple entities. Fourth, our approach uses only a few hyperparameters that are model-free and independent of the data set. Therefore our approach avoids the issue of over-fitting. Furthermore, the method is computationally efficient and can be executed on a standard personal computer in a short time. Hence, it could be applied in real-time or online-settings to generate continuously improving predictions. Lastly, the method has a strong theoretical foundation: Convergence of the minibatch algorithm is always guaranteed and the convergence of the online learning algorithm is guaranteed under the assumption of quasi-periodicity. Therefore we expect our method to be robust i.e. small changes to the data-set or to the parameters should not destroy the learning outcome.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "IV. CONCLUSION"
+        },
+        {
+            "text": "There are a number of future directions that we are envisioning. First, one could apply our method to county-level time-series data. One would obtain dictionary atoms describing county-wise correlation and prediction. This analysis could be critically used in distributing medical supplies and also in measuring the effect of re-opening the economy successively by a few counties at a time. Second, as not every individual can be tested, it is valuable to be able to transfer the knowledge on tested subjects to the ones yet to be tested. This 'transfer learning' could naturally be done with our method, by learning a dictionary from one subject group and apply that to make predictions for the unknown group. Lastly, one may extend the method to a fully tensor-based setting, where a large number of related variables of different types could be encoded in a single tensor. Then one could use various direct tensorfactorization methods to learn higher-order dictionary atoms. For example, this might be useful in identifying a critical subgroup of variables for clinical data and therapeutics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "IV. CONCLUSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "End to end speech recognition in english and mandarin",
+            "authors": [
+                {
+                    "first": "Dario",
+                    "middle": [],
+                    "last": "Amodei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rishita",
+                    "middle": [],
+                    "last": "Anubhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Battenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carl",
+                    "middle": [],
+                    "last": "Case",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jared",
+                    "middle": [],
+                    "last": "Casper",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bryan",
+                    "middle": [],
+                    "last": "Catanzaro",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jingdong",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mike",
+                    "middle": [],
+                    "last": "Chrzanowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "Coates",
+                    "suffix": ""
+                },
+                {
+                    "first": "Greg",
+                    "middle": [],
+                    "last": "Diamos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Deep learning of representations: Looking forward",
+            "authors": [
+                {
+                    "first": "Yoshua",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "International Conference on Statistical Language and Speech Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "1--37",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Email surveillance using nonnegative matrix factorization",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "Murray",
+                    "middle": [],
+                    "last": "Berry",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Browne",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Computational & Mathematical Organization Theory",
+            "volume": "11",
+            "issn": "3",
+            "pages": "249--264",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Algorithms and applications for approximate nonnegative matrix factorization",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "Murray",
+                    "middle": [],
+                    "last": "Berry",
+                    "suffix": ""
+                },
+                {
+                    "first": "Amy",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Browne",
+                    "suffix": ""
+                },
+                {
+                    "first": "Paul",
+                    "middle": [],
+                    "last": "Langville",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Pauca",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Plemmons",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Computational statistics & data analysis",
+            "volume": "52",
+            "issn": "1",
+            "pages": "155--173",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Probabilistic topic models: A focus on graphical model design and applications to document and image analysis",
+            "authors": [
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Blei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lawrence",
+                    "middle": [],
+                    "last": "Carin",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Dunson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "IEEE signal processing magazine",
+            "volume": "27",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A theoretical analysis of feature pooling in visual recognition",
+            "authors": [
+                {
+                    "first": "Y-Lan",
+                    "middle": [],
+                    "last": "Boureau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jean",
+                    "middle": [],
+                    "last": "Ponce",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yann",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of the 27th international conference on machine learning (ICML-10)",
+            "volume": "",
+            "issn": "",
+            "pages": "111--118",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Clustering-initiated factor analysis application for tissue classification in dynamic brain positron emission tomography",
+            "authors": [
+                {
+                    "first": "Rostyslav",
+                    "middle": [],
+                    "last": "Boutchko",
+                    "suffix": ""
+                },
+                {
+                    "first": "Debasis",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Suzanne",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Baker",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "William",
+                    "suffix": ""
+                },
+                {
+                    "first": "Grant",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Jagust",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Gullberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Journal of Cerebral Blood Flow & Metabolism",
+            "volume": "35",
+            "issn": "7",
+            "pages": "1104--1111",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Compartmental models in epidemiology",
+            "authors": [
+                {
+                    "first": "Fred",
+                    "middle": [],
+                    "last": "Brauer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Mathematical epidemiology",
+            "volume": "",
+            "issn": "",
+            "pages": "19--79",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Phoenix: A weight-based network coordinate system using matrix factorization",
+            "authors": [
+                {
+                    "first": "Yang",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiao",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Cong",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaoming",
+                    "middle": [],
+                    "last": "Eng Keong Lua",
+                    "suffix": ""
+                },
+                {
+                    "first": "Beixing",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xing",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "IEEE Transactions on Network and Service Management",
+            "volume": "8",
+            "issn": "4",
+            "pages": "334--347",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "A tutorial survey of architectures, algorithms, and applications for deep learning",
+            "authors": [
+                {
+                    "first": "Li",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "APSIPA Transactions on Signal and Information Processing",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Recent advances in deep learning for speech research at microsoft",
+            "authors": [
+                {
+                    "first": "Li",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jinyu",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jui-Ting",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kaisheng",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dong",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Frank",
+                    "middle": [],
+                    "last": "Seide",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Seltzer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Geoff",
+                    "middle": [],
+                    "last": "Zweig",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaodong",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jason",
+                    "middle": [],
+                    "last": "Williams",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "2013 IEEE International Conference on Acoustics, Speech and Signal Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "8604--8608",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "The why and how of nonnegative matrix factorization. Regularization, optimization, kernels, and support vector machines",
+            "authors": [
+                {
+                    "first": "Nicolas",
+                    "middle": [],
+                    "last": "Gillis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "12",
+            "issn": "",
+            "pages": "257--291",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Deep speech: Scaling up end-to-end speech recognition",
+            "authors": [
+                {
+                    "first": "Awni",
+                    "middle": [],
+                    "last": "Hannun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carl",
+                    "middle": [],
+                    "last": "Case",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jared",
+                    "middle": [],
+                    "last": "Casper",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bryan",
+                    "middle": [],
+                    "last": "Catanzaro",
+                    "suffix": ""
+                },
+                {
+                    "first": "Greg",
+                    "middle": [],
+                    "last": "Diamos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Erich",
+                    "middle": [],
+                    "last": "Elsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ryan",
+                    "middle": [],
+                    "last": "Prenger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sanjeev",
+                    "middle": [],
+                    "last": "Satheesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shubho",
+                    "middle": [],
+                    "last": "Sengupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "Coates",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.5567"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Non-negative matrix factorization with sparseness constraints",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Patrik",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hoyer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Journal of machine learning research",
+            "volume": "5",
+            "issn": "",
+            "pages": "1457--1469",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Networks and epidemic models",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Matt",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ken",
+                    "middle": [],
+                    "last": "Keeling",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Td Eames",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Journal of the Royal Society Interface",
+            "volume": "2",
+            "issn": "4",
+            "pages": "295--307",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Imagenet classification with deep convolutional neural networks",
+            "authors": [
+                {
+                    "first": "Alex",
+                    "middle": [],
+                    "last": "Krizhevsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ilya",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "Geoffrey",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1097--1105",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Learning the parts of objects by non-negative matrix factorization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sebastian Seung",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Nature",
+            "volume": "401",
+            "issn": "6755",
+            "pages": "788--791",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Algorithms for non-negative matrix factorization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sebastian Seung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "556--562",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Online matrix factorization for markovian data and applications to network dictionary learning",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lyu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Needell",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Balzano",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Online learning for matrix factorization and sparse coding",
+            "authors": [
+                {
+                    "first": "Julien",
+                    "middle": [],
+                    "last": "Mairal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Francis",
+                    "middle": [],
+                    "last": "Bach",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jean",
+                    "middle": [],
+                    "last": "Ponce",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guillermo",
+                    "middle": [],
+                    "last": "Sapiro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Journal of Machine Learning Research",
+            "volume": "11",
+            "issn": "",
+            "pages": "19--60",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Non-negative matrix factorization: robust extraction of extended structures",
+            "authors": [
+                {
+                    "first": "Laurent",
+                    "middle": [],
+                    "last": "Bin Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guangtun",
+                    "middle": [],
+                    "last": "Pueyo",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Ben Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gaspard",
+                    "middle": [],
+                    "last": "Debes",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Duch\u00eane",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The Astrophysical Journal",
+            "volume": "852",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Algorithms for triangular decomposition of block hankel and toeplitz matrices with application to factoring positive matrix polynomials",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Rissanen",
+                    "suffix": ""
+                }
+            ],
+            "year": 1973,
+            "venue": "Mathematics of computation",
+            "volume": "27",
+            "issn": "121",
+            "pages": "147--154",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Correction for ambiguous solutions in factor analysis using a penalized least squares objective",
+            "authors": [
+                {
+                    "first": "Arkadiusz",
+                    "middle": [],
+                    "last": "Sitek",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Grant",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ronald",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Gullberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Huesman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "IEEE transactions on medical imaging",
+            "volume": "21",
+            "issn": "3",
+            "pages": "216--225",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Probabilistic topic models. Handbook of latent semantic analysis",
+            "authors": [
+                {
+                    "first": "Mark",
+                    "middle": [],
+                    "last": "Steyvers",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tom",
+                    "middle": [],
+                    "last": "Griffiths",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "",
+            "volume": "427",
+            "issn": "",
+            "pages": "424--440",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "A framework for regularized nonnegative matrix factorization, with application to the analysis of gene expression data",
+            "authors": [
+                {
+                    "first": "Leo",
+                    "middle": [],
+                    "last": "Taslaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bj\u00f6rn",
+                    "middle": [],
+                    "last": "Nilsson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "PloS one",
+            "volume": "7",
+            "issn": "11",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Illustration of matrix factorization. Each column of the data matrix is approximated by the linear combination of the columns of the dictionary matrix with coefficients given by the corresponding column of the code matrix.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "24 Joint dictionary atoms of 6-day evolution patterns of new daily cases (confirmed/death/recovered) in six countries (S. Korea, China, US, Italy, Germany, and France). Each dictionary atom is a 6 * 6 * 3 = 108 dimensional vector corresponding to time * country * case type. The corresponding importance metric is shown below each atom. 50 atoms are learned and the figure shows top 24 with the highest importance metric.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Joint dictionary learning and prediction for the time-series of new daily cases (confirmed/death/recovered) in six countries (S. Korea, China, US, Italy, Germany, and France). After joint dictionary atoms are learned by minibatch learning, they are further adapted to the time-series data by concurrent online learning and predictions. (Right) Joint dictionary atoms of 6-day evolution patterns of new confirmed cases. The corresponding importance metric is shown below each atom. (Left) Plot of the original and predicted daily new confirmed cases of the six countries. The errorbar in the red plot shows standard deviation of 1000 trials. 3. (Recursive extrapolation) For T < t \u2264 T + L, recursively use Algorithm 2 The hyperparameters we used in each steps above are given below: 1. (Minibatch learning) 1 -regularizer of sparse coding in (8)) L = 30 (Future extrapolation length)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Joint dictionary learning and prediction for the time-series of new daily cases (confirmed/death/recovered) in six countries (S. Korea, China, US, Italy, Germany, and France). After dictionary atoms representing fundamental joint time-series patterns are obtained by minibatch learning, they are further adapted to the time-series data by online learning while making predictions. (Right) Joint dictionary atoms of 6-day evolution patterns of new death cases. The corresponding importance metric is shown below each atom. (Left) The plot of the original and predicted daily new death cases of the six countries. The error bar in the red plot shows the standard deviation of 1000 trials.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Joint dictionary learning and prediction for the time-series of new daily cases (confirmed/death/recovered) in six countries (S. Korea, China, US, Italy, Germany, and France). After joint dictionary atoms are learned by minibatch learning, they are further adapted to the time-series by online learning while making predictions. (Right) Joint dictionary atoms of 6-day evolution patterns of new recovered cases. The corresponding importance metric is shown below each atom. (Left) The plot of the original and predicted daily new recovered cases of the six countries. The errorbar in the red plot shows the standard deviation of 1000 trials.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": []
+}

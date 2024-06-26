@@ -1,0 +1,2372 @@
+{
+    "paper_id": "76d2a53b3e6c8db7a0139e0e4da671f5b0846bf4",
+    "metadata": {
+        "title": "Context Matters: Graph-based Self-supervised Representation Learning for Medical Images",
+        "authors": [
+            {
+                "first": "Li",
+                "middle": [],
+                "last": "Sun",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Pittsburgh",
+                    "location": {
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Ke",
+                "middle": [],
+                "last": "Yu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Pittsburgh",
+                    "location": {
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Kayhan",
+                "middle": [],
+                "last": "Batmanghelich",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Pittsburgh",
+                    "location": {
+                        "country": "USA"
+                    }
+                },
+                "email": "kayhan@pitt.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Supervised learning method requires a large volume of annotated datasets. Collecting such datasets is time-consuming and expensive. Until now, very few annotated COVID-19 imaging datasets are available. Although self-supervised learning enables us to bootstrap the training by exploiting unlabeled data, the generic self-supervised methods for natural images do not sufficiently incorporate the context. For medical images, a desirable method should be sensitive enough to detect deviation from normal-appearing tissue of each anatomical region; here, anatomy is the context. We introduce a novel approach with two levels of self-supervised representation learning objectives: one on the regional anatomical level and another on the patient-level. We use graph neural networks to incorporate the relationship between different anatomical regions. The structure of the graph is informed by anatomical correspondences between each patient and an anatomical atlas. In addition, the graph representation has the advantage of handling any arbitrarily sized image in full resolution. Experiments on large-scale Computer Tomography (CT) datasets of lung images show that our approach compares favorably to baseline methods that do not account for the context. We use the learnt embedding to quantify the clinical progression of COVID-19 and show that our method generalizes well to COVID-19 patients from different hospitals. Qualitative results suggest that our model can identify clinically relevant regions in the images.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "While deep neural network trained by the supervised approach has made breakthroughs in many areas, its performance relies heavily on large-scale annotated datasets. Learning informative representation without human-crafted labels has achieved great success in the computer vision domain (Wu et al. 2018; Chen et al. 2020a; He et al. 2020) . Importantly, the unsupervised approach has the capability of learning robust representation since the features are not optimized towards solving a single supervised task. Self-supervised learning has emerged as a powerful way of unsupervised learning. It derives input and label from an unlabeled dataset and formulates heuristics-based pretext tasks to train a model. Contrastive learning, a more principled variant of self-supervised learning, relies on instance discrimination (Wu et al. 2018) or contrastive predictive coding (CPC) (Oord, Li, and Vinyals 2018) . It has achieved state-of-the-art performance in many aspects, and can produce features that are comparable to those produced by supervised methods (He et al. 2020; Chen et al. 2020a ). However, for medical images, the generic formulation of self-supervised learning doesn't incorporate domainspecific anatomical context.",
+            "cite_spans": [
+                {
+                    "start": 287,
+                    "end": 303,
+                    "text": "(Wu et al. 2018;",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 304,
+                    "end": 322,
+                    "text": "Chen et al. 2020a;",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 323,
+                    "end": 338,
+                    "text": "He et al. 2020)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 821,
+                    "end": 837,
+                    "text": "(Wu et al. 2018)",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 877,
+                    "end": 905,
+                    "text": "(Oord, Li, and Vinyals 2018)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1055,
+                    "end": 1071,
+                    "text": "(He et al. 2020;",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1072,
+                    "end": 1089,
+                    "text": "Chen et al. 2020a",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "For medical imaging analysis, a large-scale annotated dataset is rarely available, especially for emerging diseases, such as COVID-19. However, there are lots of unlabeled data available. Thus, self-supervised pre-training presents an appealing solution in this domain. There are some existing works that focus on self-supervised methods for learning image-level representations. proposed to learn image semantic features by restoring computerized tomography (CT) images from the corrupted input images. (Taleb et al. 2019 ) introduced puzzle-solving proxy tasks using multi-modal magnetic resonance images (MRI) scans for representation learning. (Bai et al. 2019) proposed to learn cardiac MR image features from anatomical positions automatically defined by cardiac chamber view planes. Despite their success, current methods suffer from two challenges: (1) These methods do not account for anatomical context. For example, the learned representation is invariant with respect to body landmarks which are highly informative for clinicians. (2) Current methods rely on fix-sized input. The dimensions of raw volumetric medical images can vary across scans due to the differences in subjects' bodies, machine types, and operation protocols. The typical approach for pre-processing natural images is to either resize the image or crop it to the same dimensions, because the convolutional neural network (CNN) can only handle fixed dimensional input. However, both approaches can be problematic for medical images. Taking chest CT for example, reshaping voxels in a CT image may cause distortion to the lung (Singla et al. 2018) , and cropping images may introduce undesired artifacts, such as discounting the lung volume.",
+            "cite_spans": [
+                {
+                    "start": 504,
+                    "end": 522,
+                    "text": "(Taleb et al. 2019",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 648,
+                    "end": 665,
+                    "text": "(Bai et al. 2019)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1607,
+                    "end": 1627,
+                    "text": "(Singla et al. 2018)",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To address the challenges discussed above, we propose a novel method for context-aware unsupervised representation learning on volumetric medical images. First, in order to incorporate context information, we represent a 3D im-age as a graph of patches centered at landmarks defined by an anatomical atlas. The graph structure is informed by anatomical correspondences between the subject's image and the atlas image using registration. Second, to handle different sized images, we propose a hierarchical model which learns anatomy-specific representations at the patch level and learns subject-specific representations at the graph level. On the patch level, we use a conditional encoder to integrate the local region's texture and the anatomical location. On the graph level, we use a graph convolutional network (GCN) to incorporate the relationship between different anatomical regions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Experiments on a publicly available large-scale lung CT dataset of Chronic Obstructive Pulmonary Disease (COPD) show that our method compares favorably to other unsupervised baselines and outperforms supervised methods on some metrics. We also show that features learned by our proposed method outperform other baselines in staging lung tissue abnormalities related to COVID-19. Our results show that the pre-trained features on large-scale lung CT datasets are generalizable and transfer well to COVID-19 patients from different hospitals. Our code and supplementary material are available at https://github.com/batmanlab/Context Aware SSL In summary, we make the following contributions:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 We introduce a context-aware self-supervised representation learning method for volumetric medical images. The context is provided by both local anatomical profiles and graph-based relationship.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 We introduce a hierarchical model that can learn both local textural features on patch and global contextual features on graph. The multi-scale approach enables us to handle arbitrary sized images in full resolution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 We demonstrate that features extracted from lung CT scans with our method have a superior performance in staging lung tissue abnormalities related with COVID-19 and transfer well to COVID-19 patients from different hospitals.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 We propose a method that provides task-specific explanation for the predicted outcome. The heatmap results suggest that our model can identify clinically relevant regions in the images.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our method views images of every patient as a set of nodes where nodes correspond to image patches covering the lung region of a patient. Larger lung (image) results in more spread out patches. We use image registration to an anatomical atlas to maintain the anatomical correspondences between nodes. The edge connecting nodes denote neighboring patches after applying the image deformation derived from image registration. Our framework consists of two levels of self-supervised learning, one on the node level (i.e., patch level) and the second one on the graph level (i.e., subject level). In the following, we explain each component separately. The schematic is shown in Fig. 1 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 675,
+                    "end": 681,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Method"
+        },
+        {
+            "text": "We use X i to denote the image of patient i. To define a standard set of anatomical regions, we divide the atlas image into a set of N equally spaced 3D patches with some overlap. We use {p j } N j to denote the center coordinates of the patches in the Atlas coordinate system. We need to map {p j } N j to their corresponding location for each patient. This operation requires transformations that densely map every coordinate of the Atlas to the coordinate on patients. To find the transformation, we register a patient's image to an anatomical atlas by solving the following optimization problem:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Anatomy-aware Graph of Patients"
+        },
+        {
+            "text": "where Sim is a similarity metric (e.g., 2 norm), \u03c6 i (\u00b7) is the fitted subject-specific transformation, Reg(\u03c6 i ) is a regularization term to ensure the transformation is smooth enough. The \u03c6 i maps the coordinate of the patient i to the Atlas. After solving this optimization for each patient, we can use the inverse of this transformation to map {p j } N j to each subject (i.e., {\u03c6 \u22121 i (p j )}). We use well-established image registration software ANTs (Tustison et al. 2014) to ensure the inverse transformation exists. To avoid clutter in notation, we use p j i as a shorthand for \u03c6 \u22121 i (p j ). In this way, patches with the same index across all subjects map to the same anatomical region on the atlas image:",
+            "cite_spans": [
+                {
+                    "start": 457,
+                    "end": 479,
+                    "text": "(Tustison et al. 2014)",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Constructing Anatomy-aware Graph of Patients"
+        },
+        {
+            "text": "To incorporate the relationship between different anatomical regions, we represent an image as a graph of patches (nodes), whose edge connectivity is determined by the Euclidean distance between patches' centers. With a minor abuse of notation, we let V i = {x j i } N j denote the set of patches that cover the lung region of subject i. More formally, the image X i is represented as G i = (V i , E i ), where V i is node (patch) information and E i denotes the set of edges. We use an adjacency matrix A i \u2208 N \u00d7 N to represent E i , defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Anatomy-aware Graph of Patients"
+        },
+        {
+            "text": "where dist(\u00b7, \u00b7) denotes the Euclidean distance; p j i and p k i \u2208 R 3 are the coordinates of centers in patches x j i and x k i , respectively; \u03c1 is the threshold hyper-parameter that controls the density of graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Anatomy-aware Graph of Patients"
+        },
+        {
+            "text": "Local anatomical variations provide valuable information about the health status of the tissue. For a given anatomical region, a desirable method should be sensitive enough to detect deviation from normal-appearing tissue. In addition, the anatomical location of lesion plays a role in patients' survival outcomes, and the types of lesion vary across different anatomical locations in lung. In order to extract anatomyspecific features, we adopt a conditional encoder E(\u00b7, \u00b7) that takes both patch x j i and its location index j as input. It is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Patch-level Representation"
+        },
+        {
+            "text": "Query Figure 1 : Schematic diagram of the proposed method. We represent every image as a graph of patches. The context is imposed by anatomical correspondences among patients via registration and graph-based hierarchical model used to incorporate the relationship between different anatomical regions. We use a conditional encoder E(\u00b7, \u00b7) to learn patch-level textural features and use graph convolutional network G(\u00b7, \u00b7) to learn graph-level representation through contrastive learning objectives. The detailed architecture of the networks are presented in Supplementary Material.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 6,
+                    "end": 14,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Atlas"
+        },
+        {
+            "text": "composed with a CNN feature extractor C(\u00b7) and a MLP head f l (\u00b7), thus we have the encoded patch-level feature:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Atlas"
+        },
+        {
+            "text": "where denotes concatenation, .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Atlas"
+        },
+        {
+            "text": "We adopt the InfoNCE loss (Oord, Li, and Vinyals 2018), a form of contrastive loss to train the conditional encoder on the patch level:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Atlas"
+        },
+        {
+            "text": "where q j i denotes the representation of query patch x j i , k + and k \u2212 denotes the representation of the positive and the negative key respectively, and \u03c4 denotes the temperature hyper-parameter. We obtain a positive sample pair by generating two randomly augmented views from the same query patch x j i , and obtain a negative sample by augmenting the patch x j v at the same anatomical region j from a random subject v, specifically:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Atlas"
+        },
+        {
+            "text": "We adopt the Graph Convolutional Network (GCN) (Duvenaud et al. 2015 ) to summarize the patch-level (anatomyspecific) representation into the graph-level (subjectspecific) representation. We consider each patch as one node in the graph, and the subject-specific adjacent matrix determines the connection between nodes. Specifically, the GCN model G(\u00b7, \u00b7) takes patch-level representation H i and adjacency matrix A i as inputs, and propagates information across the graph to update node-level features:",
+            "cite_spans": [
+                {
+                    "start": 47,
+                    "end": 68,
+                    "text": "(Duvenaud et al. 2015",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Learning Graph-level Representation"
+        },
+        {
+            "text": ") is a N \u00d7 F matrix containing F features for all N nodes in the image of the subject i, and W is a learnable projection matrix, \u03c3 is a nonlinear activation function.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Graph-level Representation"
+        },
+        {
+            "text": "We then obtain subject-level representation by global average pooling all nodes in the graph followed by a MLP head f g :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Graph-level Representation"
+        },
+        {
+            "text": "We adopt the InfoNCE loss to train the GCN on the graph level:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Graph-level Representation"
+        },
+        {
+            "text": "where r j i denotes the representation of the entire image X i , t + and t \u2212 denotes the representation of the positive and the negative key respectively, and \u03c4 denotes the temperature hyper-parameter. To form a positive pair, we take two views of the same image X i under random augmentation at patch level. We obtain a negative sample by randomly sample a different image X v , specifically:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Graph-level Representation"
+        },
+        {
+            "text": "The model is trained in an end-to-end fashion by integrating the two InfoNCE losses obtained from patch level and graph level. We define the overall loss function as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overall Model"
+        },
+        {
+            "text": "Since directly backpropagating gradients from L g (G) to the parameters in the conditional encoder E is unfeasible due to the excessive memory footprint accounting for a large number of patches, we propose an interleaving algorithm that alternates the training between patch level and graph level to solve this issue. The algorithmic description of the method is shown below:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overall Model"
+        },
+        {
+            "text": "Algorithm 1 Interleaving update algorithm",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overall Model"
+        },
+        {
+            "text": "Understanding how the model makes predictions is important to build trust in medical imaging analysis. In this section, we propose a method that provides task-specific explanation for the predicted outcome. Our method is expanded from the class activation maps (CAM) proposed by (Zhou et al. 2016) . Without loss of generality, we assume a Logistic regression model is fitted for a downstream binary classification task (e.g., the presence or absence of a disease) on the extracted subject-level features S i . The log-odds of the target variable that Y i = 1 is:",
+            "cite_spans": [
+                {
+                    "start": 279,
+                    "end": 297,
+                    "text": "(Zhou et al. 2016)",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Explanation"
+        },
+        {
+            "text": "where S i = Pool(H i ), the MLP head f g in Eq. 7 is discarded when extracting features for downstream tasks following the practice in (Chen et al. 2020a,b) , \u03b2 and W are the learned logistic regression weights. Then we have M j i = W h j i as the activation score of the anatomical region j to the target classification. We use a sigmoid function to normalize {M j i } N j , and use a heatmap to show the discriminative anatomical regions in the image of subject i.",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 156,
+                    "text": "(Chen et al. 2020a,b)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Explanation"
+        },
+        {
+            "text": "We train the proposed model for 30 epochs. We set the learning rate to be 3\u00d710 \u22122 . We also employed momentum = 0.9 and weight decay = 1 \u00d7 10 \u22124 in the Adam optimizer. The patch size is set as 32\u00d732\u00d732. The batch size at patch level and subject level is set as 128 and 16, respectively. We let the representation dimension F be 128. The lung region is extracted using lungmask (Hofmanninger et al. 2020) . Following the practice in MoCo, we maintain a queue of data samples and use a momentum update scheme to increase the number of negative samples in training; as shown in previous work, it can improve performance of downstream task (He et al. 2020 ). The number of negative samples during training is set as 4096. The data augmentation includes random elastic transform, adding random Gaussian noise, and random contrast adjustment. The temperature \u03c4 is chosen to be 0.2. There are 581 patches per subject/graph, this number is determined by both the atlas image size and two hyperparameters, patch size and step size. The experiments are performed on 2 GPUs, each with 16GB memory. The code is available at https://github.com/batmanlab/Context Aware SSL.",
+            "cite_spans": [
+                {
+                    "start": 377,
+                    "end": 403,
+                    "text": "(Hofmanninger et al. 2020)",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 636,
+                    "end": 651,
+                    "text": "(He et al. 2020",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "Unsupervised learning aims to learn meaningful representations without human-annotated data. Most unsupervised learning methods can be classified into generative and discriminative approaches. Generative approaches learn the distribution of data and latent representation by generation. These methods include adversarial learning and autoencoder based methods. However, generating data at pixel space can be computationally intensive, and generating fine detail may not be necessary for learning effective representation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related works Unsupervised Learning"
+        },
+        {
+            "text": "Discriminative approaches use pre-text tasks for representation learning. Different from supervised approaches, both the inputs and labels are derived from an unlabeled dataset. Discriminative approaches can be grouped into (1) pre-text tasks based on heuristics, including solving jigsaw puzzles (Noroozi and Favaro 2016) , context predication (Doersch, Gupta, and Efros 2015), colorization (Zhang, Isola, and Efros 2016) and (2) contrastive methods. Among them, contrastive methods achieve state-of-the-art performance in many tasks. The core idea of contrastive learning is to bring different views of the same image (called 'positive pairs') closer, and spread representations of views from different images (called 'negative pairs'). The similarity is measured by the dot product in feature space (Wu et al. 2018) . Previous works have suggested that the performance of contrastive learning relies on large batch size (Chen et al. 2020a ) and large number of negative samples (He et al. 2020 ).",
+            "cite_spans": [
+                {
+                    "start": 297,
+                    "end": 322,
+                    "text": "(Noroozi and Favaro 2016)",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 392,
+                    "end": 422,
+                    "text": "(Zhang, Isola, and Efros 2016)",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 802,
+                    "end": 818,
+                    "text": "(Wu et al. 2018)",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 923,
+                    "end": 941,
+                    "text": "(Chen et al. 2020a",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 981,
+                    "end": 996,
+                    "text": "(He et al. 2020",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related works Unsupervised Learning"
+        },
+        {
+            "text": "Graphs are a powerful way of representing entities with arbitrary relational structure (Battaglia et al. 2018) . Several algorithms proposed to use random walk-based methods for unsupervised representation learning on the graph (Grover and Leskovec 2016; Perozzi, Al-Rfou, and Skiena 2014; Hamilton, Ying, and Leskovec 2017) . These methods are powerful but rely more on local neighbors than structural information (Ribeiro, Saverese, and Figueiredo 2017) . Graph convolutional network (GCN) (Duvenaud et al. 2015; Kipf and Welling 2016) was proposed to generalize convolutional neural networks to work on the graphs. Recently, Deep Graph Infomax (Velickovic et al. 2019 ) was proposed to learn node-level representation by maximizing mutual information between patch representations and corresponding high-level summaries of graphs.",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 110,
+                    "text": "(Battaglia et al. 2018)",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 228,
+                    "end": 254,
+                    "text": "(Grover and Leskovec 2016;",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 255,
+                    "end": 289,
+                    "text": "Perozzi, Al-Rfou, and Skiena 2014;",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 290,
+                    "end": 324,
+                    "text": "Hamilton, Ying, and Leskovec 2017)",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 415,
+                    "end": 455,
+                    "text": "(Ribeiro, Saverese, and Figueiredo 2017)",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 492,
+                    "end": 514,
+                    "text": "(Duvenaud et al. 2015;",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 515,
+                    "end": 537,
+                    "text": "Kipf and Welling 2016)",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 647,
+                    "end": 670,
+                    "text": "(Velickovic et al. 2019",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Representation Learning for Graph"
+        },
+        {
+            "text": "We evaluate the performance of the proposed model on two large-scale datasets of 3D medical images. We compare our model with various baseline methods, including both supervised approaches and unsupervised approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "The experiments are conducted on three volumetric medical imaging datasets, including the COPDGene dataset COPDGene Dataset COPD is a lung disease that makes it difficult to breathe. The COPDGene Study (Regan et al. 2011 ) is a multi-center observational study designed to identify the underlying genetic factors of COPD. We use a large set of 3D thorax computerized tomography (CT) images of 9,180 subjects from the COPDGene dataset in our study.",
+            "cite_spans": [
+                {
+                    "start": 202,
+                    "end": 220,
+                    "text": "(Regan et al. 2011",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "We use 3D CT scans of 1,110 subjects from the MosMed dataset (Morozov et al. 2020 ) provided by municipal hospitals in Moscow, Russia. Based on the severity of lung tissues abnormalities related with COVID-19, the images are classified into five severity categories associated with different triage decisions. For example, the patients in the mild category are followed up at home with telemedicine monitoring, while the patients in the critical category are immediately transferred to the intensive care unit.",
+            "cite_spans": [
+                {
+                    "start": 61,
+                    "end": 81,
+                    "text": "(Morozov et al. 2020",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "MosMed Dataset"
+        },
+        {
+            "text": "To verify whether the learned representation can be transferred to COVID-19 patients from other sites, we collect a multi-hospital 3D thorax CT images of COVID-19. The combined dataset has 80 subjects, in which 35 positive subjects are from multiple publicly available COVID-19 datasets (Jun et al. 2020; Bell 2020; Zhou et al. 2020) , and 45 healthy subjects randomly sampled from the LIDC-IDRI dataset (Armato III et al. 2011 ) as negative samples.",
+            "cite_spans": [
+                {
+                    "start": 287,
+                    "end": 304,
+                    "text": "(Jun et al. 2020;",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 305,
+                    "end": 315,
+                    "text": "Bell 2020;",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 316,
+                    "end": 333,
+                    "text": "Zhou et al. 2020)",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 404,
+                    "end": 427,
+                    "text": "(Armato III et al. 2011",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "COVID-19 CT Dataset"
+        },
+        {
+            "text": "We evaluate the performance of proposed method by using extracted representations of subjects to predict clinically relevant variables.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Quantitative Evaluation"
+        },
+        {
+            "text": "We first perform self-supervised pretraining with our method on the COPDGene dataset. Then we freeze the extracted subject-level features and use them to train a linear regression model to predict two continuous clinical variables, percent predicted values of Forced Expiratory Volume in one second (FEV1pp) and its ratio with Forced vital capacity (FVC) (FEV 1 /FVC), on the the log scale. We report average R 2 scores with standard deviations in five-fold cross-validation. We also train a logistic regression model for each of the six categorical variables, including (1) Global Initiative for Chronic Obstructive Lung Disease (GOLD) score, which is a four-grade categorical value indicating the severity of airflow limitation, (2) Centrilobular emphysema (CLE) visual score, which is a six-grade categorical value indicating the severity of emphysema in centrilobular, (3) Paraseptal emphysema (Para-septal) visual score, which is a three-grade categorical value indicating the severity of paraseptal emphysema, (4) Acute Exacerbation history (AE history), which is a binary variable indicating whether the subject has experienced at least one exacerbation before enrolling in the study, (5) Future Acute Exacerbation (Future AE), which is a binary variable indicating whether the subject has reported experiencing at least one exacerbation at the 5-year longitudinal follow up, (6) Medical Research Council Dyspnea Score (mMRC), which is a five-grade categorical value indicating dyspnea symptom.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "COPDGene dataset"
+        },
+        {
+            "text": "We compare the performance of our method against: (1) supervised approaches, including Subject2Vec (Singla et al. 2018) , Slice-based CNN (Gonz\u00e1lez et al. 2018 ) and (2) unsupervised approaches, including Models Genesis (Zhou et al. 2019) , MedicalNet (Chen, Ma, and Zheng 2019) , MoCo (3D implementation) (He et al. 2020) , Divergencebased feature extractor (Schabdach et al. 2017) , K-means algorithm applied to image features extracted from local lung regions (Schabdach et al. 2017) , and Low Attenuation Area (LAA), which is a clinical descriptor. The evaluation results are shown in Table 1 . For all results, we report average test accuracy in five-fold cross-validation.",
+            "cite_spans": [
+                {
+                    "start": 99,
+                    "end": 119,
+                    "text": "(Singla et al. 2018)",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 138,
+                    "end": 159,
+                    "text": "(Gonz\u00e1lez et al. 2018",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 220,
+                    "end": 238,
+                    "text": "(Zhou et al. 2019)",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 252,
+                    "end": 278,
+                    "text": "(Chen, Ma, and Zheng 2019)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 306,
+                    "end": 322,
+                    "text": "(He et al. 2020)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 359,
+                    "end": 382,
+                    "text": "(Schabdach et al. 2017)",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 463,
+                    "end": 486,
+                    "text": "(Schabdach et al. 2017)",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 589,
+                    "end": 596,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "COPDGene dataset"
+        },
+        {
+            "text": "The results show that our proposed model outperforms unsupervised baselines in all metrics except for Future AE. While MoCo is also a contrastive learning based method, we believe that our proposed method achieves better performance for three reasons: (1) Our method incorporates anatomical context. (2) Since MoCo can only accept fixedsize input, we resize all volumetric images into 256 \u00d7 256 \u00d7 256. In this way, lung shapes may be distorted in the CT images, and fine-details are lost due to down-sampling. In comparison, our model supports images with arbitrary sizes in full resolution by design. (3) Since training CNN model with volumetric images is extremely memory-intensive, we can only train the MoCo model with limited batch size. The small batch size may lead to unstable gradients. In comparison, the interleaving training scheme reduces the usage of memory footprint, thus it allows us to train our model with a much larger batch size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "COPDGene dataset"
+        },
+        {
+            "text": "Our method also outperforms supervised methods, including Subject2Vec and 2D CNN, in terms of CLE, Paraseptal, AE History, Future AE and mMRC; for the rest clinical variables, the performance gap of our method is smaller than other unsupervised methods. We believe that the improvement is mainly from the richer context information incorporated by our method. Subject2Vec uses an unordered set-based representation which does not account for spatial locations of the patches. 2D CNN only uses 2D slices which does not leverage 3D structure. Overall, the results suggest that representation extracted by our model preserves richer information about the disease severity than baselines.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "COPDGene dataset"
+        },
+        {
+            "text": "Ablation study: We perform two ablation studies to validate the importance of context provided by anatomy and the relational structure of anatomical regions: (1) Removing conditional encoding (CE). In this setting, we replace the proposed conditional encoder with a conventional encoder which only takes images as input.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "COPDGene dataset"
+        },
+        {
+            "text": "(2) Removing graph. In this setting, we remove GCN in the model and obtain subject-level representation by average pooling of all patch/node level representations without propagating information between nodes. As shown in Table 1 , both types of context contribute significantly to the performance of the final model.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 222,
+                    "end": 229,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "COPDGene dataset"
+        },
+        {
+            "text": "We first perform self-supervised pretraining with our method on the MosMed dataset. Then we freeze the extracted patient-level features and train a logistic regression classifier to predict the severity of lung tissue abnormalities related with COVID-19, a five-grade categorical variable based on the on CT findings and other clinical measures. We compare the proposed method with benchmark unsupervised methods, including MedicalNet, ModelsGenesis, MoCo, and one supervised model, 3D CNN model. We use the average test accuracy in five-fold cross-validation as the metric for quantifying prediction performance. Table 2 shows that our proposed model outperforms both the unsupervised and supervised baselines. The supervised 3D CNN model performed worse than the other unsupervised methods, suggesting that it might not converge well or become overfitted since the size of the training set is limited. The features extracted by the proposed method show superior performance in staging lung tissue abnormalities related with COVID-19 than those extracted by other unsupervised benchmark models. We believe that the graph-based feature extractor provides additional gains by utilizing the full-resolution CT images than CNN-based feature extractor, which may lose information after resizing or downsampling the raw images. The results of ablation studies support that counting local anatomy and relational structure of different anatomical regions is useful for learning more informative representations for COVID-19 patients.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 614,
+                    "end": 621,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "MosMed dataset"
+        },
+        {
+            "text": "Since the size of COVID-19 CT Dataset is very small (only 80 images are available), we don't train the networks from scratch with this dataset. Instead, we use models pre-trained on the COPDGene dataset and the MosMed dataset to extract patient-level features from the images in the COVID-19 CT Dataset, and train a logistic regression model on top of it to classify COVID-19 patients. We compare the features extracted by the proposed method to the baselines including MedicalNet, ModelsGenesis, MoCo (unsupervised), and 3D CNN (supervised). We report the average test accuracy in five-fold cross-validation. Table 3 shows that the features extracted by the proposed model pre-trained on the MosMed dataset perform the best for COVID-19 patient classification. They outperform the features extracted by the same model pre-trained on the COPDGene dataset. We hypothesize that this is because the MosMed dataset contains subjects with COVID-19 related pathological tissue, such as ground glass opacities and mixed attenuation. However, the COPDGene dataset also shows great performance for transfer learning with both the ModelsGenesis model and our model, which shed light on the utility of unlabeled data for COVID-19 analysis.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 610,
+                    "end": 617,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "COVID-19 CT Dataset"
+        },
+        {
+            "text": "To visualize the learned embedding and understand the model's behavior, we use two methods to visualize the model. The first one is embedding visualization, we use UMAP (McInnes, Healy, and Melville 2018) to visualize the patient-level features extracted on the COPDGene dataset in two dimensions. Figure 2 shows a trend, from lower-left to upper-right, along which the value of FEV1pp decreases or the severity of disease increases. In addition, we use the model explanation method intro- Brighter color indicate higher relevance to the disease severity. The figure illustrates that high activation region overlaps with the ground glass opacities.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 298,
+                    "end": 306,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Model Visualization"
+        },
+        {
+            "text": "duced before to obtain the activation heatmap relevant to the downstream task, COVID-19 classification. Figure 3 (left) shows the axial view of the CT image of a COVID-19 positive patient, and Figure 3 (right) shows the corresponding activation map. The anatomical regions received high activation scores overlap with the peripheral ground glass opacities on the CT image, which is a known indicator of COVID-19. We also found that activation maps of non-COVID-19 patients usually have no obvious signal, which is expected. This result suggests that our model can highlight the regions that are clinically relevant to the prediction. More examples can be found in Supplementary Material.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 104,
+                    "end": 112,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 193,
+                    "end": 201,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Model Visualization"
+        },
+        {
+            "text": "In this paper, we introduce a novel method for context-aware unsupervised representation learning on volumetric medical images. We represent a 3D image as a graph of patches with anatomical correspondences between each patient, and incorporate the relationship between anatomical regions. In addition, we introduced a multi-scale model which includes a conditional encoder for local textural feature extraction and a graph convolutional network for global contextual feature extraction. Moreover, we propose a task-specific method for model explanation. The experiments on multiple datasets demonstrate that our proposed method is effective, generalizable and interpretable.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "University of Pittsburgh, USA {lis118, key44, kayhan}@pitt.edu",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "In the tables below, we show the detailed architectures of conditional encoder E(\u00b7, \u00b7), including C(\u00b7) and f l (\u00b7), and graph convolutional network G(\u00b7, \u00b7). ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Network Archtecture"
+        },
+        {
+            "text": "The patch size is set as 32 \u00d7 32 \u00d7 32. Cosine schedule (?) is used to update the learning rate. For MoCo (?), we implement a 3D encoder to handle the 3D data and train the model on COPDGene and MosMed dataset. For ModelsGenesis (?), we train the model on COPDGene and MosMed dataset with the original setting. For MedicalNet (?), since it's training requires segmentation mask, we use pretrained weights provided by the authors. Figure 1 : Embedding of subjects in 2D using UMAP. Each dot represents one subject colored by the GOLD score. We can find a trend, from lower-left to upper-right, along which we can see increasing GOLD score.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 429,
+                    "end": 437,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Implementation Details (cont)"
+        },
+        {
+            "text": "To visualize the learned embedding and understand the model's behavior, we use two methods to visualize the model. The first one is embedding visualization, we use UMAP (?) to visualize the patient-level features extracted on the COPDGene dataset in two dimension. In Fig 1, we found that subjects with GOLD score of (0,1) and (3,4) are separable under two dimension. But subjects with GOLD score 2 are scattered. It requires further investigation to understanding of embedding pattern of subjects subjects with GOLD score 2. In Fig 1, we can find a trend, from lower-left to upper-right, along which we can see increasing GOLD score. We use the model explanation method described before to visualize discriminative image regions used by our model for prediction in downstream task. In Fig. 2 , we apply the explanation method using the target logit of GOLD score = 4 on a GOLD 4 subject in COPDGene dataset. The dark area on the right lung, where lung tissue is severely damaged, received highest activation value. Figure 3 (left) shows the axial view of the CT image of a COVID-19 positive patient, and Figure 3 (right) shows the corresponding activation map. The anatomical regions received high activation scores overlap with the peripheral ground glass opacities on the CT image, which is a known indicator of COVID-19. This result suggests that our model can highlight the regions that are clinically relevant to the prediction. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 268,
+                    "end": 274,
+                    "text": "Fig 1,",
+                    "ref_id": null
+                },
+                {
+                    "start": 529,
+                    "end": 535,
+                    "text": "Fig 1,",
+                    "ref_id": null
+                },
+                {
+                    "start": 786,
+                    "end": 792,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1016,
+                    "end": 1031,
+                    "text": "Figure 3 (left)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1105,
+                    "end": 1113,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Model Visualization"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The lung image database consortium (LIDC) and image database resource initiative (IDRI): a completed reference database of lung nodules on CT scans",
+            "authors": [
+                {
+                    "first": "Iii",
+                    "middle": [],
+                    "last": "Armato",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Mclennan",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Bidaut",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Mcnitt-Gray",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Meyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Reeves",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Aberle",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Henschke",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Hoffman",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Medical physics",
+            "volume": "38",
+            "issn": "2",
+            "pages": "915--931",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Self-supervised learning for cardiac mr image segmentation by anatomical position prediction",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Bai",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tarroni",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Guitton",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Petersen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Matthews",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rueckert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "541--549",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Relational inductive biases, deep learning, and graph networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Battaglia",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Hamrick",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Bapst",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sanchez-Gonzalez",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Zambaldi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Malinowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tacchetti",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Raposo",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Santoro",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Faulkner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1806.01261"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "COVID-19 CT segmentation dataset",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Self-supervised learning for medical image analysis using image context restoration",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bentley",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mori",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Misawa",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fujiwara",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rueckert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Medical image analysis",
+            "volume": "58",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Med3d: Transfer learning for 3d medical image analysis",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1904.00625"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "A simple framework for contrastive learning of visual representations",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kornblith",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Norouzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2002.05709"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Improved baselines with momentum contrastive learning",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2003.04297"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Unsupervised visual representation learning by context prediction",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Doersch",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the IEEE international conference on computer vision",
+            "volume": "",
+            "issn": "",
+            "pages": "1422--1430",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Convolutional networks on graphs for learning molecular fingerprints",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Duvenaud",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Maclaurin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Iparraguirre",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Bombarell",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hirzel",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Aspuru-Guzik",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Adams",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2224--2232",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Disease staging and prognosis in smokers using deep learning in chest computed tomography",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Gonz\u00e1lez",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Ash",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Vegas-S\u00e1nchez-Ferrero",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Onieva Onieva",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Rahaghi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Ross",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "D\u00edaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "San Jos\u00e9 Est\u00e9par",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Washko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "American journal of respiratory and critical care medicine",
+            "volume": "197",
+            "issn": "2",
+            "pages": "193--203",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "node2vec: Scalable feature learning for networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Grover",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 22nd ACM SIGKDD international conference on Knowledge discovery and data mining",
+            "volume": "",
+            "issn": "",
+            "pages": "855--864",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Inductive representation learning on large graphs",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ying",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1024--1034",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Momentum contrast for unsupervised visual representation learning",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "9729--9738",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Automatic lung segmentation in routine imaging is a data diversity problem, not a methodology problem",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hofmanninger",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Prayer",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rohrich",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Prosch",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Langs",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2001.11767"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Towards Efficient COVID-19 CT Annotation: A Benchmark for Lung and Infection Segmentation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jun",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yixin",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Xingle",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Ziqi",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Jianan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Qiongjie",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Guoqiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Jian",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhiqiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ziwei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xiaoping",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.12537"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Semi-supervised classification with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1609.02907"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Umap: Uniform manifold approximation and projection for dimension reduction",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Mcinnes",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Healy",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Melville",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1802.03426"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Related Findings Dataset",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2005.06465"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Unsupervised learning of visual representations by solving jigsaw puzzles",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Noroozi",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Favaro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "European Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "69--84",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Representation learning with contrastive predictive coding",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Oord",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1807.03748"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Deepwalk: Online learning of social representations",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Perozzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Al-Rfou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Skiena",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 20th ACM SIGKDD international conference on Knowledge discovery and data mining",
+            "volume": "",
+            "issn": "",
+            "pages": "701--710",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Genetic epidemiology of COPD (COPDGene) study design",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Regan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Hokanson",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Murphy",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Make",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Lynch",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Beaty",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Curran-Everett",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Silverman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Crapo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "COPD: Journal of Chronic Obstructive Pulmonary Disease",
+            "volume": "7",
+            "issn": "1",
+            "pages": "32--43",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "struc2vec: Learning node representations from structural identity",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Saverese",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Figueiredo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 23rd ACM SIGKDD international conference on knowledge discovery and data mining",
+            "volume": "",
+            "issn": "",
+            "pages": "385--394",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A likelihood-free approach for characterizing heterogeneous diseases in large-scale studies",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schabdach",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Wells",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Batmanghelich",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Information Processing in Medical Imaging",
+            "volume": "",
+            "issn": "",
+            "pages": "170--183",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Subject2Vec: generative-discriminative approach from a set of image patches to a vector",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singla",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gong",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ravanbakhsh",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Sciurba",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Poczos",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Batmanghelich",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "502--510",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Multimodal self-supervised learning for medical image analysis",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Taleb",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lippert",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Klein",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nabi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1912.05396"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Large-scale evaluation of ANTs and FreeSurfer cortical thickness measurements",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Tustison",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Cook",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Klein",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Duda",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kandel",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Van Strien",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Stone",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Gee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Neuroimage",
+            "volume": "99",
+            "issn": "",
+            "pages": "166--179",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Unsupervised feature learning via non-parametric instance discrimination",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "X"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3733--3742",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Colorful image colorization",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Isola",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "European conference on computer vision",
+            "volume": "",
+            "issn": "",
+            "pages": "649--666",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Learning deep features for discriminative localization",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Khosla",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lapedriza",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Oliva",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Torralba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "2921--2929",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "A Rapid, Accurate and Machine-Agnostic Segmentation and Quantification Method for CT-Based COVID-19 Diagnosis",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hashmi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Transactions on Medical Imaging",
+            "volume": "39",
+            "issn": "8",
+            "pages": "2638--2652",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Models genesis: Generic autodidactic models for 3d medical image analysis",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Sodha",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "M R"
+                    ],
+                    "last": "Siddiquee",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tajbakhsh",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Gotway",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "384--393",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(Regan et al. 2011), the MosMed dataset (Morozov et al. 2020) and the COVID-19 CT dataset. All images are re-sampled to isotropic 1mm 3 resolution. The Hounsfield Units (HU) are mapped to the intensity window of [\u22121024, 240] and then normalized to [\u22121, 1].",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "An axial view of the activation heatmap on a COVID-19 positive subject in the COVID-19 CT dataset.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "An axial view of the activation map on a GOLD 4 subject in COPDGene dataset. Brighter color indicates higher relevance to the disease severity. The figure illustrates that high activation region overlaps with dark area on the right lung, where lung tissue is damaged.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "An axial view of the activation heatmap on a COVID-19 positive subject in the COVID-19 CT dataset. Brighter color indicates higher relevance to the disease severity. The figure illustrates that high activation region overlaps with the ground glass opacities.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Evaluation on COPD dataset",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Evaluation on MosMed dataset",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Evaluation on COVID-19 CT dataset",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Architecture of the C NetworkLayerFilter size, stride Output size(C, D, H, W ) Association for the Advancement of Artificial Intelligence (www.aaai.org). All rights reserved.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Architecture of the f l Network",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Architecture of the G Network Layer Filter size, stride Output size(C, N, F )",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Medical Images",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Supplementary Material for Context Matters: Graph-based Self-supervised Representation Learning for"
+        }
+    ]
+}
