@@ -260,3 +260,20 @@ plt.xlabel('Journal')
 plt.ylabel('Number of Papers')
 plt.xticks(rotation=90)
 plt.show()
+
+# Filter years with too many or too few data points
+min_threshold = 10  # Minimum number of papers for a year to be considered
+max_threshold = 1000  # Maximum number of papers for a year to be considered
+year_counts = meta_df['publish_time'].dt.year.value_counts()
+filtered_years = year_counts[(year_counts >= min_threshold) & (year_counts <= max_threshold)].index
+
+# Filter the dataframe
+filtered_meta_df = meta_df[meta_df['publish_time'].dt.year.isin(filtered_years)]
+
+# Plot filtered histogram of publication years
+plt.figure(figsize=(12, 6))
+filtered_meta_df['publish_time'].dt.year.value_counts().sort_index().plot(kind='bar')
+plt.title('Filtered Histogram of Publication Years')
+plt.xlabel('Year')
+plt.ylabel('Number of Papers')
+plt.show()
