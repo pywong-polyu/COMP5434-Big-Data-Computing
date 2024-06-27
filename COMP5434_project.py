@@ -6,6 +6,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import subprocess
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import string
+
+# Download NLTK data
+nltk.download('stopwords')
+nltk.download('punkt')
 
 # Data Load & Pre-processing
 data_root = 'CORD_19/'  
@@ -158,8 +166,23 @@ df = df_covid
 df.dropna(inplace=True)
 df.info()
 
+# Text cleaning function
+stop_words = set(stopwords.words('english'))
+
+def clean_text(text):
+    words = word_tokenize(text)
+    words = [word for word in words if word.isalnum() and word.lower() not in stop_words]
+    return ' '.join(words)
+
+# Apply text cleaning to abstract and body_text
+df['abstract'] = df['abstract'].apply(clean_text)
+df['body_text'] = df['body_text'].apply(clean_text)
+
+# Installed Already
+''' 
 # Install langdetect
 subprocess.run(['pip', 'install', 'langdetect'])
+'''
 
 # Language detection
 from langdetect import detect
