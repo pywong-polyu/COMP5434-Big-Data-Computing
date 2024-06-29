@@ -70,23 +70,13 @@ class FileReader:
 first_row = FileReader(json_files[0])
 print(first_row)
 
-# Function to add breaks to text
-from tqdm import tqdm
-
-def get_breaks(content, length):
-    data = ""
+# Function to truncate text
+def truncate_text(content, length):
     words = content.split(' ')
-    total_chars = 0
-
-    # Add break every length characters
-    for i in range(len(words)):
-        total_chars += len(words[i])
-        if total_chars > length:
-            data = data + "<br>" + words[i]
-            total_chars = 0
-        else:
-            data = data + " " + words[i]
-    return data
+    if len(words) > length:
+        return ' '.join(words[:length]) + "..."
+    else:
+        return ' '.join(words)
 
 # Dictionary to hold data
 dict_ = {'paper_id': [], 'doi':[], 'abstract': [], 'body_text': [],
@@ -111,16 +101,17 @@ for idx, entry in tqdm(enumerate(json_files), total=len(json_files)):
     dict_['body_text'].append(content.body_text)
     # Also create a column for the summary of abstract to be used in a plot
     if len(content.abstract) == 0:
-        # No abstract provided
-        dict_['abstract_summary'].append("Not provided.")
+        # No abstract provided, use truncated body text
+        summary = truncate_text(content.body_text, 100)
+        dict_['abstract_summary'].append(summary)
     elif len(content.abstract.split(' ')) > 100:
         # Abstract provided is too long for plot, take first 100 words append with ...
         info = content.abstract.split(' ')[:100]
-        summary = get_breaks(' '.join(info), 40)
-        dict_['abstract_summary'].append(summary + "...")
+        summary = ' '.join(info) + "..."
+        dict_['abstract_summary'].append(summary)
     else:
         # Abstract is short enough
-        summary = get_breaks(content.abstract, 40)
+        summary = content.abstract
         dict_['abstract_summary'].append(summary)
 
     # Get metadata information
@@ -131,7 +122,7 @@ for idx, entry in tqdm(enumerate(json_files), total=len(json_files)):
         authors = meta_data['authors'].values[0].split(';')
         if len(authors) > 2:
             # More than 2 authors, may be problem when plotting, so take first 2 append with ...
-            dict_['authors'].append(get_breaks('. '.join(authors), 40))
+            dict_['authors'].append('. '.join(authors[:2]) + '...')
         else:
             # Authors will fit in plot
             dict_['authors'].append(". ".join(authors))
@@ -141,7 +132,7 @@ for idx, entry in tqdm(enumerate(json_files), total=len(json_files)):
 
     # Add the title information, add breaks when needed
     try:
-        title = get_breaks(meta_data['title'].values[0], 40)
+        title = truncate_text(meta_data['title'].values[0], 40)
         dict_['title'].append(title)
     # If title was not provided
     except Exception as e:
