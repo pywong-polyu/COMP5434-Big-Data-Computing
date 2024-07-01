@@ -1,0 +1,1778 @@
+{
+    "paper_id": "38a22d12058c6f2e4a95c535613eddee7ad08eea",
+    "metadata": {
+        "title": "USCL: Pretraining Deep Ultrasound Image Diagnosis Model through Video Contrastive Representation Learning",
+        "authors": [
+            {
+                "first": "Yixiong",
+                "middle": [],
+                "last": "Chen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Fudan university",
+                    "location": {
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Chunhui",
+                "middle": [],
+                "last": "Zhang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Chinese Academy of Sciences",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Li",
+                "middle": [],
+                "last": "Liu",
+                "suffix": "",
+                "affiliation": {},
+                "email": "liuli@cuhk.edu.cn"
+            },
+            {
+                "first": "Cheng",
+                "middle": [],
+                "last": "Feng",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Changfeng",
+                "middle": [],
+                "last": "Dong",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Yongfang",
+                "middle": [],
+                "last": "Luo",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Xiang",
+                "middle": [],
+                "last": "Wan",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Most deep neural networks (DNNs) based ultrasound (US) medical image analysis models use pretrained backbones (e.g., ImageNet) for better model generalization. However, the domain gap between natural and medical images causes an inevitable performance bottleneck. To alleviate this problem, an US dataset named US-4 is constructed for direct pretraining on the same domain. It contains over 23,000 images from four US video sub-datasets. To learn robust features from US-4, we propose an US semi-supervised contrastive learning method, named USCL, for pretraining. In order to avoid high similarities between negative pairs as well as mine abundant visual features from limited US videos, USCL adopts a sample pair generation method to enrich the feature involved in a single step of contrastive optimization. Extensive experiments on several downstream tasks show the superiority of USCL pretraining against ImageNet pretraining and other state-of-the-art (SOTA) pretraining approaches. In particular, USCL pretrained backbone achieves fine-tuning accuracy of over 94% on POCUS dataset, which is 10% higher than 84% of the ImageNet pretrained model. The source codes of this work are available at https://github.com/983632847/USCL.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Due to the low cost and portability, ultrasound (US) is a widely used medical imaging technique, leading to the common application of US images [2, 24] for clinical diagnosis. To date, deep neural networks (DNNs) [9] are one of the most popular automatic US image analysis techniques. When training DNN on US images, a big challenge is the data scarcity, which is often dealt with parameters transferred from pretrained backbones (e.g., ImageNet [19] pretrained VGG or ResNet). But model performance on downstream tasks suffers severely from the domain gap between natural and medical images [12] . There is a lack of public well-pretrained models specifically for US images due to the insufficient labeled pretraining US data caused by the high cost of specialized annotations, inconsistent labeling criterion and data privacy issue.",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 147,
+                    "text": "[2,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 148,
+                    "end": 151,
+                    "text": "24]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 213,
+                    "end": 216,
+                    "text": "[9]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 446,
+                    "end": 450,
+                    "text": "[19]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 592,
+                    "end": 596,
+                    "text": "[12]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recently, more and more literature tend to utilize unsupervised methods [3, 7] to avoid medical data limitation for pretraining. The common practice is to pretrain models with pretext tasks and evaluate the representations on specific downstream tasks. Yet most existing methods can only outperform ImageNet pretraining with high-cost multi-modal data [11, 14] . To get powerful pretrained models from US videos, we first build an US video dataset to alleviate data shortage. Secondly, contrastive learning [25, 7, 4] is also exploited to reduce the dependence on accurate annotations due to its good potential ability to learn robust visual representations without labels. However, given the fact that most US data are in video format, normal contrastive learning paradigm (i.e., Sim-CLR [4] and MoCo [7] , which considers two samples augmented from each image as a positive pair, and samples from different images as negative pairs) will cause high similarities between negative pairs sampled from the same video and mislead the training. This problem is called similarity conflict ( Fig. 1 (a) ) in this work. Thus, is there a method which can avoid similarity conflict of contrastive learning and train a robust DNN backbone with US videos?",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 75,
+                    "text": "[3,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 76,
+                    "end": 78,
+                    "text": "7]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 352,
+                    "end": 356,
+                    "text": "[11,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 357,
+                    "end": 360,
+                    "text": "14]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 507,
+                    "end": 511,
+                    "text": "[25,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 512,
+                    "end": 514,
+                    "text": "7,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 515,
+                    "end": 517,
+                    "text": "4]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 789,
+                    "end": 792,
+                    "text": "[4]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 802,
+                    "end": 805,
+                    "text": "[7]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1086,
+                    "end": 1096,
+                    "text": "Fig. 1 (a)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "To answer this question, we find that image features from the same US video can be seen as a cluster in semantic space, while features from different videos come from different clusters. We design a sample pair generation (SPG) scheme to make contrastive learning fit the natural clustering characteristics of US video ( Fig. 1 (b) ). Two samples from the same video act as a positive pair and two samples from different videos are regarded as a negative pair. In this process, two positive samples can naturally be seen as close feature points in the representation space, while negative samples have enough semantic differences to avoid similarity conflict. In addition, SPG does not simply choose frames as samples (e.g., key frame extraction [18] ), we put forward sample interpolation contrast to enrich features. Samples are generated from multiple-frame random interpolation so that richer features can be involved in positive-negative comparison. This method makes the semantic cohesion appear at the volume level of the ultrasound representation space [13] instead of the instance level. Combined with SPG, our work develops a semi-supervised contrastive learning method to train a generic model with US videos for downstream US image analysis. Here, the whole framework is called ultrasound contrastive learning (USCL), which combines supervised learning to learn category-level discriminative ability, and contrastive learning to enhance instance-level discriminative ability.",
+            "cite_spans": [
+                {
+                    "start": 746,
+                    "end": 750,
+                    "text": "[18]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 1061,
+                    "end": 1065,
+                    "text": "[13]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 321,
+                    "end": 331,
+                    "text": "Fig. 1 (b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we construct a new US dataset named US-4, which is collected from four different convex probe [2] US datasets, involving two scan regions (i.e., lung and liver). Among the four sub-datasets of US-4, Liver Fibrosis and COVID19-LUSMS datasets are collected by local sonographers [6, 17] , Butterfly [1] and CLUST [24] are two public sub-datasets. The first two sub-datasets are collected with Resona 7T ultrasound system, the frequency is FH 5.0 and the pixel size is 0.101mm -0.127mm. All sub-datasets contain labeled images captured from videos for classification task. In order to generate a diverse and sufficiently large dataset, images are selected from original videos with a suitable sampling interval. For each video with frame rate T , we extract n = 3 samples per second with sampling interval I = T n , which ensures that US-4 contains sufficient but not redundant information of videos. This results in 1051 videos and 23,231 images. The different attributes (e.g., depth and frame rate) of dataset are described in Tab ",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "[2]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 291,
+                    "end": 294,
+                    "text": "[6,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 295,
+                    "end": 298,
+                    "text": "17]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 325,
+                    "end": 329,
+                    "text": "[24]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1041,
+                    "end": 1044,
+                    "text": "Tab",
+                    "ref_id": null
+                }
+            ],
+            "section": "US-4 Dataset"
+        },
+        {
+            "text": "This section first formulates the proposed USCL framework (Fig. 3) , then describes the details of sample pair generation. Finally, the proposed USCL will be introduced.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 58,
+                    "end": 66,
+                    "text": "(Fig. 3)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Methodology"
+        },
+        {
+            "text": "Given a video V i from the US-4 dataset, USCL first extracts images to obtain a balanced distributed frame set",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "i } is a positive pair followed by two data augmentation operations Aug = {Aug i , Aug i }. These augmentations including random cropping, flipping, rotation and color jittering are used for perturbing positive pairs, making the trained backbones invariant to scale, rotation, and color style.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "The objective of USCL is to train a backbone f from training samples",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "by combining self-supervised contrastive learning loss L con and supervised cross-entropy (CE) loss L sup , where N is the number of videos in a training batch. Therefore, the USCL framework formulation aims to minimize following loss L:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "are corresponding class labels. f , g and h denote backbone, projection head (two-layer MLP) and linear classifier, respectively. Different from most existing contrastive learning methods, USCL treats contrastive loss in Eq. (1) as a consistency regularization (CR) term, which improves the performance of pretraining backbone by combining supervised loss in a mutually reinforcing way. Fig. 3 . System framework of the proposed USCL, which consists of sample pair generation and semi-supervised contrastive learning. (i) USCL extracts evenly distributed image sets from every US video as image dataset. (ii) The positive pair generation (PPG) module consists of a sampler \u0398 random sampling several images from an image set, and a mixed frame generator G obtaining two images. A generated positive pair is processed by two separate data augmentation operations. (iii) A backbone f , a projection head g and a classifier h are trained simultaneously by minimizing the self-supervised contrastive learning loss and supervised CE loss.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 387,
+                    "end": 393,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "Here, label information instructs the model to recognize samples with different labels to be negative pairs, and contrastive process learns how US images can be semantically similar or different to assist better classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "Most of the existing contrastive learning approaches construct positive pairs by applying two random data augmentations image by image. When directly applying them to the US frames, the contrastive learning fails to work normally due to the similarity conflict problem (i.e., two samples coming from the same video are too similar to be a negative pair). To solve this problem, a sample pair generation (SPG) scheme is designed: it generates positive pairs with the positive pair generation (PPG) module 7 , and any two samples from different positive pairs are regarded as a negative pair.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sample Pair Generation"
+        },
+        {
+            "text": "The PPG module regards an evenly distributed image set extracted from a video as a semantic cluster, and different videos belong to different clusters. This kind of organization fits the purpose of contrastive learning properly. We expect the model can map the semantic clusters to feature clusters. Then PPG generates two images as a positive sample pair from each cluster. Note that only one positive pair is generated from a video, which can prevent the aforementioned similarity conflict problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sample Pair Generation"
+        },
+        {
+            "text": "In detail, firstly, a sampler \u0398 is applied to randomly sample three images x (1)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sample Pair Generation"
+        },
+        {
+            "text": "i , x (2) i , and x ",
+            "cite_spans": [
+                {
+                    "start": 6,
+                    "end": 9,
+                    "text": "(2)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Sample Pair Generation"
+        },
+        {
+            "text": "where { y (k)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sample Pair Generation"
+        },
+        {
+            "text": "i } 3 k=1 are corresponding labels. \u03be 1 , \u03be 2 \u223c Beta(\u03b1, \u03b2), where \u03b1, \u03b2 are parameters of Beta distribution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sample Pair Generation"
+        },
+        {
+            "text": "In our contrastive learning process, sample pairs are then fed to the backbone followed by the projection head for contrastive learning task. The proposed PPG module has several benefits: 1) Interpolation makes every point in the feature convex hull enclosed by the cluster boundary possible to be sampled, making the cluster cohesive as a whole; 2) Positive pairs generated with Eq. (2) have appropriate mutual information. On the one hand, positive pairs are random offsets from the anchor image to the perturbation images, which ensures that they share the mutual information from the anchor image. On the other hand, the sampling interval I \u2265 5 frames in US-4, resulting in low probability for SPG to sample temporarily close { x (k) i } 3 k=1 which are too similar.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sample Pair Generation"
+        },
+        {
+            "text": "The proposed USCL method learns representations not only by the supervision of category labels, but also by maximizing/minimizing agreement between positive/negative pairs as CR. Here, assorted DNNs can be used as backbone f to encode images, where the output representation vectors r 2i\u22121 = f (x (1) i ) and r 2i = f (x (2) i ) are then fed to the following projection head and classifier. Contrastive Branch. The contrastive branch consists of a projection head g and corresponding contrastive loss. The g is a two layer MLP which nonlinearly maps representations to other feature space for calculating contrastive regularization loss. The mapped vector z i = g(r i ) = w (2) g \u03c3(w (1) g r i ) is specialized for a contrast, where \u03c3 is ReLU activation function and w g = {w (1) g , w (2) g } are the weights of g. The contrastive loss is proposed by Sohn [22] , which aims at minimizing the distance between positive pairs {x",
+            "cite_spans": [
+                {
+                    "start": 321,
+                    "end": 324,
+                    "text": "(2)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 674,
+                    "end": 677,
+                    "text": "(2)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 786,
+                    "end": 789,
+                    "text": "(2)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 857,
+                    "end": 861,
+                    "text": "[22]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "and maximizing the distance between any negative pair {x",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "(1/2) j }, i = j for CR:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "where \u03c4 is a tuning temperature parameter. Classification Branch. We use a linear classifier h with weights w c to separate sample features linearly in the representation space similar to [9, 10] . The classification loss with corresponding one-hot label y i is",
+            "cite_spans": [
+                {
+                    "start": 188,
+                    "end": 191,
+                    "text": "[9,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 192,
+                    "end": 195,
+                    "text": "10]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "Note that USCL is a semi-supervised training method, only contrastive branch works when the framework receives unlabeled data. This semi-supervised design is intuitively simple but effective, which makes it easy to be implemented and has great potential to be applied to various pretraining scenarios.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ultrasound Contrastive Learning"
+        },
+        {
+            "text": "Pretraining Details. ResNet18 is chosen as a representative backbone. We use US-4 dataset (the ratio of training set to validation set is 8 to 2) with 1% labels for pretraining, and fine-tune pretrained models for various downstream tasks. During pretraining, US images are randomly cropped and resized to 224\u00d7224 pixels as the input, followed by random flipping and color jittering. We use Adam optimizer with learning rate 3 \u00d7 10 \u22124 and weight decay rate 10 \u22124 to optimize network parameters. The backbones are pretrained on US-4 for 300 epochs with batch size N = 32. The pretraining loss is the sum of contrastive loss and standard cross-entropy loss for classification. Like SimCLR, the backbones are used for fine-tuning on target tasks, projection head g and classifier h are discarded when the pretraining is completed. The \u03bb in Eq. (1) is 0.2, parameters \u03b1 and \u03b2 in Eq. (2) are 0.5 and 0.5, respectively. The temperature parameter \u03c4 in Eq. (4) is 0.5. The experiments are implemented using PyTorch with an Intel Xeon Silver 4210R CPU@2.4GHz and a single Nvidia Tesla V100 GPU. Fine-tuning Datasets. We fine-tuned the last 3 layers of pretrained backbones on POCUS [2] and UDIAT-B [26] datasets to testify the performance of our USCL. On POCUS and UDIAT-B datasets, the learning rates are 0.01 and 0.005, respectively. The POCUS is a widely used lung convex probe US dataset for COVID-19 consisting of 140 videos, 2116 images from three classes (i.e., COVID-19, bacterial pneumonia and healthy controls). The UDIAT-B consists of 163 linear probe US breast images from different women with the mean image size of 760\u00d7570 pixels, where each of the images presents one or more lesions. Within the 163 lesion images, 53 of them are cancerous masses and other 110 are benign lesions. In this work, we use UDIAT-B dataset to perform the lesion detection and segmentation comparison experiments. 50 of 163 images are used for validation and the rest are used for training. Table 2 . Ablation study of two contrastive ingredients during pretraining: assigning a negative pair from samples of different videos to overcome similarity conflict (I1) and using mixup operation to enrich the features of positive pairs (I2). They both improve the model transfer ability significantly, and the classification brunch is also beneficial. All results are reported as POCUS fine-tuning accuracy.",
+            "cite_spans": [
+                {
+                    "start": 1173,
+                    "end": 1176,
+                    "text": "[2]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1189,
+                    "end": 1193,
+                    "text": "[26]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1974,
+                    "end": 1981,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experimental Settings"
+        },
+        {
+            "text": "ImageNet USCL ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "Here, we report the last 3 layers fine-tuning results on POCUS of US-4 pretrained backbones (ResNet18) to validate different components of USCL.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ablation Studies"
+        },
+        {
+            "text": "SPG & CE loss. We implement five pretraining methods considering the influence of different contrastive ingredients and the classification brunch with CE loss (Tab. 2). Compared with ImageNet, vanilla contrastive learning improves the accuracy by 3.3% due to a smaller domain gap. It is regarded as the method baseline. The negative pair assigning scheme and positive pair generation method further improves the fine-tuning performance by 3.3% and 4.8%. They can be combined to reach higher performance. In addition, CE loss improves fine-tuning accuracy by 1.0%. This indicates that extra label information is able to enhance the power of contrastive representation learning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ablation Studies"
+        },
+        {
+            "text": "Visualization of Feature Representation. To illustrate the robust feature representation of pretrained backbone, we visualize the last Conv feature map of some randomly selected images produced by USCL pretrained model and Ima-geNet pretrained model with Grad-CAM [21] (Fig. 4) . Compared with ImageNet pretrained backbone, attention regions given by the USCL backbone are much more centralized and more consistent with clinical observation.",
+            "cite_spans": [
+                {
+                    "start": 264,
+                    "end": 268,
+                    "text": "[21]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 269,
+                    "end": 277,
+                    "text": "(Fig. 4)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Ablation Studies"
+        },
+        {
+            "text": "We compare USCL with ImageNet pretrained ResNet18 [9] and other backbones pretrained on US-4 dataset with supervised method (i.e., plain supervised), semisupervised methods (i.e., Temporal Ensembling (TE) [20] , \u03a0 Model [20] , Fix-Match [23] ), and self-supervised methods (i.e., MoCo v2 [5] , SimCLR [4] ).",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 53,
+                    "text": "[9]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 205,
+                    "end": 209,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 220,
+                    "end": 224,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[23]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 288,
+                    "end": 291,
+                    "text": "[5]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 301,
+                    "end": 304,
+                    "text": "[4]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Comparison with SOTA"
+        },
+        {
+            "text": "Results on Classification Task. On POCUS dataset, we fine-tune the last three layers to testify the representation capability of backbones on classification task (Tab. 3). USCL has consistent best performance on classification of all classes, and its total accuracy of 94.2% is also significantly better than all 7 counterparts. Compared with ImageNet pretrained backbone, USCL reaches a much higher F1 score of 94.0%, which is 12.2% higher.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison with SOTA"
+        },
+        {
+            "text": "Results on Detection and Segmentation Tasks. Tab. 3 shows the comparison results of detection and segmentation on UDIAT-B dataset. Mask R-CNN [8] with ResNet18-FPNs [15] , whose backbones are pretrained, is used to implement this experiment. USCL generates better backbones than ImageNet and US-4 supervised learning. For detection and segmentation, it outperforms ImageNet pretraining by 4.8% and 4.6%, respectively. Importantly, the UDIAT-B images are collected with linear probe instead of convex probe like US-4, showing a superior texture encoding ability of USCL.",
+            "cite_spans": [
+                {
+                    "start": 142,
+                    "end": 145,
+                    "text": "[8]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[15]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Comparison with SOTA"
+        },
+        {
+            "text": "This work constructs a new US video-based image dataset US-4 and proposes a simple but efficient contrastive semi-supervised learning algorithm USCL for US analysis model pretraining. USCL achieves significantly superior performance than ImageNet pretraining by learning compact semantic clusters from US videos. Future works include adding more scan regions of US videos to US-4 dataset for a better generalization on more diseases.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Accelerating detection of lung pathologies with explainable ultrasound image analysis",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Born",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Wiedemann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cossio",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Buhre",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Br\u00e4ndle",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Leidermann",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Aujayeb",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Moor",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Rieck",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Borgwardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Applied Sciences",
+            "volume": "11",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Unsupervised learning algorithms",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Celebi",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Aydin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "A simple framework for contrastive learning of visual representations",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kornblith",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Norouzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2002.05709"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Improved baselines with momentum contrastive learning",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2003.04297"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Multi-modal active learning for automatic liver fibrosis diagnosis based on ultrasound shear wave elastography",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "2021 IEEE 18th International Symposium on Biomedical Imaging (ISBI)",
+            "volume": "",
+            "issn": "",
+            "pages": "410--414",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Momentum contrast for unsupervised visual representation learning",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "9729--9738",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Mask r-cnn",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Gkioxari",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Dollar",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE TPAMI",
+            "volume": "42",
+            "issn": "2",
+            "pages": "386--397",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Deep residual learning for image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "770--778",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Densely connected convolutional networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Der Maaten",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "4700--4708",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Self-supervised contrastive video-speech representation learning for ultrasound",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Alsharid",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Drukker",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Papageorghiou",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Noble",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "534--543",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Chextransfer: Performance and parameter efficiency of imagenet models for chest x-ray interpretation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ke",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Ellsworth",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Banerjee",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Ng",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rajpurkar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2101.06871"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Localizing target structures in ultrasound video-a phantom study",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kwitt",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Vasconcelos",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Razzaque",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Aylward",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Medical image analysis",
+            "volume": "17",
+            "issn": "7",
+            "pages": "712--722",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Self-supervised feature learning via exploiting multi-modal data for retinal disease diagnosis",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jia",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Islam",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE TMI",
+            "volume": "39",
+            "issn": "12",
+            "pages": "4023--4033",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Feature pyramid networks for object detection",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Doll\u00e1r",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hariharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Belongie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "2117--2125",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Microsoft coco: Common objects in context",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Maire",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Belongie",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hays",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Perona",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Doll\u00e1r",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Zitnick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "ECCV",
+            "volume": "",
+            "issn": "",
+            "pages": "740--755",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Semi-supervised active learning for covid-19 lung ultrasound multi-symptom classification",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "2020 IEEE 32nd International Conference on Tools with Artificial Intelligence (ICTAI)",
+            "volume": "",
+            "issn": "",
+            "pages": "1268--1273",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "A novel video key-frame-extraction algorithm based on perceived motion energy model",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "IEEE TCSVT",
+            "volume": "13",
+            "issn": "10",
+            "pages": "1006--1013",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Imagenet large scale visual recognition challenge",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Russakovsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Su",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Krause",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Satheesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Karpathy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Khosla",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bernstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IJCV",
+            "volume": "115",
+            "issn": "3",
+            "pages": "211--252",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Temporal ensembling for semi-supervised learning",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Samuli",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Timo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Learning Representations (ICLR)",
+            "volume": "4",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Gradcam: Visual explanations from deep networks via gradient-based localization",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Selvaraju",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cogswell",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Vedantam",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Parikh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Batra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ICCV",
+            "volume": "",
+            "issn": "",
+            "pages": "618--626",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Improved deep metric learning with multi-class n-pair loss objective",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Sohn",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "NeurIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "1857--1865",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Fixmatch: Simplifying semi-supervised learning with consistency and confidence",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Sohn",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Berthelot",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Carlini",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Cubuk",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kurakin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Raffel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2001.07685"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Live feature tracking in ultrasound liver sequences with sparse demons",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Somphone",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Allaire",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mory",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Dufour",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "MICCAI Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "53--60",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Medaug: Contrastive learning leveraging patient metadata improves representations for chest x-ray interpretation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [
+                        "N T"
+                    ],
+                    "last": "Vu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Balachandar",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Ng",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rajpurkar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2102.10663"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Automated breast ultrasound lesions detection using convolutional neural networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Yap",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Pons",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mart\u00ed",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ganau",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sent\u00eds",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zwiggelaar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Davison",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Marti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE journal of biomedical and health informatics",
+            "volume": "22",
+            "issn": "4",
+            "pages": "1218--1226",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "The first two authors contributed equally. This work was done at Shenzhen Research Institute of Big Data (SRIBD).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Motivation of USCL. SPG tackles the harmful similarity conflict of traditional contrastive learning. (a) Similarity conflict: if a negative sample pair comes from different frames of the same video, they might be more similar than positive samples augmented from a frame, which confuses the training. (b) SPG ensures negative pairs coming from different videos, thus are dissimilar. The sample interpolation process also helps the positive pairs to have appropriate similarities, and enriches the feature involved in comparison. Representations are learned by gathering positive pairs close in representation space and pushing negative pairs apart.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "The US-4 dataset is relatively balanced in terms of images in each video, Examples of US image in US-4.where most videos contain tens of US images. Some frame examples are shown inFig. 2.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "a delicate mixed frame generator G is performed to generate a positive sample pair. The image x images. In a mini-batch, G constructs positive sample pairs in interpolation manner via the mixup operation between anchor image and two perturbation images as follows.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Statistics of the US-4 dataset containing 4 video-based sub-datasets. The total number of images is 23,231, uniformly sampled from 1051 videos. Most videos contain 10\u223c50 similar images, which ensures the good property of semantic clusters.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Fig. 4. The visualization results of the last Conv layer in ImageNet pretrained model and USCL model with Grad-CAM[21]. The first 4 columns are lung US images, models trained with USCL on US-4 can focus on the regions of A-line and pleural lesion instead of concentrating on regions without valid information like the ImageNet counterpart.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Comparison of fine-tuning accuracy (%) on POCUS classification dataset and average precision (AP[16]) 8 on UDIAT-B detection (Det), segmentation (Seg) with SOTA methods.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

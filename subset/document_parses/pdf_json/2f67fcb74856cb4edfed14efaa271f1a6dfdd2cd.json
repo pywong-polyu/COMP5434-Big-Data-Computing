@@ -1,0 +1,1672 @@
+{
+    "paper_id": "2f67fcb74856cb4edfed14efaa271f1a6dfdd2cd",
+    "metadata": {
+        "title": "A framework for optimizing COVID-19 testing policy using a Multi Armed Bandit approach",
+        "authors": [
+            {
+                "first": "Hagit",
+                "middle": [],
+                "last": "Grushka-Cohen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ben-Gurion University of the Negev",
+                    "location": {
+                        "country": "Israel"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Raphael",
+                "middle": [],
+                "last": "Cohen",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Bracha",
+                "middle": [],
+                "last": "Shapira",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ben-Gurion University of the Negev",
+                    "location": {
+                        "country": "Israel"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Jacob",
+                "middle": [],
+                "last": "Moran-Gilad",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ben-Gurion University of the Negev",
+                    "location": {
+                        "country": "Israel"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Lior",
+                "middle": [],
+                "last": "Rokach",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ben-Gurion University of the Negev",
+                    "location": {
+                        "country": "Israel"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Testing is an important part of tackling the COVID-19 pandemic. Availability of testing is a bottleneck due to constrained resources and effective prioritization of individuals is necessary. Here, we discuss the impact of different prioritization policies on COVID-19 patient discovery and the ability of governments and health organizations to use the results for effective decision making. We suggest a framework for testing that balances maximal discovery of positive individuals with the need for population-based surveillance aimed at understanding disease spread and characteristics. This framework draws from similar approaches to prioritization in the domain of cyber-security based on ranking individuals using a risk score and then reserving a portion of the capacity for random sampling. This approach is an application of Multi-Armed-Bandits maximizing exploration/exploitation of the underlying distribution. We find that individuals can be ranked for effective testing using a few simple features, and that ranking them using such models we can capture 65% (CI: 64.7%-68.3%) of the positive individuals using less than 20% of the testing capacity or 92.1% (CI: 91.1%-93.2%) of positives individuals using 70% of the capacity, allowing reserving a significant portion of the tests for population studies. Our approach allows experts and decision makers to tailor the resulting policies as needed allowing transparency into the ranking policy and the ability to understand the disease spread in the population and react quickly and in an informed manner.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The SARS-CoV-2 virus causing COVID-19 has spread globally and was declared as a pandemic by the World Health Organization. Testing for COVID-19 has been an important tool in both monitoring the spread of the virus as well as in the attempts of preventing its rapid spread. Quickly identifying outbreaks is a key to combating the spread of the disease [2, 19] . However testing is bounded by the available resources such as number of available tests, reagent bottlenecks, laboratory accreditation and technical constrains. Since the number of tests is limited, governments and decision makers around the world apply policies guiding who should be tested. During the outbreak countries implemented different testing policies. These policies vary in a wide range of approaches such as: testing of symptomatic individuals only, testing of symptomatic individuals and their contacts, test only hospitalized patients [19, 8] , test severe cases [15] , test with a rigid policy for optimizing to the most likely phenotypes [20] , or testing with a policy and two random groups as done in Iceland [7] . In the case of unlimited test capacity a policy of testing everyone was applied in Wuhan (Wuhan May-2020, 11M tests) [24, 12] .",
+            "cite_spans": [
+                {
+                    "start": 351,
+                    "end": 354,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 355,
+                    "end": 358,
+                    "text": "19]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 911,
+                    "end": 915,
+                    "text": "[19,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 916,
+                    "end": 918,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 939,
+                    "end": 943,
+                    "text": "[15]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1016,
+                    "end": 1020,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1089,
+                    "end": 1092,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1212,
+                    "end": 1216,
+                    "text": "[24,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1217,
+                    "end": 1220,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Testing serves multiple purposes. The first is to identify sick individuals in order to treat them correctly and safely. The second purpose is to stop the disease from spreading by contact tracing of positive individuals, this is critical for lowering the reproduction number of the disease. Finally, early identification of disease activity and case clusters allows governments to respond by increasing contact tracing, testing, and shelter in place or social distancing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Most countries implement risk driven policies [20] and result in data which is biased towards the patients that conform to the policy, as others, such as asymptomatic carries [find cite], will not get tested. This bias causes two major problems. Firstly, decision makers do not have the information necessary to make decision about the virus spread (or lack accurate information). Lack of information prevent governments from properly assessing risks in the first stages of a new pandemic when virus characteristics, such as the death rate, were unknown and estimated based on biased information [23] . Secondly, time to identify new disease clusters is prolonged, since most testing resources are spent on the existing clusters as symptomatic cases are prioritized (\"searching under the lamppost\").",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 596,
+                    "end": 600,
+                    "text": "[23]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In recommendation systems, this is a well known phenomenon, named \"filter bubble\", in which the users of the system are trapped in a subspace of options thereby losing the ability to explore beyond what they already know [17, 1] .",
+            "cite_spans": [
+                {
+                    "start": 221,
+                    "end": 225,
+                    "text": "[17,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 226,
+                    "end": 228,
+                    "text": "1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Monitoring a population with a limited capacity for testing individuals is not unique for epidemiology, a similar challenge exist in the realm of cyber-security where users are monitored for signs of compromise such as malware installation or data theft by employees. Database Activity Monitoring systems log and test user actions to identify compromised users and identify their actions. The purpose of data security is similar to the task of testing and contact tracing organizations. The sheer amount of daily user activity in IT database systems prevents testing and logging every action, instead these systems use an approach of ranking actions by risk using a policy and logging only potentially risky activity. This approach suffered from the same filter bubble problem of data biased towards the policy, and inability to quickly react to new threats or changes in activity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper we present a framework for data driven testing policy that optimizes both test utilization (i.e. maximizing detection of new cases) while investing resources in exploration that allows gathering unbiased surveillance information about the population and quickly identifying new disease clusters. This framework borrows from a similar approach based on Multi Armed Bandits (MAB) for balancing exploration and exploitation when monitoring database users.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To be adopted, approaches that enhance policies created by experts have to maintain the experts in the loop. The models must be explainable, no 'black box' decision can be made, especially with clinical outcomes and public health effects of such a system. The model also needs to be adjustable and the experts need a measure of control for tuning it, allow the experts to make decisions balancing different risks, and enable the experts to add features (such as adding geographic, clinical or population demographics features).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The system we propose allows the experts to make decisions that drive the ranking model, add features on the fly if needed and balance exploration/exploitation as needed. Using a data set of COVID-19 patient symptoms released by the Israeli Ministry of Health we find that it's possible to rank patients effectively for optimizing recall of testing, correlating to the exploitation mechanism of MAB. Using 10% the testing capacity is enough in order to identify 66.6% of the positive individuals (CI: 64.7%-68.3%), and at 70% of the capacity 92.1% (CI: 91.1%-93.2%) are identified. This enables diverting testing capacity towards exploration without harming recall and present a novel framework for COVID-19 testing policy. We trained two models on different time frames and find significant difference in their efficacy, suggesting policy changes affect what's learned from the data which provides another strong incentive for using a major part of the testing capacity for exploration such as random sampling.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To maximize the detected infected individuals [11] suggest a screening approach that is made of combining three complementary testing strategies: (1) test all individuals with typical COVID-19 symptoms (2) deploy targeted testing based on the population density (to maximize the likelihood of infections) (3) reserve a small number of tests for random population screening to monitor the testing policy. They suggest combining it with campaign and funding for isolation of infected individuals. Iceland testing policy was also made of both : targeted testings of individuals at high risk and population screening [7] . Initially they invested in testing all individuals who desired to get tested, mostly from the capital metropolis. To provide a control testing group they randomly selected individuals who where summoned to be tested representing the age and gender demographics. [20] modeled the probability of individuals to test positive to SARS-CoV-2 based on their response to a daily symptoms survey. They did not suggest or evaluate the effect of using their predictive model for ranking.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 613,
+                    "end": 616,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 881,
+                    "end": 885,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "Both policies lack the motive of dynamic updating of the policy. The first [11] paper does suggest an estimation of infection prevalence however it can be viewed as special case of our suggested model where population density or epicenter is of high priority in the risk score model. The second [7] work has both exploration and exploitation motives however the policy of who should be tested is static and there is no element of learning from one time frame to the following. We suggest a testing framework that enables maintaining and constantly updating the testing policy in a principled manner while keeping the experts and decision makers in the loop. This framework also enables introducing new features to the model. The Icelandic research [7] also shows that targeted testing improves the tests' recall. 13.3% of the targeted tests resulted positive versus only 0.8% from the \"open invitation\" population, and only 0.6% recall for the randomly selected \"control group\", which is compatible both with [20] and our results that shows a \"risk score\" can be learned and improve the test recalls.",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 79,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 295,
+                    "end": 298,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 748,
+                    "end": 751,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1009,
+                    "end": 1013,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "Many domains, such as health, insurance and bank loans use a risk score as a common practice for prioritizing. [13, 16] . The risk score is not a policy, but can be used as part of the policy for decision making [21] , e.g. newborns with low Apgar score will stay an extra day at the hospital [10] . Risk score can be assigned based on predefined list of rules and conditions. The science community has been extensively working on using machine learning models for risk scoring in many domains [18, 6, 4] For an ML risk score to be accepted by the medical community it is important that it allows experts to tweak it (add clinical features, local biases) and is explainable [14] . Clalit Health Services (CHS) created a risk-scoring tool to predict the severity of COVID-19. [3] . NHS England defined risk factors to predict death from COVID-19 [22] . We suggest using a risk score to prioritize COVID-19 testing as part of a ranking system.",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 116,
+                    "end": 119,
+                    "text": "16]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 212,
+                    "end": 216,
+                    "text": "[21]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 293,
+                    "end": 297,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 494,
+                    "end": 498,
+                    "text": "[18,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 499,
+                    "end": 501,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 502,
+                    "end": 504,
+                    "text": "4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 674,
+                    "end": 678,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 775,
+                    "end": 778,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 845,
+                    "end": 849,
+                    "text": "[22]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Assigning a Risk Score"
+        },
+        {
+            "text": "Monitoring database activity is based on collecting the data into log files feeding these files to the anomaly detection system. The anomaly detection system uses the data collected to detect anomalies. Database activity is characterized by a vast amount of traffic flow. Since data storage is expensive and limited, the high volumes make it impossible to process and log all of the traffic flows resulting with examining only a sample of the data. as a common solution, such systems use manually defined policies made of rules and activity groups to decide which transactions to save.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Monitoring as a Sampling Problem"
+        },
+        {
+            "text": "The fact that the policy is manually defined by the company's security expert leads to monitoring that is skewed to the expert's risk scoring method. If exists a risk that the expert is unaware of, this risk might be detected late during the attack, when the cost is high and it is harder to control the damage done . Taking a risk driven monitoring approach restricts the security expert's ability to discover concept drifts,such as changes in users' roles, and may cause the \"filter bubble\" phenomenon, in which the expert is examining only a subspace of events that are over-fitting to the known risks, thereby losing the ability to explore beyond what they already know [17, 1] .",
+            "cite_spans": [
+                {
+                    "start": 674,
+                    "end": 678,
+                    "text": "[17,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 679,
+                    "end": 681,
+                    "text": "1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Monitoring as a Sampling Problem"
+        },
+        {
+            "text": "More over because the process of defining the monitoring policy is hard and time consuming, policies have a static nature : once defined, they are rarely changed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Monitoring as a Sampling Problem"
+        },
+        {
+            "text": "Grushka et al. [5] suggested taking a dynamic approach by adding diversity into the monitoring policy to add the ability of exploration for new risks characteristics and demographics. They showed the need to balance exploration of activities and users of low risk with exploitation of high risk scored users and activities. If we put too much emphasis on exploration, we are scouring the space well, but at the cost of scattering and possibly late identification or even missing important events of high risk nature.",
+            "cite_spans": [
+                {
+                    "start": 15,
+                    "end": 18,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Monitoring as a Sampling Problem"
+        },
+        {
+            "text": "We suggest a testing framework in which by the end of each predefined time-frame (it could be day or maybe a week) we reexamine our model and adjust it to the new detected demographics and risks in a principled manner, keeping the experts in the loop, and providing them the data needed to discover and explore for new infected demographics and features. We will address a scenario in which the time-frame is defined to be one day.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Framework for Epidemic Control"
+        },
+        {
+            "text": "This framework is made of daily calibration and training of the risk scoring model. The model is using the risk score to prioritize the potential cases. The majority of the testing budget is invested in the cases with risk score above a thresh-hold, the remainder of the budget is used for collecting new data where there is a lack of data or data that has aged. This exploration motive could be used for exploring geographic location, demographics, or exploration of symptoms that are currently not used in the model. For example, if the doctors are reporting of a symptom that is unknown or not in the model, the experts could set it as an arm that could be pooled using a Thompson sampling. The exploration portion of the tests can also be used as an intervention method. For example, testing all the residents and staff of a nursing home once a case is discovered. The experts' knowledge may be used for building the primary risk score model and introducing new possible features to the model or new arms that should be pooled. Fig. 1 : MAB Testing Framework workflow : Each time frame (day/week) the population is tested. A portion of the tests goes to the most likely infected individuals (exploitation) and the rest for exploration (random sampling, or any other expert defined population). The initial risk score can be manually defined based on the epidemiologists knowledge and supported by the data collected by the health organizations. At the end of each time frame we incorporate the test results and their features, combined with the new results obtained in the field and use this data to retrain the risk-scoring model (this can be limited to the randomly sampled population to avoid the filter bubble). This framework allows the experts and decision makers to create an explainable and agile policy in a data driven fashion.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1032,
+                    "end": 1038,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Bandit Framework for Epidemic Control"
+        },
+        {
+            "text": "To demonstrate the feasibility of our proposed framework we explore data released by the Israeli Ministry of Health (IMOH) in order to show that effective ranking can be achieved using a simple classifier trained on previous data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": "To evaluate the effect of training on data gathered using different testing policies we train another model on data from later weeks (beginning of the second wave of COVID-19 infections) and test both models on a later test set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": "To evaluate our proposed thesis we use the Israeli Ministry of Health \"tested individuals\" COVID-19 data set [9] . This data set contains the result of all primary COVID-19 tests by dates collected over 10 weeks from March-11th,2020 until May-10th, 2020 and contains over 300,000 records . Each record represents a test for COVID-19 and is made of the fields: date, partial list of symptoms, including fever, cough, headache, shortness of breath and sore throat, indication for the test, gender and the result of the test (positive negative other). Individuals with a positive test result will appear only once in the data set, at the date of the first positive result. The indication for the test is a descriptive feature that indicates the reason for taking the test in the first place. This field values are clustered into three categories: (i) contact with confirmed known positive individual (ii) return from abroad and (iii) other.",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "This data contains all test preformed including random testing, and testing medical stuff at hospitals. our data exploration showed that contact with a positive patient, cough, fever are the strongest features and respectively has the highest correlation with positive test result.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "Overall, the data contains 300,456 tested individuals partial symptoms and test results collected between March-11th, 2020 until May-10th, 2020. the data contains null values mainly in the symptoms features, a feature value is set to null if that data wasn't collected. we compared discarding records with null values to referring to null values as if there is no indication for this symptom and decided to take the second approach. From the data analysis, we learn that most of the relevant data lie between weeks eleven to sixteen. afterwards, the results show that there is a decrease in the rate of positive results ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Study Design and Population"
+        },
+        {
+            "text": "To gain insight into the features that contribute most to the predicted probability of being diagnosed with COVID-19, we analyzed feature contribution using Pearson's correlation. Table 1 shows that the features with the highest positive correlation are: contact with confirmed individual, head ache fever.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 180,
+                    "end": 187,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Features Correlation to Positive Test Result"
+        },
+        {
+            "text": "Due to the restricted amount of available tests not all individuals can be tested each day. therefore governments and decision makers needs to set up a policy to define Who should we test first. we propose taking the conventional approach from the Cyber security domain of ranking the testing candidates and testing the top X ranked individuals. we compare the following policies for ranking candidates for testing in terms of recall and precision at preforming 1000, 2000,3000, 4000 or 5000 tests per week (up to about a tenth of the actual tests performed):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ranking Candidates"
+        },
+        {
+            "text": "-Rule Based our results show that contact with a positive patient, cough, fever are the strongest features therefore we define a rule based baseline: score them with weights of 2,1,1 respectively Polynomial of 2 degrees-we assume that it could learn from the relation between two features without over-fitting",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ranking Candidates"
+        },
+        {
+            "text": "Confidence interval was calculated using bootstrapping: the population was re-sampled for each week and the recall was calculated for 10 such populations. The confidence interval was calculated using the Student's t distribution as the critical value.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Calculating Confidence Interval"
+        },
+        {
+            "text": "We assume that decision makers will not adopt a sampling policy with low recall, as this leaves many patients not diagnosed. In order to find a good balance between exploration and exploitation we examine the recall gained by using 30/40/50/60/70 percent out of the weekly capacity as the sample sizes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Balancing Exploitation (Recall) / Exploration"
+        },
+        {
+            "text": "The testing policies affect the resulting data used to train the ranking classifier. We quantified this effect by training two Polynomial-SVM models on different time frames of the data (weeks 10-12 vs weeks 21-23) and evaluated both on a later time frame (weeks 24-26).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effect of Retraining the Model on a Different Dataset"
+        },
+        {
+            "text": "The data exploration clearly shows that the pandemic was active during weeks 11 to 16",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "We analysed the data to gain better understanding of the strongest predictive phenotypes. The results of the Pearson correlation reflects the testing policy. From the results we can see that the best predictors for positive test results are : contact with infected individual, fever and cough.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Predictive Phenotypes"
+        },
+        {
+            "text": "We compare the models in terms of precision, recall and F1 score. Table 2 presents the average weekly recalls based on the the ranking model trained during weeks 10 to 12. We find 2 that using only \u223c 10% of the testing budget we have a recall of 66.6% (CI: 64.7%-68.3%) of all positive result of each week. The recall of the polynomial SVM at 70% of the testing capacity was 92.1% (CI: 91.1%-93.2%). In terms of F1-score the polynomial SVM out-preforms the linear and rule based models (see Table 4 ). week recall @1000 recall @2000 recall @3000 recall @4000 recall @5000 number of tests Table 2 : weekly recall polinamial svm ranking model",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 66,
+                    "end": 73,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 491,
+                    "end": 498,
+                    "text": "Table 4",
+                    "ref_id": "TABREF4"
+                },
+                {
+                    "start": 588,
+                    "end": 595,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Ranking Patients Using ML"
+        },
+        {
+            "text": "We trained a second polynomial SVM models on weeks 21-23, the period of time where infections started rising again in the dataset. We evaluated both models, 1st wave model and 2nd wave model, on the data of weeks 24-26. We find that the 2nd wave model behaves differently. Recalls at lower capacities were better with the second model and with higher capacities the first model achieved better results (see Figure 4 ). ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 407,
+                    "end": 415,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Effect of Retraining the Model on a Different Dataset"
+        },
+        {
+            "text": "In this study we suggest a principled data driven MAB framework for maintaining tests policy for the COVID-19 pandemic. Our framework is based on two components, ranking component for maximizing detection and exploration component for maximizing knowledge of the disease in the population. This approach allows the experts to make the high level decision on the policy while preserving the data discovery for re-evaluation. Exploration can be random or based on more complicated sampling schemes such as based on geographic features maximizing information for multiple objectives (based Thompson sampling) to overcome the filter bubble phenomena. Testing policies used by governments can be seen as private cases of this framework: testing only hospitalized patients is choosing maximize detection (100% exploitation, 0% exploration) while the policy in Iceland which used two exploration strategies is on the other hand (allocating 10-50% of the capacity for exploration and basing the exploitation on a manual ranking model). In both of these cases using a data driven ranking model would improve recall (percent of positive tests).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "We showed that ranking is feasible using a simple predictive model for predicting positive test results. This corroborates similar finding by [20] . Using the data released by the Israel Health Ministry we found ranking could have recall of 66.6% (CI: 64.7%-68.3%) on average using only 10% of the tests capacity and 92.1% (CI: 91.1%-93.2%) using 70% of the tests capacity. A simple rule based model based on the correlations achieved similar accuracy, suggesting that drawing an easy to explain model is possible (at the cost of a very little efficiency). Basing a policy solely on a ranking model would be very efficient capacity wise but would lock the decision makers in a filter bubble. This approach is based on solutions to similar problems where test capacity is limited in the realm of security [5] . Saving a major part of the testing capacity for exploration allows both informed decision making and updating the ranking model daily or weekly to maximize the efficiency. Training a second model using the same architecture on data collected in weeks 21-23 and testing both models on weeks 24-26 we found significant difference in model recall. This is not a surprising results as it is expected that different testing policies would bias the distribution of individuals identified. However, these results show that dedicating a significant portion of the testing capacity to random sampling would provide a clearer picture to decision makers. Furthermore, training such a model once is not good enough, and a framework to support retraining the model and choosing the best ranking model based on data is necessary. In our example, if dedicating 30% of the testing capacity to exploration it is advisable to use the first wave model, if exploration is raised to 60% the second model would achieve better recall (see Figure 4 ).",
+            "cite_spans": [
+                {
+                    "start": 142,
+                    "end": 146,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 804,
+                    "end": 807,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1826,
+                    "end": 1834,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Discussion"
+        },
+        {
+            "text": "Future work should focus on simulating data using an Agent Based Modeling (ABM) approach and testing different exploration policies under different conditions such as few cases in the population vs. many or geographic sampling vs completely random exploration. We hope to see this framework replace ad-hoc approaches to exploration and testing policy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "How serendipity improves user satisfaction with recommendations? a large-scale user evaluation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "240--250",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Countries test tactics in 'war'against covid",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kupferschmidt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "A score-based risk model for predicting severe covid-19 infection as a key component of lockdown exit strategy",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Dagan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Barda",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Riesel",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Grotto",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sadetzki",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Balicer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1101/2020.05.20.20108571"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Enforcing a risk assessment approach in access control policies management: Analysis, correlation study and model enhancement",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Evina",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Ayachi",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Jaidi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bouhoula",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "2019 15th International Wireless Communications & Mobile Computing Conference (IWCMC)",
+            "volume": "",
+            "issn": "",
+            "pages": "1866--1871",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Using bandits for effective database activity monitoring",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Grushka-Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Biller",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Sofer",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Rokach",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Shapira",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Pacific-Asia Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "701--713",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Cyberrank: knowledge elicitation for risk assessment of database security",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Grushka-Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Sofer",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Biller",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Shapira",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Rokach",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 25th ACM International on Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "2009--2012",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Spread of sars-cov-2 in the icelandic population",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Gudbjartsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Helgason",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Jonsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Magnusson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Melsted",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Norddahl",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Saemundsdottir",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sigurdsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sulem",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Agustsdottir",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "New England Journal of Medicine",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Testing and contact tracing policy",
+            "authors": [
+                {
+                    "first": "Hannah",
+                    "middle": [],
+                    "last": "Ritchie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Esteban",
+                    "middle": [],
+                    "last": "Ortiz-Ospina",
+                    "suffix": ""
+                },
+                {
+                    "first": "Diana",
+                    "middle": [],
+                    "last": "Beltekian",
+                    "suffix": ""
+                },
+                {
+                    "first": "Edouard",
+                    "middle": [],
+                    "last": "Mathieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joe",
+                    "middle": [],
+                    "last": "Hasell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bobbie",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "Charlie",
+                    "middle": [],
+                    "last": "Giattino",
+                    "suffix": ""
+                },
+                {
+                    "first": "Max",
+                    "middle": [],
+                    "last": "Roser",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Israeli Ministry of Health: covid-19 tested individuals",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "The apgar score: evolution, limitations, and scoring guidelines",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Jepson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Talashek",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Tichy",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "Birth",
+            "volume": "18",
+            "issn": "2",
+            "pages": "83--92",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Logistics of aggressive community screening for coronavirus 2019",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Kaplan",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Forman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "JAMA Health Forum",
+            "volume": "1",
+            "issn": "",
+            "pages": "200565--200565",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Chinas wuhan tests 11 million for covid19",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Framingham risk score and prediction of lifetime risk for coronary heart disease",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Lloyd-Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Wilson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Larson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Beiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Leip",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Agostino",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "The American journal of cardiology",
+            "volume": "94",
+            "issn": "1",
+            "pages": "20--24",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Explainable machine-learning predictions for the prevention of hypoxaemia during surgery",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Lundberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Nair",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Vavilala",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Horibe",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Eisses",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Adams",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Liston",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "K W"
+                    ],
+                    "last": "Low",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Newman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Medicalxpress: Sweden to ramp up coronavirus testing",
+            "volume": "2",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Apgar scores as predictors of chronic neurologic disability",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Nelson",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Ellenberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 1981,
+            "venue": "Pediatrics",
+            "volume": "68",
+            "issn": "1",
+            "pages": "36--44",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Exploring the filter bubble: the effect of using recommender systems on content diversity",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Harper",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Terveen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Konstan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 23rd international conference on World wide web",
+            "volume": "",
+            "issn": "",
+            "pages": "677--686",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Deep survival analysis",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ranganath",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Perotte",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Elhadad",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Blei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1608.02158"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Covid-19 epidemic in switzerland: on the importance of testing, contact tracing and isolation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Salath\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Althaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Neher",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Stringhini",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Hodcroft",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Fellay",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zwahlen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Senti",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Battegay",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Wilder-Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Swiss medical weekly",
+            "volume": "150",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Who should we test for covid-19? a triage model built from national symptom surveys. medRxiv",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shoer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Karady",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Keshet",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shilo",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Rossman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gavrieli",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Meir",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lavon",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kolobkov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Kalka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A survey of credit and behavioural scoring: forecasting financial risk of lending to consumers",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Thomas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "International journal of forecasting",
+            "volume": "16",
+            "issn": "2",
+            "pages": "149--172",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Opensafely: factors associated with covid-19-related hospital death in the linked electronic health records of 17 million adult nhs patients",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Williamson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Walker",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bhaskaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bacon",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bates",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Morton",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Curtis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mehrkar",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Evans",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Inglesby",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Estimating clinical severity of covid-19 from the transmission dynamics in wuhan, china",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Leung",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bushman",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Kishore",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Niehus",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "De Salazar",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Cowling",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lipsitch",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Leung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nature Medicine",
+            "volume": "26",
+            "issn": "4",
+            "pages": "506--510",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Wuhan Municipal Health Commission: Wuhan new coronary pneumonia epidemic situation update",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Weekly test results distribution",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Linear support vector machine (SVM) ranking based on the probability of the linear svm classifier to classify the individual as positive. -Polynomial SVM ranking based on the probability of the Polynomial svm classifier to classify the individual as positive.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Pearson correlation for each phenotype positive test result by test week",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Recall of models trained on different subsets of the data when ranking the patients in weeks[24][25][26]",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF3": {
+            "text": "Average recall by model",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Average F1 score by model",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

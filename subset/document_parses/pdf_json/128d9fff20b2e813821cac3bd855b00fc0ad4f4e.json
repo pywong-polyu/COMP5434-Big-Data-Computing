@@ -1,0 +1,1074 @@
+{
+    "paper_id": "128d9fff20b2e813821cac3bd855b00fc0ad4f4e",
+    "metadata": {
+        "title": "Reconciling Risk Allocation and Prevalence Estimation in Public Health Using Batched Bandits",
+        "authors": [
+            {
+                "first": "Ben",
+                "middle": [],
+                "last": "Chugg",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {}
+                },
+                "email": "benchugg@law.stanford.edu"
+            },
+            {
+                "first": "Daniel",
+                "middle": [
+                    "E"
+                ],
+                "last": "Ho",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {}
+                },
+                "email": "deho@law.stanford.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In many public health settings, there is a perceived tension between allocating resources to known vulnerable areas and learning about the overall prevalence of the problem. Inspired by a door-to-door Covid-19 testing program we helped design, we combine multi-armed bandit strategies and insights from sampling theory to demonstrate how to recover accurate prevalence estimates while continuing to allocate resources to at-risk areas. We use the outbreak of an infectious disease as our running example. The public health setting has several characteristics distinguishing it from typical bandit settings, such as distribution shift (the true disease prevalence is changing with time) and batched sampling (multiple decisions must be made simultaneously). Nevertheless, we demonstrate that several bandit algorithms are capable out-performing greedy resource allocation strategies, which often perform worse than random allocation as they fail to notice outbreaks in new areas.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "1 There are various mechanisms accounting for why uncovering infected individuals reduces disease rates, e.g., changing behavior and enabling contract tracing [8, 13] .",
+            "cite_spans": [
+                {
+                    "start": 159,
+                    "end": 162,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 163,
+                    "end": 166,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Public health crises -such as lead paint, drinking water contamination, natural disasters, and infectious disease outbreaks -demand effectively distributing scarce resources. In the early stages of the COVID-19 pandemic, for instance, public health officials grappled with how to best allocate diagnostic tests [10] . Some advocate random sampling to learn about the disease [12, 11] , while others favor more targeted allocation [5, 4] . This is perceived to pose a tradeoff: Random sampling is seen to enable reliable prevalence estimates and the discovery of new hot spots, while risk targeting focuses on symptomatic and/or exposed individuals to ostensibly drive down disease rates. 1 While the general tension runs throughput public health, the setting presents novel challenges to classical bandit approaches. Outbreaks present distribution shifts and allocation is necessarily batched for operational reasons.",
+            "cite_spans": [
+                {
+                    "start": 311,
+                    "end": 315,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 375,
+                    "end": 379,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 430,
+                    "end": 433,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 434,
+                    "end": 436,
+                    "text": "4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 688,
+                    "end": 689,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this short work, we demonstrate that these two objectives are not in zero-sum conflict. Inspired by a door-to-door Covid-19 testing program we helped design, we demonstrate that the batched setting allows us to recover unbiased prevalence estimates and we investigate the performance of bandits in the presence of distribution shift. To illustrate, we consider the early stages of an infectious disease outbreak when tests are not widely available. A public health agency must decide how to allocate tests between K different units, U 1 , . . . , U K . Units might be neighbourhoods [4] , apartments buildings [9] , or dorm rooms on a college campus [17] . They might also be artificially constructed clusters of individuals based on interaction networks [14] . We consider a series of discrete timesteps t = 1, . . . , T , which could represent days or weeks. At time t, m t tests can be distributed among the regions in any way we choose. The supply may vary from period to period, in which case m t = m t+1 .",
+            "cite_spans": [
+                {
+                    "start": 586,
+                    "end": 589,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 613,
+                    "end": 616,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 653,
+                    "end": 657,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 758,
+                    "end": 762,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our approach involves treating each unit as an arm in the multi-armed bandit problem [16] . The prevalence rate 2 in each unit is the \"reward\" distribution, thus encouraging tests to be allocated to units with higher proportions of infected individuals. Unlike most bandit problems our reward distributions are non-stationary [1] . In particular, they change as a function of the disease spread and the number of tests (Section 2). In addition, we must make take multiple actions at once (actions are batched) [7] . We investigate four bandit algorithms: Upper confidence bound sampling, Thompson sampling, Exponential Weights (Exp3), and -greedy. We discuss their details and how they've been extended to the non-stationary and batched setting in Section 3. The following section discusses how we model the spread of the disease in each unit and the effect of testing. Code is available at https://github.com/reglab/mab-infectious-disease.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 89,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 326,
+                    "end": 329,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 510,
+                    "end": 513,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Many mathematical models for infectious disease dynamics exist [3] . Here, we use a simple logistic model which incorporates the effect of testing and contact tracing. We note, however, that none of the bandit sampling strategies nor the prevalence estimation rely on the specifics of the disease model.",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 66,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Disease Model"
+        },
+        {
+            "text": "Given a unit with population N , let C(t) be the number of disease cases at time t. We begin by considering the logistic growth equation, f (t) = \u03b1f (t)(1 \u2212 f (t)/N ), which accounts for the carrying capacity, N , of the population and the growth rate \u03b1 of the virus. In our setting, however, we want to take into account the additional effects of testing. For an empirically chosen parameter \u03b2, we thus add an extra term to the logistic equation and obtain a Bernoulli type differential equation:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disease Model"
+        },
+        {
+            "text": "where \u03d5(t) is the number of tests conducted at time t. The additional term \u03b2\u03d5(t) represents the impact on the rate of growth of the virus: The more tests performed at time t, the lower the rate of growth. We assume that the term \u03b2\u03d5(t) captures not only the immediate effects of testing, but the longer run effects of subsequent interventions, such as isolation / quarantine and contact tracing. See Figure 1 for an illustration of the model dynamics and the effects of testing. In our setting, disease spread in each unit U i evolves independently according to Equation (1).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 399,
+                    "end": 407,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Disease Model"
+        },
+        {
+            "text": "At each time t, a given strategy chooses m t regions to sample, and then samples individuals uniformly within that region. In order to adapt the strategies to the non-stationary setting, we apply a discount factor \u03b3 \u2208 (0, 1) to the information received over time [2, 15] . Let \u03b1 \u03c4 be the number of positive tests witnessed at time \u03c4 . If making a decision based on the overall number of, say, positive tests seen from time 0 to t, each strategy will use the discounted quantity t \u03c4 =0 \u03b3 t\u2212\u03c4 a t . In this way, each strategy smoothly forgets the past.",
+            "cite_spans": [
+                {
+                    "start": 263,
+                    "end": 266,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 267,
+                    "end": 270,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "We give a very brief overview of each strategy. For more details, we refer readers to [16] .",
+            "cite_spans": [
+                {
+                    "start": 86,
+                    "end": 90,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "-greedy. Perhaps the simplest bandit strategy is -greedy, which chooses a random action with probability and chooses the action with the highest expected reward (i.e., the positivity rate, meaning the fraction of test results yielding a positive test result) otherwise. In the batched setting, we simply repeat this process m t times.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "Thompson Sampling. Thompson sampling maintains a beta distribution over each unit, beta(P k , N k ) where P k (resp., N k ) is the (discounted) number positive (resp., negative) tests in unit k. To batch sample, first draw p 1 k , . . . , p mt k \u223c beta(P k , N k ) for each k = 1, . . . , K, and then for each r = 1, . . . , m t sample region argmax k p r k . UCB Sampling. We use a binomial proportion confidence interval as our confidence bound. Formally, we use a Clopper-Pearson interval, so unit k receives a score",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "In order to batch sample, we form a distribution over the regions using their scores:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "and sample from this distribution (with replacement) m t times.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "Exp3. Each unit i begins with weight w i (0) = 1. At time t, we sample unit i with probability",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "for some \u2208 (0, 1). If unit k was sampled and r k is its reward, we update as the weight as w k (t + 1) = w k (t) exp r k \u03c0 k (t)K .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "Otherwise, we set w k (t + 1) = w k (t). For us, the reward r k is the number of positive tests received after testing unit k.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bandit Strategies"
+        },
+        {
+            "text": "For an individual i at time t, let y t (i) \u2208 {0, 1} indicate whether they are infected. Write i \u2208 U k if individual i is in unit U k . We're searching for an estimate of the true prevalence-a population estimate-of the disease at time t. That is,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Estimating Prevalence"
+        },
+        {
+            "text": "We employ a Horvitz-Thompson-type approach which takes into account the probability that each region was sampled [6] . Put N = k N k and let S t be the set of individuals tested during timestep t. Let \u03c0 k (t) denote the probability that unit U k was sampled by the bandit strategy (e.g., Equations (2) or (3)). 3 The quantity\u03bc is an unbiased estimate of \u00b5 t (see Appendix B for a proof). 4 ",
+            "cite_spans": [
+                {
+                    "start": 113,
+                    "end": 116,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 298,
+                    "end": 301,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 311,
+                    "end": 312,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 388,
+                    "end": 389,
+                    "text": "4",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Estimating Prevalence"
+        },
+        {
+            "text": "The right hand side of Figure 1 examines the improvement of each bandit strategy over random selection, using a discount rate of \u03b3 = 0.5. For each budget, we run the simulation for 30 timesteps. Each point reflects the difference between the total number of positive cases across all regions at the end of the 30 timesteps, between the bandit strategy and random sampling. Each bandit strategy causes a decrease in the total number of positive cases when compared with random selection, with the exception of -greedy at = 0.01 (i.e., using 1% of its budget to perform random exploration). Thompson Sampling and Exp3 are the two best performing strategies, especially as the budget grows.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 23,
+                    "end": 31,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "The results of more experiments across a wider range of parameters are shown in Appendix C.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "The general trends are that (i) as the number of allocation units K decreases, the differences between different strategies become less apparent, and (ii) as the budget increases and/or K increases, Thompson Sampling, Exp3, and UCB outperform -greedy by wider margins.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Using UCB as an example, Figure 2 illustrates population estimation as a function of the budget. The figure on the left hand side demonstrates the evolution of the true prevalence rates (across all units) and the estimates over time. Note that the true means are different for different budgets because testing changes the prevalence of the disease, and a higher budget implies more testing. Thus, a lower budget results in a higher prevalence. The right hand side of Figure 2 demonstrates the effect of different budget sizes on the variance of the estimate. While the estimates are unbiased on average across all three budgets, smaller budgets result in larger variance. Of course, this is due to the fact that the variance of\u03bc t grows as a function of the inverse of p i p j , where p i is the probability that individual i is tested. This, in turn, is a function of m t . Thus, as m t \u2192 0, V ar(\u03bc t ) \u2192 \u221e.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 25,
+                    "end": 33,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 468,
+                    "end": 476,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "This work has taken initial steps towards understanding both how multi-armed bandits can enable resources to be more effectively distributed during a public health crisis, and demonstrated that allocating resources to high-risk areas while maintaining an accurate understanding of the true dynamics of the problem (in this case, the spread of an infectious disease) are not necessarily in conflict.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "where \u03bb \u03b1,\u03b2 (x) = exp(\u03b1(x \u2212 \u03a6(x))).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "Observe that for \u03d5 \u2261 0, the solution reduces to the solution of the usual logistic growth equation. For \u03d5 \u2261 0, however, the integral in the denominator of C(t) is harder to evaluate owing to the term \u03a6(t). To evaluate it, we recall that \u03a6(t) is a function of discrete time steps: it changes only at times integer times t = 0, 1, . . . and is constant on the interval [t, t + 1). Thus,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "which is straightforward to evaluate computationally.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "This is straightforward to see after noting that for an individual i in unit U ki , Pr(i \u2208 S t ) = m t \u03c0 ki (t)/N ki . We can thus take the expectation of (5) and rearrange it to read",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B\u03bc t is Unbiased"
+        },
+        {
+            "text": "Note that the result for Pr(i \u2208 S t ) is because |U ki \u2229 S| = k is distributed as a binomial. So",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B\u03bc t is Unbiased"
+        },
+        {
+            "text": "Pr(i \u2208 S t ||U ki \u2229 S t | = ) Pr(|U ki \u2229 S| = ) = mt =1 N ki m t \u03c0 ki (1 \u2212 \u03c0 ki ) mt\u2212 = m t \u03c0 ki N ki . Figure 3 : Improvement over random sampling. As in the right hand side of Figure 1 , the x-axis is the budget, and the y-axis is the difference in number of cases between the given strategy and random sampling by the end of 30 timesteps. As K increases, we see a general increase in the effectiveness of Thompson Sampling and Exp3 relative to the two -greedy strategies. For all values of K and \u03b3, -greedy at = 0.01 performs worse than random sampling across the majority of budgets. This suggests that with such a small exploration budget, it is unable to discover those units whose prevalence is increasing drastically over time. Interestingly, at lower values of K, -greedy with more exploration (10%) is unable to compete with the other bandit algorithms.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 104,
+                    "end": 112,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 178,
+                    "end": 186,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "B\u03bc t is Unbiased"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Stochastic multi-armed-bandit problem with non-stationary rewards",
+            "authors": [
+                {
+                    "first": "Omar",
+                    "middle": [],
+                    "last": "Besbes",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yonatan",
+                    "middle": [],
+                    "last": "Gur",
+                    "suffix": ""
+                },
+                {
+                    "first": "Assaf",
+                    "middle": [],
+                    "last": "Zeevi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in neural information processing systems",
+            "volume": "27",
+            "issn": "",
+            "pages": "199--207",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Non stationary multi-armed bandit: Empirical evaluation of a new concept drift-aware algorithm",
+            "authors": [
+                {
+                    "first": "Emanuele",
+                    "middle": [],
+                    "last": "Cavenaghi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gabriele",
+                    "middle": [],
+                    "last": "Sottocornola",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fabio",
+                    "middle": [],
+                    "last": "Stella",
+                    "suffix": ""
+                },
+                {
+                    "first": "Markus",
+                    "middle": [],
+                    "last": "Zanker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Entropy",
+            "volume": "23",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Mathematical models to characterize early epidemic growth: A review",
+            "authors": [
+                {
+                    "first": "Gerardo",
+                    "middle": [],
+                    "last": "Chowell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lisa",
+                    "middle": [],
+                    "last": "Sattenspiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shweta",
+                    "middle": [],
+                    "last": "Bansal",
+                    "suffix": ""
+                },
+                {
+                    "first": "C\u00e9cile",
+                    "middle": [],
+                    "last": "Viboud",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Physics of life reviews",
+            "volume": "18",
+            "issn": "",
+            "pages": "66--97",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Evaluation of allocation schemes of covid-19 testing resources in a community-based door-to-door testing program",
+            "authors": [
+                {
+                    "first": "Ben",
+                    "middle": [],
+                    "last": "Chugg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lisa",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Derek",
+                    "middle": [],
+                    "last": "Ouyang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Benjamin",
+                    "middle": [],
+                    "last": "Anderson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Raymond",
+                    "middle": [],
+                    "last": "Ha",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexis D&apos;",
+                    "middle": [],
+                    "last": "Agostino",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anandi",
+                    "middle": [],
+                    "last": "Sujeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Analilia",
+                    "middle": [],
+                    "last": "Sarah L Rudman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Garcia",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "JAMA Health Forum",
+            "volume": "2",
+            "issn": "",
+            "pages": "212260--212260",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A workable strategy for covid-19 testing: stratified periodic testing rather than universal random testing",
+            "authors": [
+                {
+                    "first": "Matthew",
+                    "middle": [],
+                    "last": "Cleevely",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Susskind",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Vines",
+                    "suffix": ""
+                },
+                {
+                    "first": "Louis",
+                    "middle": [],
+                    "last": "Vines",
+                    "suffix": ""
+                },
+                {
+                    "first": "Samuel",
+                    "middle": [],
+                    "last": "Wills",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Oxford Review of Economic Policy",
+            "volume": "36",
+            "issn": "",
+            "pages": "14--37",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A generalization of sampling without replacement from a finite universe",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donovan J",
+                    "middle": [],
+                    "last": "Horvitz",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Thompson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1952,
+            "venue": "Journal of the American statistical Association",
+            "volume": "47",
+            "issn": "260",
+            "pages": "663--685",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Linear upper confidence bound algorithm for contextual bandit problem with piled rewards",
+            "authors": [
+                {
+                    "first": "Hao",
+                    "middle": [],
+                    "last": "Kuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hsuan-Tien",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Pacific-Asia Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "143--155",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Adaptive targeted infectious disease testing",
+            "authors": [
+                {
+                    "first": "Maximilian",
+                    "middle": [],
+                    "last": "Kasy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexander",
+                    "middle": [],
+                    "last": "Teytelboym",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Oxford Review of Economic Policy",
+            "volume": "36",
+            "issn": "",
+            "pages": "77--93",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Understanding the spatial clustering of severe acute respiratory syndrome (sars) in hong kong",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pc Lai",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hedley",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leung",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Leung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Environmental Health Perspectives",
+            "volume": "112",
+            "issn": "15",
+            "pages": "1550--1556",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Covid-19 testing: One size does not fit all",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kristian",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Mina",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Andersen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Science",
+            "volume": "371",
+            "issn": "6525",
+            "pages": "126--127",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Testing of asymptomatic individuals for fast feedback-control of covid-19 pandemic",
+            "authors": [
+                {
+                    "first": "Markus",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Peter",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christopher",
+                    "middle": [],
+                    "last": "Derlet",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gabriel",
+                    "middle": [],
+                    "last": "Mudry",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Aeppli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Physical biology",
+            "volume": "17",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Why only test symptomatic patients? consider random screening for covid-19",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "William",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Padula",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Optimal covid-19 quarantine and testing policies",
+            "authors": [
+                {
+                    "first": "Facundo",
+                    "middle": [],
+                    "last": "Piguillem",
+                    "suffix": ""
+                },
+                {
+                    "first": "Liyan",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Clustering for epidemics on networks: a geometric approach",
+            "authors": [
+                {
+                    "first": "Karel",
+                    "middle": [],
+                    "last": "Bastian Prasse",
+                    "suffix": ""
+                },
+                {
+                    "first": "Piet",
+                    "middle": [],
+                    "last": "Devriendt",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Van Mieghem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Chaos: An Interdisciplinary Journal of Nonlinear Science",
+            "volume": "31",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Weighted linear bandits for non-stationary environments",
+            "authors": [
+                {
+                    "first": "Yoan",
+                    "middle": [],
+                    "last": "Russac",
+                    "suffix": ""
+                },
+                {
+                    "first": "Claire",
+                    "middle": [],
+                    "last": "Vernade",
+                    "suffix": ""
+                },
+                {
+                    "first": "Olivier",
+                    "middle": [],
+                    "last": "Capp\u00e9",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1909.09146"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Introduction to multi-armed bandits",
+            "authors": [
+                {
+                    "first": "Aleksandrs",
+                    "middle": [],
+                    "last": "Slivkins",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1904.07272"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Multiple covid-19 clusters on a university campus-north carolina",
+            "authors": [
+                {
+                    "first": "Erica",
+                    "middle": [],
+                    "last": "Wilson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Catherine",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Donovan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Margaret",
+                    "middle": [],
+                    "last": "Campbell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thevy",
+                    "middle": [],
+                    "last": "Chai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kenneth",
+                    "middle": [],
+                    "last": "Pittman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arlene",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Se\u00f1a",
+                    "suffix": ""
+                },
+                {
+                    "first": "Audrey",
+                    "middle": [],
+                    "last": "Pettifor",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aditi",
+                    "middle": [],
+                    "last": "Weber",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anna",
+                    "middle": [],
+                    "last": "Mallick",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Cope",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Morbidity and Mortality Weekly Report",
+            "volume": "69",
+            "issn": "39",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Left: Effect of testing on the spread of the disease. The legend indicates how many tests were administered at each timestep. Right: The reduction in number of positive cases, plotted with 68% confidence intervals. For each budget, the simulation was run for 30 timesteps and repeated 30 times. Each region had a population of N = 1000, and c(0) and \u03b1 were randomly selected uniformly at random from {1, . . . , 20} and (0, 1) respectively, independently for each region. All experiments use \u03b2 = 0.001.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Population estimation as a function of the budget. Left: The dotted lines are the average true mean across 50 runs, while the fill captures the set of all estimates. Right: The difference between the true mean and the estimated mean. Both graphs use K = 10, 30 timesteps, and \u03b3 = 0.5.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "A Solving Equation (1) Let \u03a6(t) = t 0 \u03d5(z)dz be the total number of tests conducted in region r up to and including time t. The solution to Equation (1) is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "annex"
+        }
+    ]
+}

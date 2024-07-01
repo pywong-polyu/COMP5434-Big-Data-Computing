@@ -1,0 +1,1456 @@
+{
+    "paper_id": "ad7cc6a3b60d491ac2ab0a4b3ce18d40b3884426",
+    "metadata": {
+        "title": "A Random Line-Search Optimization Method via Modified Cholesky Decomposition for Non-linear Data Assimilation",
+        "authors": [
+            {
+                "first": "Elias",
+                "middle": [
+                    "D"
+                ],
+                "last": "Nino-Ruiz",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Applied Math and Computer Science Lab",
+                    "institution": "Universidad del Norte",
+                    "location": {
+                        "postCode": "0800001",
+                        "settlement": "Barranquilla",
+                        "country": "Colombia"
+                    }
+                },
+                "email": "enino@uninorte.edu.co"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "This paper proposes a line-search optimization method for non-linear data assimilation via random descent directions. The iterative method works as follows: at each iteration, quadratic approximations of the Three-Dimensional-Variational (3D-Var) cost function are built about current solutions. These approximations are employed to build sub-spaces onto which analysis increments can be estimated. We sample search-directions from those sub-spaces, and for each direction, a line-search optimization method is employed to estimate its optimal step length. Current solutions are updated based on directions along which the 3D-Var cost function decreases faster. We theoretically prove the global convergence of our proposed iterative method. Experimental tests are performed by using the Lorenz-96 model, and for reference, we employ a Maximum-Likelihood-Ensemble-Filter (MLEF) whose ensemble size doubles that of our implementation. The results reveal that, as the degree of observational operators increases, the use of additional directions can improve the accuracy of results in terms of 2-norm of errors, and even more, our numerical results outperform those of the employed MLEF implementation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Data Assimilation is the process by which imperfect numerical forecasts are adjusted according to real observations [1] . In sequential methods, a numerical forecast x b \u2208 R n\u00d71 is adjusted according to an array of observations y \u2208 R m\u00d71 where n and m are the number of model components and the number of observations, respectively. When Gaussian assumptions are made in prior and observational errors, the posterior mode x a \u2208 R n\u00d71 can be estimated via the minimization of the Three Dimensional Variational (3D-Var) cost function: where B \u2208 R n\u00d7n and R \u2208 R m\u00d7m are the background error and the data error covariance matrices, respectively. Likewise, H(x) : R n\u00d71 \u2192 R m\u00d71 is a (non-) linear observation operator which maps vector states to observation spaces. The solution to the optimization problem",
+            "cite_spans": [
+                {
+                    "start": 116,
+                    "end": 119,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "is immediate when H(x) is linear (i.e., closed-form expressions can be obtained to compute x a ) but, for non-linear observation operators, numerical optimization methods such as Newton's one must be employed [2] . However, since Newton's step is derived from a second-order Taylor polynomial, it can be too large with regard to the actual step size. Thus, line search methods can be employed to estimate optimal step lengths among Newton's method iterations. A DA method based on this idea is the Maximum-Likelihood-Ensemble-Filter (MLEF), which performs the assimilation step onto the ensemble space. However, the convergence of this method is not guaranteed (i.e., as the mismatch of gradients cannot be bounded), and even more, analysis increments can be impacted by sampling noise. We think that there is an opportunity to enhance line-search methods in the non-linear DA context by employing random descent directions onto which analysis increments can be estimated. Moreover, the analysis increments can be computed onto the model space to ensure global convergence. This paper is organized as follows: in Sect. 2, we discuss topics related to linear and non-linear data assimilation as well as line-search optimization methods. Section 3 proposes an ensemble Kalman filter implementation via random descent directions. In Sect. 4, experimental tests are performed to assess the accuracy of our proposed filter implementation by using the Lorenz 96 model. Conclusions of this research are stated in Sect. 5.",
+            "cite_spans": [
+                {
+                    "start": 209,
+                    "end": 212,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The Ensemble Kalman Filter (EnKF) is a sequential Monte-Carlo method for parameter and state estimation in highly non-linear models [3] . The popularity of the EnKF obeys to his simple formulation and relatively ease implementation. In the EnKF, an ensemble of model realizations is employed to estimate moments of the background error distribution [4] :",
+            "cite_spans": [
+                {
+                    "start": 132,
+                    "end": 135,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 349,
+                    "end": 352,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "\u2208 R n\u00d71 stands for the e-th ensemble member, for 1 \u2264 e \u2264 N , at time k, for 0 \u2264 k \u2264 M . Then, the ensemble mean:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "and the ensemble covariance matrix:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "act as estimates of the background state x b and the background error covariance matrix B, respectively, where the matrix of member deviations reads:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "Posterior members can be computed via the use synthetic observations:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "where the analysis increments can be obtained via the solution of the next linear system:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "and D s \u2208 R m\u00d7N is the innovation matrix on the synthetic observations whose e-th column reads R) . In practice, model dimensions range in the order of millions while ensemble sizes are constrained by the hundreds and as a direct consequence, sampling errors impact the quality of analysis increments. To counteract the effects of sampling noise, localizations methods are commonly employed [5] , in practice. In the EnKF based on a modified Cholesky decomposition (EnKF-MC) [6] the following estimator is employed to approximate the precision covariance matrix of the background error distribution [7] :",
+            "cite_spans": [
+                {
+                    "start": 391,
+                    "end": 394,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 475,
+                    "end": 478,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 599,
+                    "end": 602,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 95,
+                    "end": 97,
+                    "text": "R)",
+                    "ref_id": null
+                }
+            ],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "where the Cholesky factor L \u2208 R n\u00d7n is a lower triangular matrix,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "whose non-zero sub-diagonal elements \u03b2 i,v are obtained by fitting models of the form,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "where x T [i] \u2208 R N \u00d71 denotes the i-th row (model component) of the ensemble (3), components of vector \u03b3 i \u2208 R N \u00d71 are samples from a zero-mean Normal distribution with unknown variance \u03c3 2 , and D \u2208 R n\u00d7n is a diagonal matrix whose diagonal elements read,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "where var(\u2022) and var(\u2022) denote the actual and the empirical variances, respectively. The analysis equations can then be written as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "is an estimate of the posterior precision covariance matrix while the columns of matrix E \u2208 R n\u00d7N are formed by samples from a standard Normal distribution, L T \u2208 R n\u00d7n is a lower triangular matrix (with the same structure as L), and D \u22121 \u2208 R n\u00d7n is a diagonal matrix. Given the special structure of the left-hand side in (14), the direct inversion of the matrix L \u00b7 D \u22121/2 \u2208 R n\u00d7n can be avoided [8, Algorithm 1].",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Ensemble Kalman Filter"
+        },
+        {
+            "text": "To handle non-linear observation operators during assimilation steps, optimization based methods can be employed to estimate analysis increments. A well-known method in this context is the Maximum-Likelihood-Ensemble-Filter (MLEF) [9, 10] . This square-root filter employs the ensemble space to compute analysis increments, this is:",
+            "cite_spans": [
+                {
+                    "start": 231,
+                    "end": 234,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 235,
+                    "end": 238,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Maximum Likelihood Ensemble Filter (MLEF)"
+        },
+        {
+            "text": "which is nothing but a pseudo square-root approximation of B 1/2 . Thus, vector states can be written as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximum Likelihood Ensemble Filter (MLEF)"
+        },
+        {
+            "text": "where w \u2208 R N \u00d71 is a vector in redundant coordinates to be computed later. By replacing (16) in (1) one obtains:",
+            "cite_spans": [
+                {
+                    "start": 89,
+                    "end": 93,
+                    "text": "(16)",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Maximum Likelihood Ensemble Filter (MLEF)"
+        },
+        {
+            "text": "The optimization problem to solve reads:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximum Likelihood Ensemble Filter (MLEF)"
+        },
+        {
+            "text": "This problem can be numerically solved via Line-Search (LS) and/or Trust-Region methods. However, convergence is not ensured since gradient approximations are performed onto a reduce space whose dimension is much smaller than that of the model one.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximum Likelihood Ensemble Filter (MLEF)"
+        },
+        {
+            "text": "The solution of optimization problems of the form (2) can be approximated via Numerical Optimization. In this context, solutions are obtained via iterations:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "wherein k denotes iteration index, and \u0394s k \u2208 R n\u00d71 is a descent direction, for instance, the gradient descent direction [11] \u0394s",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 125,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "the Newton's step [12] ,",
+            "cite_spans": [
+                {
+                    "start": 18,
+                    "end": 22,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "or a quasi-Newton based method [13] ,",
+            "cite_spans": [
+                {
+                    "start": 31,
+                    "end": 35,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "where P k \u2208 R n\u00d7n is a positive definite matrix. A concise survey of Newton based methods can be consulted in [14] . Since step lengths in (20) are based on first or second order Taylor polynomials, the step size can be chosen via line search [15] and/or trust region [16] methods. Thus, we can ensure global convergence of optimization methods to stationary points of the cost function (1). This holds as long as some assumptions over functions, gradients, and (potentially) Hessians are preserved [17] . In the context of line search, the following assumptions are commonly done:",
+            "cite_spans": [
+                {
+                    "start": 110,
+                    "end": 114,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 139,
+                    "end": 143,
+                    "text": "(20)",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 243,
+                    "end": 247,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 268,
+                    "end": 272,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 499,
+                    "end": 503,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "There is a constant L such as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "where B is an open convex set which contains \u03a9 0 . These conditions together with iterates of the form,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "ensure global convergence [18] as long as \u03b1 is chosen as an (approximated) minimizer of",
+            "cite_spans": [
+                {
+                    "start": 26,
+                    "end": 30,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "In practice, rules for choosing step-size such as the Goldstein rule [19] , the Strong Wolfe rule [20] , and the Halving method [21] are employed to partially solve (22) . Moreover, soft computing methods can be employed for solving (22) [22] .",
+            "cite_spans": [
+                {
+                    "start": 69,
+                    "end": 73,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 98,
+                    "end": 102,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "(22)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "(22)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 238,
+                    "end": 242,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Line Search Optimization Methods"
+        },
+        {
+            "text": "In this section, we propose an iterative method to estimate the solution of the optimization problem (2) . We detail our filter derivation, and subsequently, we theoretically prove the convergence of our method.",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 104,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposed Method: An Ensemble Kalman Filter Implementation via Line-Search Optimization and Random Descent Directions"
+        },
+        {
+            "text": "Starting with the forecast ensemble (3), we compute an estimate B \u22121 of the precision covariance B \u22121 via modified Cholesky decomposition. Then, we perform an iterative process as follows: let",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "where K is the maximum number of iterations, we build a quadratic approximation of",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "and H k is the Jacobian of H(x) at x k . The gradient of (23a) reads:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "Readily, the Hessian of (23a) is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "and therefore, the Newton's step can be written as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "As we mentioned before, the step size (23c) is based on a quadratic approximation of J (x) and depending how highly non-linear is H(x), the direction (23c) can poorly estimate the analysis increments. Thus, we compute U random directions based on the Newton's one as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "where the matrices \u03a0 u \u2208 R n\u00d7n are symmetric positive definite and these are randomly formed with \u03a0 u = 1. We constraint the increments to the space spanned by the vectors (23d), this is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "where the u-th column of Q k \u2208 R n\u00d7U reads q u,k . Thus,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "where \u03b3 * \u2208 R U \u00d71 is estimated by solving the following optimization problem",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "To solve (23f), we proceed as follows: generate Z random vectors \u03b3 z \u2208 R U \u00d71 , for 1 \u2264 z \u2264 Z, with \u03b3 z = 1. We then, for each direction Q k \u00b7 \u03b3 z \u2208 R n\u00d71 , we solve the following one-dimensional optimization problem",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "and therefore, an estimate of the next iterate (23e) reads:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "where the pair (\u03b1 * k , \u03b3 k ) is chosen as the duple (\u03b1 * z , \u03b3 z ) which provide the best profit (minimum value) in (23g), for 1 \u2264 z \u2264 Z. The overall process detailed in equations (23) is repeated until some stopping criterion is satisfied (i.e., we let a maximum number of iterations K).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "Based on the iterations (23h), we estimate the analysis state as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "The inverse of the Hessian (23b) provides an estimate of the posterior error covariance matrix. Thus, posterior members (analysis ensemble) can be sampled as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "To efficiently perform the sampling process (25) the reader can consult [23] . Afterwards, the analysis members are propagated in time until a new observation is available. We name this formulation the Random Ensemble Kalman Filter (RAN-EnKF).",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 76,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Filter Derivation"
+        },
+        {
+            "text": "For proving the convergence of our method, we consider the assumptions C1, C2, and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Convergence of the Analysis Step in the RAN-EnKF"
+        },
+        {
+            "text": "The next Theorem states the necessary conditions in order to ensure global convergence of the analysis step in the RAN-EnKF.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Convergence of the Analysis Step in the RAN-EnKF"
+        },
+        {
+            "text": "holds.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. If (2.3), (2.3), and (26) hold, then the RSLS-RD with exact line search generates an infinite sequence {x"
+        },
+        {
+            "text": "Proof. By Taylor series and the Mean Value Theorem we know that,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. If (2.3), (2.3), and (26) hold, then the RSLS-RD with exact line search generates an infinite sequence {x"
+        },
+        {
+            "text": "and therefore,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. If (2.3), (2.3), and (26) hold, then the RSLS-RD with exact line search generates an infinite sequence {x"
+        },
+        {
+            "text": "for any x k+1 on the ray",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. If (2.3), (2.3), and (26) hold, then the RSLS-RD with exact line search generates an infinite sequence {x"
+        },
+        {
+            "text": "hence:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. If (2.3), (2.3), and (26) hold, then the RSLS-RD with exact line search generates an infinite sequence {x"
+        },
+        {
+            "text": "by the Cauchy Schwarz inequality we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. If (2.3), (2.3), and (26) hold, then the RSLS-RD with exact line search generates an infinite sequence {x"
+        },
+        {
+            "text": "is a monotone decreasing number sequence and it has a bound below, therefore {J (x k )} \u221e k=0 has a limit, and consequently (27) holds.",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 128,
+                    "text": "(27)",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "By (2.3), and (26), it follows that {J"
+        },
+        {
+            "text": "We are now ready to test our proposed method numerically.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "By (2.3), and (26), it follows that {J"
+        },
+        {
+            "text": "For the experiments, we consider non-linear observation operators, a current challenge in the context of DA [6, 24] . We make use of the Lorenz-96 model [25] as our surrogate model during the experiments. The Lorenz-96 model is described by the following set of ordinary differential equations [26] :",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 112,
+                    "end": 115,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 153,
+                    "end": 157,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 294,
+                    "end": 298,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "where F is external force and n = 40 is the number of model components. Periodic boundary conditions are assumed. When F = 8 units the model exhibits chaotic behavior, which makes it a relevant surrogate problem for atmospheric dynamics [27, 28] . A time unit in the Lorenz-96 represents 7 days in the atmosphere. We create the initial pool X b 0 of N = 10 4 members. The error statistics of observations are as follows:",
+            "cite_spans": [
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 242,
+                    "end": 245,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "where the standard deviations of observational errors o = 10 \u22122 . The components are randomly chosen at the different assimilation cycles. We use the non-smooth and non-linear observation operator [29] :",
+            "cite_spans": [
+                {
+                    "start": 197,
+                    "end": 201,
+                    "text": "[29]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "where j denotes the j-th observed component from the model state. Likewise, \u03b2 \u2208 {1, 3, 5, 7, 9}. Since the observation operator (29) is non-smooth, gradients of (1) are approximated by using the 2 -norm. A full observational network is available at assimilation steps. The ensemble size for the benchmarks is N = 20. These members are randomly chosen from the pool X b 0 for the different experiments in order to form the initial ensemble X b 0 for the assimilation window. Evidently, X b 0 \u2282 X b 0 . The 2 -norm of errors are utilized as a measure of accuracy at the assimilation step k,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "where x * and x k are the reference and current solution at iteration k, respectively. The initial background error, in average, reads b \u2248 31.73. By convenience, this value is expressed in the log scale: log( b ) = 3.45. We consider a single assimilation cycle for the experiments. We try sub-spaces of dimensions U \u2208 {10, 20, 30} and number of samples from those spaces of Z \u2208 {10, 30, 50}. We set a maximum number of iterations of 40. We compare our results with those obtained by the MLEF with N = 40, note that, the ensemble size in the MLEF doubles the ones employed by our method. We group the results in Figs. 1 and 2 by sub-space size and sample size (subspace dimension), respectively. As can be seen, the RAN-EnKF outperforms the MLEF in terms of 2 -norm of errors, for all cases. Note that the error differences between the compared filter implementations are given by order of magnitudes. This can be explained as follows: the MLEF method performs the assimilation step onto a space given by the ensemble size; this is equivalent to perform an assimilation process by using the sample covariance matrix (5) whose quality is impacted by sampling errors. Contrarily, in our formulation, we employ subspaces whose basis vectors rely on the precision covariance (9) and, therefore, the impact of sampling errors is mitigated during optimization steps. As the degree \u03b2 of the observation operator increases, the accuracy of the MLEF degrades, and consequently, this method diverges for the largest \u03b2 value. On the other hand, convergence is always achieved in the RAN-EnKF method; this should be expected based on the theoretical results of Theorem 1. It should be noted that, as the \u03b2 value increases, the 3D-Var cost function becomes highly non-linear, and as a consequence, more iterations are needed to decrease errors (as in any iterative optimization method). In general, it can be seen that as the number of samples Z increases, the results can be improved regardless of the sub-space dimension U (i.e., for Z = 10). However, it is clear that, for highly non-linear observation operators, it is better to have small sub-spaces and a large number of samples. ",
+            "cite_spans": [
+                {
+                    "start": 1270,
+                    "end": 1273,
+                    "text": "(9)",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "In this paper, we propose an ensemble Kalman filter implementation via linesearch optimization; we name it a Random Ensemble Kalman Filter (RAN-EnKF). The proposed method proceeds as follows: an ensemble of model realiza-tion is employed to estimate background moments, and then, quadratic approximations of the 3D-Var cost function are obtained among iterations via the linearization of the observation operator about current solutions. These approximations serve to estimate descent directions of the 3D-Var cost function, which are perturbed to obtain additional directions onto which analysis increments can be computed. We theoretically prove the global convergence of our optimization method. Experimental tests are performed by using the Lorenz 96 model and the Maximum-Likelihood-Ensemble-Filter formulation. The results reveal that the RAN-EnKF outperforms the MLEF in terms of 2 -norm of errors, and even more, it is able to achieve convergence in cases wherein the MLEF diverges.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "An adjoint-free fourdimensional variational data assimilation method via a modified Cholesky decomposition and an iterative Woodbury matrix formula",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nino-Ruiz",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Guzman-Reyes",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Beltran-Arrieta",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nonlinear Dyn",
+            "volume": "99",
+            "issn": "3",
+            "pages": "2441--2457",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Non-linear data assimilation via trust region optimization",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nino-Ruiz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Comput. Appl. Math",
+            "volume": "38",
+            "issn": "3",
+            "pages": "1--26",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s40314-019-0901-x"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "The ensemble Kalman filter: theoretical formulation and practical implementation",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Evensen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Ocean Dyn",
+            "volume": "53",
+            "issn": "4",
+            "pages": "343--367",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "A Bayesian adaptive ensemble Kalman filter for sequential state and parameter estimation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Stroud",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Katzfuss",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Wikle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Mon. Weather Rev",
+            "volume": "146",
+            "issn": "1",
+            "pages": "373--386",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Balance and ensemble Kalman filter localization techniques",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Greybush",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Kalnay",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Miyoshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ide",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Hunt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Mon. Weather Rev",
+            "volume": "139",
+            "issn": "2",
+            "pages": "511--522",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "An ensemble Kalman filter implementation based on modified Cholesky decomposition for inverse covariance matrix estimation",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nino-Ruiz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sandu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "SIAM J. Sci. Comput",
+            "volume": "40",
+            "issn": "2",
+            "pages": "867--886",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Regularized estimation of large covariance matrices",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bickel",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Levina",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Ann. Statist",
+            "volume": "36",
+            "issn": "1",
+            "pages": "199--227",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "A matrix-free posterior ensemble Kalman filter implementation based on a modified Cholesky decomposition",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Nino-Ruiz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Atmosphere",
+            "volume": "8",
+            "issn": "7",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Maximum likelihood ensemble filter: theoretical aspects",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zupanski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Mon. Weather Rev",
+            "volume": "133",
+            "issn": "6",
+            "pages": "1710--1726",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Model error estimation employing an ensemble data assimilation approach",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zupanski",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zupanski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Mon. Weather Rev",
+            "volume": "134",
+            "issn": "5",
+            "pages": "1337--1354",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "The steepest descent direction for the nonlinear bilevel programming problem",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Savard",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gauvin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "Oper. Res. Lett",
+            "volume": "15",
+            "issn": "5",
+            "pages": "265--272",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Newton's iteration for structured matrices",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Branham",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Rosholt",
+                    "suffix": ""
+                },
+                {
+                    "first": "A.-L",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Fast Reliable Algorithms for Matrices with Structure",
+            "volume": "",
+            "issn": "",
+            "pages": "189--210",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Updating Quasi-Newton matrices with limited storage",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Nocedal",
+                    "suffix": ""
+                }
+            ],
+            "year": 1980,
+            "venue": "Math. Comput",
+            "volume": "35",
+            "issn": "151",
+            "pages": "773--782",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Jacobian-free Newton-Krylov methods: a survey of approaches and applications",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Knoll",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Keyes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "J. Comput. Phys",
+            "volume": "193",
+            "issn": "2",
+            "pages": "357--397",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Line search algorithms for locally Lipschitz functions on Riemannian manifolds",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hosseini",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Yousefpour",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "SIAM J. Optim",
+            "volume": "28",
+            "issn": "1",
+            "pages": "596--619",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Trust region methods",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Conn",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "I M"
+                    ],
+                    "last": "Gould",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ph",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Toint",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Convergence of line search methods for unconstrained optimization",
+            "authors": [
+                {
+                    "first": "Z.-J",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Appl. Math. Comput",
+            "volume": "157",
+            "issn": "2",
+            "pages": "393--405",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "A matrix-free linesearch algorithm for nonconvex optimization",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Akrotirianakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yektamaram",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Griffin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Optim. Methods Softw",
+            "volume": "34",
+            "issn": "",
+            "pages": "1--24",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Newton's method and the Goldstein step-length rule for constrained minimization problems",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Dunn",
+                    "suffix": ""
+                }
+            ],
+            "year": 1980,
+            "venue": "SIAM J. Control Optim",
+            "volume": "18",
+            "issn": "6",
+            "pages": "659--674",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A nonlinear conjugate gradient method with a strong global convergence property",
+            "authors": [
+                {
+                    "first": "Y.-H",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "SIAM J. Optim",
+            "volume": "10",
+            "issn": "1",
+            "pages": "177--182",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Engineering Optimization: Methods and Applications",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ravindran",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Reklaitis",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ragsdell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Improved Tabu Search and Simulated Annealing methods for nonlinear data assimilation",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nino-Ruiz",
+                    "suffix": ""
+                },
+                {
+                    "first": "X.-S",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Appl. Soft Comput",
+            "volume": "83",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Efficient matrix-free ensemble Kalman filter implementations: accounting for localization",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nino-Ruiz",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Beltran-Arrieta",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Mancilla Herrera",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "A robust non-Gaussian data assimilation method for highly non-linear models",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nino-Ruiz",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Beltran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Atmosphere",
+            "volume": "9",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Testing for chaos in deterministic systems with noise. Phys. D Nonlinear Phenom",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Gottwald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Melbourne",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "212",
+            "issn": "",
+            "pages": "100--110",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Extensive chaos in the Lorenz-96 model",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Karimi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Paul",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Chaos Interdiscip. J. Nonlinear Sci",
+            "volume": "20",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Comparison of ensemble-MOS methods in the Lorenz'96 setting",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Wilks",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Meteorol. Appl",
+            "volume": "13",
+            "issn": "3",
+            "pages": "243--256",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "A comparative study of 4D-VAR and a 4D ensemble Kalman filter: perfect model simulations with Lorenz-96",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Fertig",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Harlim",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Hunt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Tellus A",
+            "volume": "59",
+            "issn": "1",
+            "pages": "96--100",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Springer Nature Switzerland AG 2020 V. V. Krzhizhanovskaya et al. (Eds.): ICCS 2020, LNCS 12141, pp. 189-202, 2020. https://doi.org/10.1007/978-3-030-50426-7_15",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "2-norm of errors in the log-scale for the 3D-Var Optimization Problem with different degrees \u03b2 of the observation operator and dimension of sub-spaces U . For the largest \u03b2 value, the MLEF diverges and therefore, its results are not reported. 2-norm of errors in the log-scale for the 3D-Var Optimization Problem with different degrees \u03b2 of the observation operator and number of samples Z. For the largest \u03b2 value, the MLEF diverges and therefore, its results are not reported.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Science Lab at Universidad del Norte in Barranquilla, Colombia.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgment. This work was supported by the Applied Math and Computer"
+        }
+    ]
+}

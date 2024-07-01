@@ -1,0 +1,2731 @@
+{
+    "paper_id": "9e2e5a060e2488274dafa4022bdd28f569081ebf",
+    "metadata": {
+        "title": "Training calibration-based counterfactual explainers for deep learning models in medical image analysis",
+        "authors": [
+            {
+                "first": "Jayaraman",
+                "middle": [
+                    "J"
+                ],
+                "last": "Thiagarajan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Lawrence Livermore National Labs",
+                    "location": {
+                        "postCode": "94550",
+                        "settlement": "Livermore",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Kowshik",
+                "middle": [],
+                "last": "Thopalli",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Geometric Media Lab",
+                    "institution": "Arizona State University",
+                    "location": {
+                        "postCode": "85281",
+                        "settlement": "Tempe",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Deepta",
+                "middle": [],
+                "last": "Rajan",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Pavan",
+                "middle": [],
+                "last": "Turaga",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Geometric Media Lab",
+                    "institution": "Arizona State University",
+                    "location": {
+                        "postCode": "85281",
+                        "settlement": "Tempe",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The rapid adoption of artificial intelligence methods in healthcare is coupled with the critical need for techniques to rigorously introspect models and thereby ensure that they behave reliably. This has led to the design of explainable AI techniques that uncover the relationships between discernible data signatures and model predictions. In this context, counterfactual explanations that synthesize small, interpretable changes to a given query while producing desired changes in model predictions have become popular. This under-constrained, inverse problem is vulnerable to introducing irrelevant feature manipulations, particularly when the model's predictions are not well-calibrated. Hence, in this paper, we propose the TraCE (training calibration-based explainers) technique, which utilizes a novel uncertainty-based interval calibration strategy for reliably synthesizing counterfactuals. Given the wide-spread adoption of machine-learned solutions in radiology, our study focuses on deep models used for identifying anomalies in chest X-ray images. Using rigorous empirical studies, we demonstrate the superiority of TraCE explanations over several state-of-the-art baseline approaches, in terms of several widely adopted evaluation metrics. Our findings show that TraCE can be used to obtain a holistic understanding of deep models by enabling progressive exploration of decision boundaries, to detect shortcuts, and to infer relationships between patient attributes and disease severity. OPEN www.nature.com/scientificreports/ boundaries, detecting shortcuts and inferring attribute relationships; and (4) empirical studies with a CXR-based modeling use-case and rigorous evaluation with respect to existing baselines. | (2022) 12:597 | https://doi.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "There is a growing interest in adopting artificial intelligence (AI) methods for critical decision-making, from diagnosing diseases to prescribing treatments and allocating resources, in healthcare [1] [2] [3] . However, in order to trust AI systems and to prioritize patient safety, it is imperative to ensure those methods are both accurate and reliable 4 . Examples of unreliable AI systems include a model that can produce highly confident predictions for patients presenting anomalies not seen in the training data, or a model accumulating evidence for a certain diagnosis based on uninformative regions in an image 5, 6 . This has strongly motivated the need to both reliably assess a model's confidence in its predictions [7] [8] [9] , and to enable rigorous introspection of its behavior 4,10-12 . To this end, uncertainty estimation methods are being adopted to determine the deficiencies of a model and/or the training data 13 . Meaningful uncertainties can play a crucial role in supporting practical objectives that range from assessing regimes of over (or under)-confidence and active data collection, to ultimately improving the predictive models themselves 14 . However, in practice, uncertainties are known to be challenging to communicate to decision-makers 15 , and the robustness of decisions with respect to uncertainties can vary considerably between use-cases 16 . Consequently, it could sometimes be more beneficial to implicitly leverage uncertainties when performing introspective analysis of machine-learned models.",
+            "cite_spans": [
+                {
+                    "start": 198,
+                    "end": 201,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 202,
+                    "end": 205,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 206,
+                    "end": 209,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 621,
+                    "end": 623,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 729,
+                    "end": 732,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 733,
+                    "end": 736,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 737,
+                    "end": 740,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Model introspection approaches that attempt to explain the input-output relationships inferred by models are routinely used to understand and promote trust in AI solutions. While there has been a large body of work on building inherently explainable models (e.g., rule based systems), post-hoc explanation methods have become the modus operandi with modern deep learning systems 17 . In particular, local explanation methods are very popular as they provide a convenient way for users to introspect by generating local explanations specific to a given input (e.g., health record of a patient)-elucidate what features in the input data maximally support the prediction. Broadly, local explanation methods can be categorized into approximation and example-based approaches. The former class of methods begin by sampling in the vicinity of a query example and fit an explainer to the chosen set of samples (e.g., fit a linear model in LIME 18 or extract rules in ANCHORS 19 ). In contrast, example-based methods synthesize data samples in the vicinity of a query, such that the predictions for those samples align with a user-specified hypothesis. The data samples from the latter approach are referred to as counterfactual explanations 20, 21 . While counterfactual explanations provide more flexibility over feature importance estimation methods, user-studies have also demonstrated that counterfactuals can elicit meaningful insights into the data 22 .",
+            "cite_spans": [
+                {
+                    "start": 1234,
+                    "end": 1237,
+                    "text": "20,",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "While it is common to utilize counterfactuals for causal reasoning, in the recent years, they have been found to be effective for scenario exploration even with predictive models 23, 24 . In its most generic form, for a given query x , one can pose counterfactual generation based on a predictive model F : X \u2192 Y as an optimization problem: where x is a counterfactual explanation for the query x (e.g., a medical image of a patient) and \u0233 is the userspecified hypothesis about x (e.g., a certain diagnosis). Minimizing a suitable discrepancy d(., .) between x and x ensures that the underlying semantic content of x is preserved in the counterfactual (i.e., vicinity). Another important requirement to produce meaningful counterfactuals is that the generated x should lie close to the original data manifold M(X). When no tractable priors exist for M(X), it is common to perform this optimization in the latent space of a pre-trained generative model (e.g., variational autoencoders (VAE) 25 or generative adversarial networks (GAN) 26 ). Despite the effectiveness of such priors, when the model's predictions F(x) are poorly calibrated, i.e., prediction confidences are not indicative of the actual likelihood of correctness 9,27 , the optimization in Eq. (1) can still lead to bad quality explanations. Though different variants of the formulation in Eq. (1) have been considered in the literature 20 , the fundamental challenge with uncalibrated predictions still persists. We propose to circumvent this challenge by integrating prediction uncertainties into the counterfactual generation process.",
+            "cite_spans": [
+                {
+                    "start": 179,
+                    "end": 182,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Proposed work. In this work, we propose TraCE (Training Calibration-based Explainers), an introspection method for deep medical imaging models, that effectively leverages uncertainties to generate meaningful counterfactual explanations for clinical image predictors. As illustrated in Fig. 1 , our framework is comprised of three key components: (1) an auto-encoding convolutional neural network to construct a low-dimensional, continuous latent space for the training data; (2) a predictive model that takes as input the latent representations and outputs the desired target attribute (e.g., diagnosis state, age etc.) along with its prediction uncertainty; and (3) a counterfactual optimization strategy that uses an uncertainty-based calibration objective to reliably elucidate the intricate relationships between image signatures and the target attribute. While our approach is flexible to support the use of any uncertainty estimator or prediction models that use explicit regularization to produce well-calibrated predictions, TraCE builds upon the recent Learn-by-Calibrating (LbC) technique 28 to obtain prediction intervals for both classification and regression settings. LbC jointly trains an auxiliary interval estimator alongside the predictor model using an interval calibration objective, and has been shown to be effective at recovering complex function mappings in scientific datasets. We first adapt LbC for multi-class classification problems and subsequently propose a counterfactual generation approach based on the estimated prediction intervals. When compared to interpretability techniques that provide saliency maps or feature importance scores to explain a specific decision 29 , TraCE enables progressive transition between different output states (e.g., normal \u2192 abnormal) through appropriate image manipulations and more importantly, allows optimization with both categorical-and continuous-valued target variables.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 285,
+                    "end": 291,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": ""
+        },
+        {
+            "text": "Our key contributions can be summarized as follows: (1) a new calibration-based optimization approach that takes into account prediction uncertainties; (2) a generalized version of the recent Learn-by-Calibrating technique for classification settings; (3) novel analysis based on TraCE for progressive exploration of decision Figure 1 . An overview of TraCE applied for introspective analysis of chest X-ray (CXR)-based predictive models. In this example, we consider a binary classifier that has been trained to distinguish between normal and abnormal subjects (i.e., containing pneumonia-related anomalies). Since TraCE carries out the optimization in the latent space of a pre-trained auto-encoder model, we first transform a query image x (from the normal class) into its latent representation Z using the Encoder. Subsequently, we invoke the proposed calibration-driven optimization to obtain the counterfactual x in the latent space, such that the semantic discrepancy between z and z is minimized and the classifier's prediction changes to abnormal. Note that, the classifier is trained to output the probabilities for each of the classes along with the prediction intervals. Finally, the synthesized counterfactual z is transformed into the image-space ( x ) using the Decoder network.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 326,
+                    "end": 334,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": ""
+        },
+        {
+            "text": "Results. While recent advances in ML such as deep learning have produced disruptive innovations in many fields, radiology is a prominent example. Conventionally, trained physicians visually assess medical images for characterization and monitoring of diseases. However, AI methods have been showed to be effective at automatically identifying complex signatures in imaging data and providing quantitative assessments of radiographic characteristics 30 . Motivated by this wide-spread adoption of AI tools in radiology [31] [32] [33] , our study focuses on detecting anomalies in chest X-ray (CXR) images. More specifically, we use images from the publicly available RSNA pneumonia detection challenge database (https:// www. kaggle. com/c/ rsna-pneum onia-detec tion-chall enge) in order to demonstrate the effectiveness of TraCE in performing introspective analysis. Given the diagnosis task of categorizing Chest X-ray (CXR) images into normal and abnormal groups (i.e., pneumonia-related anomalies), one can adopt a variety of ML solutions including deep neural networks to build classifiers. However, in practice, purely data-driven AI solutions can learn unintended shortcuts 34 (e.g., superficial correlations) instead of meaningful decision rules. Such models typically perform well on the observed data, including passing standard cross-validation tests, yet fail when deployed in the real-world 5, 6 . Hence, the foremost utility of TraCE is in validating that a predictive model has learned generalizable decision rules.",
+            "cite_spans": [
+                {
+                    "start": 518,
+                    "end": 522,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 523,
+                    "end": 527,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 528,
+                    "end": 532,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1404,
+                    "end": 1406,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "To this end, we use TraCE to progressively generate counterfactuals with different levels of likelihood in assigning a patient to the abnormal group. From our results, we find that using TraCE consistently produces highly meaningful counterfactual evidences, wherein severity of abnormality (e.g., pneumonia) is characterized primarily by changes in the lung opacity. More importantly, the image manipulations are highly concentrated in the chest region of the subject, thus showing that the models did not pick shortcut inductive biases (e.g., scanner-specific features or background image pixels). Using rigorous empirical studies, we also show that TraCE outperforms existing baseline methods, in terms of several widely adopted evaluation metrics in counterfactual reasoning. Furthermore, we find that TraCE can effectively detect shortcuts (or unintended biases) in trained models and infer relationships between different attributes (for example, age and diagnosis state), thus enabling a holistic understanding of deep clinical models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Uncertainty estimation. The growing interest in employing machine learning (ML) based solutions to design diagnostic tools and to gain new insights into a host of medical conditions strongly emphasizes the need for a rigorous characterization of ML algorithms. In conventional statistics, uncertainty quantification (UQ) provides this characterization by studying the impact of different error sources on the prediction [35] [36] [37] . Consequently, several recent efforts have proposed to utilize prediction uncertainties in deep models to shed light onto when and how much to trust the predictions [38] [39] [40] . Some of the most popular uncertainty estimation methods today include: (1) Bayesian neural networks 37,41 : (2) methods that use the discrepancy between different models as a proxy for uncertainty, such as deep ensembles 42 and Monte-Carlo dropout that approximates Bayesian posteriors on the weight-space of a model 38 ; and (3) approaches that use a single model to estimate uncertainties, such as orthonormal certificates 43 , deterministic uncertainty quantification 44 , distance awareness 45 , depth uncertainty 46 , direct epistemic uncertainty prediction 47 and accuracy versus uncertainty calibration 48 . Prediction calibration. It has been reported in several studies that deep predictive models need not be inherently well-calibrated 27 , i.e., the confidences of a model in its predictions are not correlated to its accuracy. While uncertainties can be directly leveraged for a variety of downstream tasks including out-of-distribution detection and sequential sample selection, they have also been utilized for guiding models to produce well-calibrated predictions. In practice, these requirements are incorporated as regularization strategies to systematically adjust the predictions during training, most often leading to better performing models. For example, uncertainties from Monte-Carlo dropout 49 and direct error prediction 50 have been used to perform confidence calibration in deep classifiers. Similarly, the recently proposed Learn-by-Calibrating (LbC) approach 28 introduced an interval calibration objective based on uncertainty estimates for training deep regression models.",
+            "cite_spans": [
+                {
+                    "start": 420,
+                    "end": 424,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 425,
+                    "end": 429,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 430,
+                    "end": 434,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 601,
+                    "end": 605,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 606,
+                    "end": 610,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 611,
+                    "end": 615,
+                    "text": "[40]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 1228,
+                    "end": 1232,
+                    "text": "48 .",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background and related work"
+        },
+        {
+            "text": "Counterfactual generation in predictive models. Counterfactual (CF) explanations 20 that synthesize small, interpretable changes to a given image while producing desired changes in model predictions to support user-specified hypotheses (e.g., progressive change in predictions) have recently become popular. An important requirement to produce meaningful counterfactuals is to produce discernible local perturbations (for easy interpretability) while being realistic (close to the underlying data manifold). Consequently, existing approaches rely extensively on pre-trained generative models to synthesize plausible counterfactuals 20, 21, [51] [52] [53] . While the proposed TraCE framework also utilizes a pre-trained generative model, it fundamentally differs from existing approaches by employing uncertainty-based calibration for counterfactual optimization.",
+            "cite_spans": [
+                {
+                    "start": 632,
+                    "end": 635,
+                    "text": "20,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 636,
+                    "end": 639,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 640,
+                    "end": 644,
+                    "text": "[51]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 645,
+                    "end": 649,
+                    "text": "[52]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 650,
+                    "end": 654,
+                    "text": "[53]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background and related work"
+        },
+        {
+            "text": "Data. Our analysis uses CXR images available as public benchmark data for the tasks of predicting the diagnostic state and other patient attributes. In particular, our study uses the RSNA pneumonia detection challenge database, which is a collection of 30,000 CXR exams belonging to the NIH CXR14 benchmark dataset 54 , of which 15,000 exams show evidence for lung opacities related to pneumonia, consolidation and infiltration, and 7500 exams contain no findings (referred as normal). The CXR images in the dataset were annotated by six board-certified radiologists and additional information on the data curation process can be found in Ref. 55 . In addition to the diagnostic labels, this dataset contains age and gender information of the subjects. Note that, for www.nature.com/scientificreports/ this analysis, we used healthy control subjects from the RSNA pneumonia dataset to define the normal group and designed predictive models to discriminate them from patients presenting pneumonia-related anomalies in their CXR scans. We refer to the latter as the abnormal group.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Evaluation metrics. We used the following metrics for a holistic evaluation of the counterfactual explanations obtained using TraCE and other baseline methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "(1) Validity For categorical attributes (as in classification problems), this metric measures the ratio of the counterfactuals that actually have the desired target attribute to the total number of counterfactuals generated (higher the better). In the case of continuous-valued attributes we measure the mean absolute percentage error (MAPE) between the desired and achieved target values (lower the better).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "where I denotes the identity function that returns 1 when the arguments match, and N is the total number of query samples used for evaluation. (2) Confidence In cases of categorical-valued targets (class labels), we compute the confidence P(\u0233 i |x i ; F) (from softmax probabilities) of assigning the desired class \u0233 i for a counterfactual x i (higher the better). (3) Sparsity Since we perform optimization directly in the latent space, measuring the amount of change in the images is a popular metric in the literature. We compute the sparsity metric as the ratio of the number of pixels altered to the total number of pixels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "and T denotes the total number of pixels in the query x . In general, sparser changes to an image are more likely to preserve the inherent characteristics of the query image. (4) Proximity Recent works have considered the actionability of modified features by grounding them in the training data distribution. Following 56 , we measure the average \u2113 2 distance of each counterfactual to the K-nearest training samples in the latent space (lower the better)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "where N K (x; X) denotes the set of K nearest neighbors of the counterfactual x from the training data X, and E denotes the encoder network (see \"Methods\" section for details) to compute the latent representation. (5) Realism score We also employ this metric from the generative modeling literature 57 to evaluate the quality of images obtained using TraCE. While standard metrics such as the FID (Frech\u00e9t Inception Distance) score or the precision/recall metrics are used to evaluate the overall quality of a population of generated images, they are not sufficient to assess individual images. Hence, we utilize the realism score introduced in Ref. 58 , which is high when the generated image is close to the true data manifold and decreases as the image moves further from the manifold. Denoting the feature vectors for the set of real images (used for training), obtained using a pre-trained classifier such as VGG-16, by the matrix r = [\u03c8 1 r , . . . , \u03c8 N r ] and a generated image by \u03c8 g , the realism score can be computed as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "where \u03c8 K r refers to the feature vector corresponding to the Kth nearest neighbor (w.r.t to r ) from the set N K (\u03c8 j r ; r ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Given the rapid adoption of AI solutions in diagnosis and prognosis, it is critical to gain insights into black-box predictive models. In this study, we analyzed a predictive model that classifies CXR images into normal and abnormal groups, and used TraCE to synthesize counterfactuals for a given query image from the normal class to visualize the progression of disease severity. Such an analysis can reveal what image signatures are introduced by a predictive model to provide evidence for the abnormal class, and can be used by practitioners to verify if the model relies on meaningful decision rules or shortcuts (e.g., changes to the background) that cannot generalize. In our implementation of TraCE, we first constructed a low-dimensional latent space (100 dimensions) for the dataset of CXR images using a Wasserstein auto-encoder 59 . We subsequently learned the predictive model F D along with the interval estimator G D , using a modified version of the LbC algorithm (details in the \"Methods\" section). The hyper-parameters \u03b7 1 and \u03b7 2 in Eq. (11) are critical to trade-off between preserving the inherent semantics from query x and achieving the desired prediction. Hence, one can progressively transition from the normal to the abnormal class by fixing \u03b7 2 and gradually relaxing \u03b7 1 . Figure 2 illustrates the counterfactuals obtained using TraCE for multiple different examples from our benchmark dataset. More specifically, the query samples x correspond to CXR images from the normal class and we varied \u03b7 1 between 0.5 and 0.05, while setting \u03b7 2 = 0.5 and \u03b7 3 = 0.2 . These values were obtained using a standard www.nature.com/scientificreports/ www.nature.com/scientificreports/ By producing physically plausible evidences for crucial hypotheses, TraCE enables practitioners to effectively explore complex decision boundaries learned by deep predictive models.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1301,
+                    "end": 1309,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "TraCE enables progressive exploration of decision boundaries."
+        },
+        {
+            "text": "Comparing TraCE to baseline methods. In order to perform a quantitative evaluation of TraCE, we obtained counterfactuals for 500 randomly chosen images from a held-out test set (not used for training) and Table 1 presents a detailed comparison of different baseline methods (see \"Methods\" section for details). Note that, we chose the hyper-parameters \u03b7 1 , \u03b7 2 , \u03b7 3 such that the average discrepancy in the latent space is similar across all methods. The first striking observation is that, despite using the same pre-trained latent space for counterfactual optimization, all methods that incorporate explicit calibration strategies or uncertainty estimation consistently outperform the Vanilla model. More specifically, for similar levels of discrepancy in the latent space, TraCE achieves a significantly higher validity score of 0.88 as opposed to 0.69 of the Vanilla model, while inducing similar or lower amount of changes to the query (indicated by the sparsity and proximity metrics). Furthermore, our approach outperforms the results obtained with state-of-the-art uncertainty estimators and calibration strategies (in all the metrics), thus demonstrating its efficacy in generating counterfactual explanations. As discussed earlier, TraCE is applicable for predictive models outputting both categorical-and continuousvalued target variables. To demonstrate this, we considered only healthy control subjects from the RSNA dataset and designed a regressor to estimate their age attribute using their CXR images. Though the age prediction task is not necessarily relevant on its own in clinical diagnosis, as we will show next, such attribute estimators can be utilized for inferring relationships to the diagnosis state. For our evaluation, we used 500 randomly chosen test subjects whose age attribute was between 40 and 70 and set the desired value \u0233 = 20 . From Table 2 , we notice that the proposed approach achieves lower validity (MAPE) scores, without compromising on the proximity metric, when compared to the other baselines. Interestingly, we find that changing the age attribute required the manipulation of much lesser number of pixels (low sparsity values) when compared to the diagnosis state.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 205,
+                    "end": 212,
+                    "text": "Table 1",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 1874,
+                    "end": 1881,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "TraCE enables progressive exploration of decision boundaries."
+        },
+        {
+            "text": "that they have the risk of inferring decision rules based on shortcuts, thereby limiting their utility in practice. Detecting such shortcuts is essential to both validate model behavior and to detect unintended biases (hospitalspecific or device-specific information) in the training data. In order to demonstrate the use of TraCE in detecting such shortcuts, we synthetically introduced a nuisance feature into images from the abnormal class-overlaid the text PNEUMONIA in the top-left corner of each image, and used TraCE to check if the model's decision was based on this nuisance feature. After training the Wasserstein autoencoder and the LbC model using the altered images, we selected query images from the normal group and generated the corresponding counterfactual evidences for the abnormal group. As illustrated in Fig. 3a- TraCE reveals attribute relationships. Motivated by the effectiveness of TraCE in producing counterfactuals for different types of target attributes, we next explored how counterfactual optimization can be used to study relationships between patient attributes, such as age and gender, and the diagnosis state. Note, this analysis is based on the assumption that the patient attribute can be directly estimated from the CXR images, and the inferred relationship does not necessarily imply causality.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 826,
+                    "end": 834,
+                    "text": "Fig. 3a-",
+                    "ref_id": null
+                }
+            ],
+            "section": "TraCE detects shortcuts in deep models. An important challenge with purely data-driven methods is"
+        },
+        {
+            "text": "First, we study if the image signatures pertinent to the patient age attribute provides additional evidence for diagnosis state prediction. Given the age predictor, along with its interval estimator, (F A , G A ) and the diagnosis predictor (F D , G D ) , we constructed counterfactuals based on two independent hypotheses. Note, both predictors were constructed based on the same low-dimensional latent representations. More specifically, we provided the hypotheses \u0233 A = 70 and \u0233 D = abnormal for the two cases, and used TraCE to generate counterfactuals x A and x D that adhere to our hypotheses. We then estimated the age-specific and diagnosis-specific signatures introduced by TraCE:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TraCE detects shortcuts in deep models. An important challenge with purely data-driven methods is"
+        },
+        {
+            "text": "In order to check if there exists an apparent relationship between age and diagnosis state, we generated the hybrid counterfactual, Finally, we compared F D (x) \u2212 F D (x D ) to quantify if incorporating age-specific features into x D increased the disease severity (i.e., likelihood of being assigned to the abnormal class). An overview of this strategy is illustrated in Fig. 4 . Figure 5 shows the results for eight different normal subjects, wherein we find that there is an apparent increase in P(state = abnormal) when age-specific signatures are incorporated. Using 500 randomly chosen normal subjects, we estimated an average change of 0.09 \u00b1 0.08 in F D (x) \u2212 F D (x D ) , thus indicating that the diagnosis predictor is sensitive to age-specific patterns. In practice, if such a relationship is expected, it is a strong validation for the model's behavior. On the other hand, if the attribute is a confounding variable, it becomes critical to retrain the model wherein this sensitivity is explicitly discouraged. Interestingly, when we repeated this analysis with the gender attribute, such a relationship was not apparent (see results in Fig. 6 ). ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 372,
+                    "end": 378,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 381,
+                    "end": 389,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 1148,
+                    "end": 1154,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "TraCE detects shortcuts in deep models. An important challenge with purely data-driven methods is"
+        },
+        {
+            "text": "In this section, we discuss in detail the methodology for performing calibration-driven counterfactual generation. All the methods presented were performed in accordance with the relevant guidelines and regulations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": "Constructing low-dimensional latent spaces. Given a set of samples from an unknown data distribution, our goal is to build a low-dimensional, continuous latent space that respects the true distribution, so that one can generate counterfactual representations in that space. A large class of generative modeling methods exist to construct such a latent space. In this work, we focus on Wasserstein autoencoders 59 since they have been found to outperform other variational autoencoder formulations, particularly in image datasets with low heterogeneity, e.g., scientific images from physics simulations 60 . This network is a composition of an encoder network E that transforms the input x into its latent code z , and a decoder network D that reconstructs the image. Additionally the encoder has the objective of matching the latent distribution of the training samples E P X [E(z | x)] to a pre-specified prior P Z . This helps us to sample from the prior as well as generate new unseen samples from the original data manifold M(X) after training such auto-encoding models. Wasserstein autoencoders thus have to minimize: (1) discrepancy cost D x between the original data distribution and the generated; (2) discrepancy cost D z between the latent distribution of the encoded training samples to that of a prior. Following standard WAE consturction, we employ the mean squared error (MSE) for D x and use the maximum mean discrepancy (MMD) to define D z . As shown in Fig. 7a , we also find that including another loss term to maximize the structural similarity (SSIM) 61 between the original and reconstructed images led to higher quality reconstructions.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1470,
+                    "end": 1477,
+                    "text": "Fig. 7a",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Methods"
+        },
+        {
+            "text": "Training. All images were resized to 224 \u00d7 224 pixels, and treated as single channel images. With the latent space dimensionality fixed at 100, the encoder model was comprised of 4 convolutional layers, with the number of filters set to [16, 32, 64, 32] , followed by two fully connected layers with hidden units as 512 and 100. All convolutional layers used the kernel size (3, 3) and stride 2. The decoder consisted of two fully connected layers with 512 and 6272 hidden units followed by 4 transposed convolutional layers with channels [64, 32, 16, 1] respectively. ReLU non-linear activation was applied after every layer except for the last layer. We trained the models using the Adam 63 optimizer for 150 epochs with an initial learning rate of 1e \u2212 3 and decreased it by factors 2, 5, 10 after 30, 50 and 100 epochs respectively. The three loss functions were assigned the weights [1, 0.5, 0] for the first 20 epochs and subsequently changed to [1, 0.1, 1] respectively until convergence.",
+            "cite_spans": [
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 242,
+                    "end": 245,
+                    "text": "32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 246,
+                    "end": 249,
+                    "text": "64,",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 250,
+                    "end": 253,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 539,
+                    "end": 543,
+                    "text": "[64,",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 544,
+                    "end": 547,
+                    "text": "32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 548,
+                    "end": 551,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 552,
+                    "end": 554,
+                    "text": "1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": "Predictive model design using LbC. While conventional metrics such as cross entropy (for categorical-valued outputs) and mean squared error (for continuous-valued outputs) are commonly used, it has been recently found that interval calibration is effective for obtaining accurate and well-calibrated predictive models 28 . Hence, in TraCE, we adapt the Learn-by-Calibrating approach to train classifier (or regression) models that map from the CXR latent space to a desired target variable. By design, LbC provides prediction intervals in lieu of point estimates for the response y , i.e., [\u0177 \u2212 \u03b4,\u0177 + \u03b4] . Here, \u03b4 is used to define the interval. Suppose that the likelihood for the true response y to be contained in the prediction interval is p(\u0177 \u2212 \u03b4 \u2264 y \u2264\u0177 + \u03b4) , the intervals are www.nature.com/scientificreports/ considered to be well-calibrated if the likelihood matches the expected confidence level. For a confidence level \u03b1 , we expect the interval to contain the true response for 100 \u00d7 \u03b1% of realizations from p(x).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": "Algorithm. The model is comprised of two modules F and G , implemented as neural networks, to produce estimates \u0177 = F(z) and \u03b4 = G(z) respectively. For example, in the case of multi-class classification settings, \u0177 \u2208 R K is a vector of predicted logits for the K different classes. Since interval calibration is defined for continuous-valued targets, we adapt the loss function for training on the logits directly. To this end, we first transform the ground truth labels into logits. Note, for each sample, we allow a small non-zero probability (say 0.01) to all negative classes. As discussed earlier, suppose that the likelihood for the true y[k], k \u2208 (1, . . . , K) to be contained in the interval is p(\u0177",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": ", the intervals are considered to be well-calibrated if the likelihood matches the confidence level. Denoting the parameters of the models F and G by \u03b8 and \u03c6 respectively, we use an alternating optimization strategy similar to 28 . In order to update \u03c6 , we use the empirical interval calibration error as the objective:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": "where \u03b4 i = G(z i ; \u03c6) , and the desired confidence level \u03b1 (set to 0.9 in our experiments) is an input to the algorithm. When updating the parameters \u03c6 , we assume that the estimator F(.; \u03b8) is known and fixed. Now, given the updated \u03c6 , we learn the parameters \u03b8 using the following hinge-loss objective: Figure 3 . Using TraCE to detect shortcuts in deep predictive models. In this experiment, we synthetically introduced a nuisance feature (overlaid the text PNEUMONIA in the top-left corner) into all images from the abnormal group, and used this data to train the predictive model. Given the entirely data-driven nature of machine-learned solutions, there is risk of inferring a decision rule based on this irrelevant feature in order to discriminate between normal and abnormal groups. (a-d) Here, we used randomly chosen query images from the normal class and generated counterfactuals for the abnormal class. In each case, we show the query image, the counterfactual explanation from TraCE and the absolute difference image between the two; (e, f) Here, we introduced the nuisance feature into CXR images from the abnormal group and synthesized counterfactuals for the normal class. We observe that TraCE can effectively detect such shortcuts-counterfactuals for changing the diagnosis state are predominantly based on manipulating the text on the top-left corner of the query images. www.nature.com/scientificreports/ Figure 4 . Using TraCE to infer relationships between a patient attribute (e.g., age) and disease states. For this analysis, we construct two independent predictive models, i.e., age and diagnosis state, and synthesize counterfactuals based on hypothesis on each of the predictions (e.g., patient age should be predicted as 70 while the diagnosis state should be abnormal. Finally, we combine the changes induced in the two counterfactuals, \ufffd A (x) and \ufffd D (x) respectively, and check if incorporating age-specific patterns strengthens the evidence for the abnormal class. Figure 5 . (a-h) Explanations generated using TraCE by introducing age-specific attributes into the counterfactuals synthesized for changing the diagnosis state of a normal subject to be abnormal. Interestingly, we find that there exists a correlation between the two attributes, as evidenced by the consistent increase in the likelihood P(state = abnormal) when compared to counterfactuals that rely only on patterns from the diagnosis state predictor. In each case, we highlight the changes \ufffd A (x), \ufffd D (x), (\ufffd A (x) + \ufffd D (x)) and display the likelihood P(state = abnormal). www.nature.com/scientificreports/ where \u0177 i = F(z i ; \u03b8) and \u03c4 is the margin parameter (set to 0.05 in our experiments). Intuitively, for a fixed \u03c6 , obtaining improved estimates for \u0177 can increase the empirical calibration error in (8) by achieving higher likelihoods even for lower confidence levels. However, in the subsequent step of updating \u03c6 , we expect \u03b4 's to become sharper in order to reduce the calibration error. We repeat the two steps (Eqs. 8 and 9) until convergence.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 307,
+                    "end": 315,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1428,
+                    "end": 1436,
+                    "text": "Figure 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 2001,
+                    "end": 2009,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Methods"
+        },
+        {
+            "text": "Architecture. As showed in Fig. 7b ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 27,
+                    "end": 34,
+                    "text": "Fig. 7b",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Methods"
+        },
+        {
+            "text": "Eq. (1) using the pre-trained predictor and interval estimator models from LbC. Our goal is to generate explanations to support a given hypothesis on the target variable-for example emulating high-confidence disease states given the CXR of a healthy subject. To this end, we first obtain the latent representation for the given query image x using the encoder, z = E(x) . We then use the pre-trained predictor ( F ) and interval estimator ( G ) models to (9) \u03b8 * = arg min 59 , and construct a low-dimensional, continuous latent space for CXR images. Note, we used a combination of maximum mean discrepancy (MMD), mean squared error (MSE) and structural similarity (SSIM) losses to train the network parameters; (b) next, we adapt the Learn-by-Calibrating 62 approach to train a classifier that takes as input the latent representation from the encoder and outputs a patient-specific attribute along with prediction intervals. www.nature.com/scientificreports/ generate the counterfactual z . Finally, the generated counterfactuals in the latent space are passed to the decoder to obtain a reconstruction in the image space, x = D(z) . We propose the following optimization to generate the counterfactual explanations:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "here, \u0233 is the desired value for the target attribute (hypothesis), \u03b7 1 , \u03b7 2 , \u03b7 3 are hyper-parameters for weighting the different terms, and . 2 denotes the \u2113 2 norm. The first term ensures that the generated counterfactual is in the vicinity of the query sample x (in the latent space). The second term ensures that the expected target value is contained in the prediction interval (calibration), while the final term penalizes arbitrarily large intervals to avoid trivial solutions. The calibration objective L is implemented as a hinge-loss term:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "where the margin was fixed at \u03c4 = 0.05 . Choosing \u03b7 1 , \u03b7 2 , \u03b7 3 is essential to controlling the discrepancy between z and z , and ensuring that the prediction for the counterfactual is \u0233.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "Baselines. We considered a suite of baseline approaches for our empirical study and they differ by the strategies used for training the classifier, and counterfactual optimization. In particular, we investigate approaches that produce explicit uncertainty estimators as well as those that directly build well-calibrated predictors. However, note that, all methods perform their optimization in the same latent space.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "(1) Vanilla In this approach, we train the classifier with no explicit calibration or uncertainty estimation, and use the following formulation to generate the counterfactuals:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "where L ce denotes the cross entropy loss. (2) Mixup This is a popular augmentation strategy 64 that convexly combines random pairs of images and their labels, in order to temper overconfidence in predictions. Recently, in Ref. 65 , it was found that mixup regularization led to improved calibration in the resulting model. In mixup, the model is trained not only on the training data, but also using samples in the vicinity of each training sample:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "where x i and x j are randomly chosen samples with labels y i and y j . The parameter , drawn from a symmetric Beta distribution, determines the mixing ratio. Since this approach does not produce any uncertainty estimation, the counterfactual optimization is same as that of the Vanilla approach in Eq. (12). (3) MC dropout In this baseline, we train the classifier with dropout regularization and estimate the (epistemic) prediction uncertainty for any test sample by running multiple forward passes. Finally, we use the following heteroscedastic regression objective to implement uncertainty-based calibration during counterfactual optimization:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "Note, similar to the proposed approach, here we operate directly on the logits and the mean/variance estimates ( \u00b5\u02c6z, \u03c3 2 z ) are obtained using T (set to 5) forward passes with dropout. (4) Deep ensembles Deep ensembles form an important class of uncertainty estimation methods, wherein the model variance is used as a proxy for uncertainties. In this approach, we independently train M different models (with bootstrapping and different model initializations) with the same architecture. Subsequently, for any input sample x , we obtain the mean/variance estimates ( \u00b5\u02c6z, \u03c3 2 z ) by aggregating predictions from the M models. Finally, we employ the calibration objective in Eq. (14) to perform counterfactual optimization. While highly accurate and currently one of the best uncertainty estimation techniques, deep ensembles require training multiple models, which can become a computational bottleneck when training deep networks. (5) Uncertainty-Weighted confidence calibration (UWCC) The authors in Ref. 49 proposed to build calibrated classification models by augmenting a confidence-calibration term to the standard cross-entropy loss and weighting the two terms using the uncertainty measured via multiple stochastic inferences. Mathematically, here the first term denotes the cross-entropy loss, and the predictions P(\u0177 i |z i ) are inferred using stochastic inferences for z i , while the variance ( \u03b1 i ) in the predictions is used to balance the loss terms. More specifically, we perform T forward passes with dropout in the network and promote the softmax probabilities to be closer to an uniform distribution, i.e. high uncertainty, when the variance is large. The normalized variance \u03b1 i is given by the mean of the Bhattacharyya coefficients between each of the T predictions and the mean prediction. Since the model is inherently calibrated during training, we do not measure the (10) z = arg min z \u03b7 1 \ufffdz \u2212\u1e91\ufffd 2 2 + \u03b7 2 L(\u0177, \u03b4,\u0233) + \u03b7 3 \u03b4, where\u0177 = F(\u1e91), \u03b4 = G(\u1e91) (11) L(\u0177, \u03b4,\u0233) = max 0, (\u0177 \u2212 \u03b4) \u2212\u0233 + \u03c4 + max 0,\u0233 \u2212 (\u0177 + \u03b4) + \u03c4 , (12) z = arg min z \u03b7 1 \ufffdz \u2212\u1e91\ufffd 2 2 + \u03b7 2 L ce F(\u1e91),\u0233 , www.nature.com/scientificreports/ uncertainties at test time and hence use the optimization in Eq. (12) for generating counterfactuals. For the case of continuous-valued targets (i.e., regression tasks), we utilize the extension in Ref. 66 that performs heteroscedastic calibration of the MC dropout estimator during training.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Uncertainty-aware counterfactual generation. CE modifies the counterfactual generation process in"
+        },
+        {
+            "text": "All datasets used in this were obtained from publicly released databases and pre-processed using open-source tool chains. We have added appropriate links to obtain the data as well as access the scripts for pre-processing, wherever applicable.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data availability"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Deep learning for healthcare applications based on physiological signals: A review",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Faust",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hagiwara",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Lih",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Acharya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Comput. Methods Programs Biomed",
+            "volume": "161",
+            "issn": "",
+            "pages": "1--13",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Machine learning for medical diagnosis: history, state of the art and perspective",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Kononenko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Artif. Intell. Med",
+            "volume": "23",
+            "issn": "",
+            "pages": "89--109",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Deep learning for healthcare: review, opportunities and challenges",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Miotto",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Dudley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Brief. Bioinform",
+            "volume": "19",
+            "issn": "",
+            "pages": "1236--1246",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Opportunities and obstacles for deep learning in biology and medicine",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ching",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "J. R. Soc. Interface",
+            "volume": "15",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Common pitfalls and recommendations for using machine learning to detect and prognosticate for COVID-19 using chest radiographs and CT scans",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Nat. Mach. Intell",
+            "volume": "3",
+            "issn": "",
+            "pages": "199--217",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Prediction models for diagnosis and prognosis of COVID-19: Systematic review and critical appraisal",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wynants",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "BMJ",
+            "volume": "369",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "On calibration of modern neural networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Pleiss",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 34th Int. Conf",
+            "volume": "70",
+            "issn": "",
+            "pages": "1321--1330",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Leveraging uncertainty information from deep neural networks for disease detection",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Leibig",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Allken",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Ayhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Berens",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wahl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Sci. Rep",
+            "volume": "7",
+            "issn": "",
+            "pages": "1--14",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Improving reliability of clinical models using prediction calibration",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Venkatesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sattigeri",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Arbel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Uncertainty for Safe Utilization of Machine Learning in Medical Imaging, and Graphs in Biomedical Image Analysis",
+            "volume": "",
+            "issn": "",
+            "pages": "71--80",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Who wants accurate models? arguing for a different metrics to take classification models seriously",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Cabitza",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Campagner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1910.09246"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "What clinicians want: contextualizing explainable machine learning for clinical end use",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Tonekaboni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Mccradden",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Goldenberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1905.05134"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Understanding behavior of clinical models under domain shifts",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sattigeri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1809.07806"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "A survey of uncertainty in deep neural networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gawlikowski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2107.03342"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Building calibrated deep models via uncertainty matching with auxiliary interval predictors",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Venkatesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sattigeri",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-T",
+                    "middle": [],
+                    "last": "Bremer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Second opinion needed: Communicating uncertainty in medical machine learning",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Kompa",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Snoek",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Beam",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "NPJ Digital Med",
+            "volume": "4",
+            "issn": "",
+            "pages": "1--6",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "The negative consequences of failing to communicate uncertainties during a pandemic: The case of COVID-19 vaccines",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Batteux",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Avri",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tuckett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Explainable AI: Interpreting, Explaining and Visualizing Deep Learning",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Samek",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Montavon",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vedaldi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Hansen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K.-R",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "11700",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Why should I trust you?\": Explaining the predictions of any classifier",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Guestrin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1135--1144",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Anchors: High-precision model-agnostic explanations",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Guestrin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+            "volume": "32",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Counterfactual explanations for machine learning: A review",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Verma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dickerson",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hines",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2010.10596"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Explanation by progressive exaggeration",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singla",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pollack",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Batmanghelich",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Counterfactuals in explainable artificial intelligence (XAI): Evidence from human reasoning",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Byrne",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IJCAI",
+            "volume": "",
+            "issn": "",
+            "pages": "6276--6282",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Gifsplanation via latent shift: A simple autoencoder approach to counterfactual generation for chest X-rays",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Cohen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of Med. Imaging Deep Learn",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Using deep image priors to generate counterfactual explanations",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Narayanaswamy",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Spanias",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)",
+            "volume": "",
+            "issn": "",
+            "pages": "2770--2774",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Auto-encoding variational bayes",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "2nd International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Generative adversarial nets",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Adv. Neural Inf. Process. Syst",
+            "volume": "27",
+            "issn": "",
+            "pages": "2672--2680",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Accurate uncertainties for deep learning using calibrated regression",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Kuleshov",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fenner",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ermon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1807.00263"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Designing accurate emulators for scientific processes using calibration-driven deep models",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nat. Commun",
+            "volume": "11",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Grad-cam: Visual explanations from deep networks via gradient-based localization",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Selvaraju",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the IEEE international conference on computer vision",
+            "volume": "",
+            "issn": "",
+            "pages": "618--626",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Artificial intelligence in radiology",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hosny",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Parmar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Quackenbush",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Schwartz",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Aerts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Nat. Rev. Cancer",
+            "volume": "18",
+            "issn": "",
+            "pages": "500--510",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "COVID-19 identification in chest X-ray images on flat and hierarchical classification scenarios",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Pereira",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bertolini",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Teixeira",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Silla",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Costa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Comput. Methods Programs Biomed",
+            "volume": "194",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Identification of COVID-19 samples from chest X-ray images using deep learning: A comparison of transfer learning approaches",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Rahaman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "J. X-ray Sci. Technol",
+            "volume": "28",
+            "issn": "",
+            "pages": "1--19",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Som-lwl method for identification of COVID-19 on chest X-rays",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Osman",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Aljahdali",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Altarrazi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ahmed",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "PloS One",
+            "volume": "16",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Shortcut learning in deep neural networks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Geirhos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nat. Mach. Intell",
+            "volume": "2",
+            "issn": "",
+            "pages": "665--673",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Uncertainty Quantification: Theory, Implementation, and Applications",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Practical confidence and prediction intervals",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Heskes",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Adv. Neural Inf. Process. Syst",
+            "volume": "10",
+            "issn": "",
+            "pages": "176--182",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "What uncertainties do we need in Bayesian deep learning for computer vision?",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kendall",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Adv. Neural Inf. Process. Syst",
+            "volume": "30",
+            "issn": "",
+            "pages": "5574--5584",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Dropout as a Bayesian approximation: Representing model uncertainty in deep learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ghahramani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1050--1059",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Simple and scalable predictive uncertainty estimation using deep ensembles",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Lakshminarayanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pritzel",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Blundell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Adv. Neural Inf. Process. Syst",
+            "volume": "30",
+            "issn": "",
+            "pages": "6402--6413",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Understanding deep neural networks through input uncertainties",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Anirudh",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-T",
+                    "middle": [],
+                    "last": "Bremer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)",
+            "volume": "",
+            "issn": "",
+            "pages": "2812--2816",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Weight uncertainty in neural network",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Blundell",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Cornebise",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kavukcuoglu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wierstra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1613--1622",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Simple and scalable predictive uncertainty estimation using deep ensembles",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Lakshminarayanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pritzel",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Blundell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1612.01474"
+                ]
+            }
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Single-model uncertainties for deep learning",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tagasovska",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lopez-Paz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1811.00908"
+                ]
+            }
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Uncertainty estimation using a single deep deterministic neural network",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Van Amersfoort",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Teh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "9690--9700",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Simple and principled uncertainty estimation with deterministic deep learning via distance awareness",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2006.10108"
+                ]
+            }
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Depth uncertainty in neural networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Antor\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "U"
+                    ],
+                    "last": "Allingham",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hern\u00e1ndez-Lobato",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2006.08437"
+                ]
+            }
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Direct epistemic uncertainty prediction",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2102.08501"
+                ]
+            }
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Improving model calibration with accuracy versus uncertainty optimization",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Krishnan",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Tickoo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2012.07923"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Learning for single-shot confidence calibration in deep neural networks through stochastic inferences",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Seo",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Seo",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "9030--9038",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Accurate and robust feature importance estimation under distribution shifts",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Narayanaswamy",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Anirudh",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-T",
+                    "middle": [],
+                    "last": "Bremer",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Spanias",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proc. AAAI Conf",
+            "volume": "35",
+            "issn": "",
+            "pages": "7891--7898",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Interpretable counterfactual explanations guided by prototypes",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Van Looveren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Klaise",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1907.02584"
+                ]
+            }
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Explanations based on the missing: Towards contrastive explanations with pertinent negatives",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Dhurandhar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1802.07623"
+                ]
+            }
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Counterfactual visual explanations",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "2376--2384",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Hospital-scale chest X-ray database and benchmarks on weakly-supervised classification and localization of common thorax diseases",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Pneumonia dataset annotation methods",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Multi-objective counterfactual explanations. in Parallel Problem Solving from Nature-PPSN XVI",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dandl",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Molnar",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Binder",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Bischl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "448--469",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Assessing generative models via precision and recall",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Sajjadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bachem",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lucic",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bousquet",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gelly",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 32nd International Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "5234--5243",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Improved precision and recall metric for assessing generative models",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kynk\u00e4\u00e4nniemi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Karras",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Laine",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lehtinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Aila",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Adv. Neural Inf. Process. Syst",
+            "volume": "32",
+            "issn": "",
+            "pages": "3927--3936",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Wasserstein auto-encoders",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Tolstikhin",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bousquet",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gelly",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Sch\u00f6lkopf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "6th International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Improved surrogates in inertial confinement fusion with manifold and cycle consistencies",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Anirudh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-T",
+                    "middle": [],
+                    "last": "Bremer",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Spears",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. Natl. Acad. Sci",
+            "volume": "117",
+            "issn": "",
+            "pages": "9741--9746",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Image quality assessment: From error visibility to structural similarity",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Bovik",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Sheikh",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Simoncelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "IEEE Trans. Image Process",
+            "volume": "13",
+            "issn": "",
+            "pages": "600--612",
+            "other_ids": {}
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Learn-by-calibrating: Using calibration as a training objective",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Venkatesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rajan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE International Conference on Acoustics, Speech and Signal Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "A method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Adam",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "3rd International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "Mixup: Beyond empirical risk minimization",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cisse",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Dauphin",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lopez-Paz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "On mixup training: Improved calibration and predictive uncertainty for deep neural networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Thulasidasan",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Chennupati",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Bilmes",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Bhattacharya",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Michalak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Adv. Neural Inf. Process. Syst",
+            "volume": "",
+            "issn": "",
+            "pages": "13888--13899",
+            "other_ids": {}
+        },
+        "BIBREF66": {
+            "ref_id": "b66",
+            "title": "Heteroscedastic calibration of uncertainty estimators in deep learning",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Venkatesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Thiagarajan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1910.14179"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(a-g) Diagnosis-based counterfactual explanations generated using TraCE by progressively introducing relevant patterns into different query images (first image in each row) of healthy subjects to increase the likelihood of being assigned to the abnormal group ( P(state = abnormal) ). (h-n) Diagnosis-based counterfactual explanations generated using TraCE by progressively introducing relevant patterns into different query images (first image in each row) of healthy subjects to increase the likelihood of being assigned to the abnormal group ( P(state = abnormal)).Scientific Reports | (2022) 12:597 | https://doi.org/10.1038/s41598-021-04529-5 www.nature.com/scientificreports/ hyper-parameter search based on 500 randomly chosen images. For each case fromFig. 2, the different counterfactuals along with their estimated P(state = abnormal) from the predictive model F D are shown. It can be clearly observed from the results that the counterfactuals show increased opacity in the lung regions (appearing as denser white clouds) as we progress towards the abnormal class, which strongly corroborates with existing studies on CXR-based image analysis. Furthermore, TraCE does not arbitrarily introduce irrelevant features into the image or make anatomical changes, thereby reliably preserving the inherent characteristics of the subject.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "(",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "d, TraCE exclusively manipulates the top-left corner to accumulate evidence for abnormality, thus revealing that the predictive model relies on the nuisance feature. Similarly, in Fig. 3e-h, one can transition from the abnormal (examples containing the nuisance feature) to the normal group by simply removing the synthetic text PNEUMONIA. This experiment clearly emphasizes the utility of TraCE in detecting model and data biases.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "(a-d) Explanations generated using TraCE by introducing gender-specific attributes into the counterfactuals synthesized for changing the diagnosis state of a normal subject to be abnormal. In contrast to the age attribute, image manipulations associated with change in gender (female \u2192 male) do not cause any apparent change to the likelihood of being assigned to the abnormal group. In each case, we highlight the changes \ufffd A (x), \ufffd D (x), \ufffd A (x) + \ufffd D (x) and show the likelihood P(state = abnormal).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Framework design for TraCE. (a) First, we train an auto-encoding neural network",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "1 \u2212 \u03b1 i ) log(P(\u0177 i |z i )) + \u03b1 i D KL (U(y)||P(\u0177 i |z i )) Scientific Reports |(2022) 12:597 | https://doi.org/10.1038/s41598-021-04529-5",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF3": {
+            "text": "Performance",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The software associated with this paper will be hosted through a public code repository (github). ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Code availability"
+        },
+        {
+            "text": "J.J.T. conceived the presented idea, and along with K.T. developed the overall formulation. While P.T. helped in setting the high-level objectives, D.R. contributed substantially in technical discussions through the course of this work. J.J.T. and K.T. implemented an initial version of the proposed framework, and with help of D.R., set up the empirical studies. D.R. was instrumental in preparing the dataset and validating the findings. While J.J.T. led the manuscript writing efforts, all the other authors contributed significantly to different sections.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Author contributions"
+        },
+        {
+            "text": "The authors declare no competing interests.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Competing interests"
+        }
+    ]
+}

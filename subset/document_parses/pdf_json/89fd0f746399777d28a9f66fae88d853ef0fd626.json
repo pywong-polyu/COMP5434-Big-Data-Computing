@@ -1,0 +1,1402 @@
+{
+    "paper_id": "89fd0f746399777d28a9f66fae88d853ef0fd626",
+    "metadata": {
+        "title": "Safety Assurance of a High Voltage Controller for an Industrial Robotic System",
+        "authors": [
+            {
+                "first": "Yvonne",
+                "middle": [],
+                "last": "Murray",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Agder (UiA)",
+                    "location": {
+                        "settlement": "Grimstad",
+                        "country": "Norway"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "David",
+                "middle": [
+                    "A"
+                ],
+                "last": "Anisi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Agder (UiA)",
+                    "location": {
+                        "settlement": "Grimstad",
+                        "country": "Norway"
+                    }
+                },
+                "email": "david.anisi@uia.no"
+            },
+            {
+                "first": "Martin",
+                "middle": [],
+                "last": "Sirev\u00e5g",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Agder (UiA)",
+                    "location": {
+                        "settlement": "Grimstad",
+                        "country": "Norway"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Pedro",
+                "middle": [],
+                "last": "Ribeiro",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of York",
+                    "location": {
+                        "settlement": "York",
+                        "country": "UK"
+                    }
+                },
+                "email": "pedro.ribeiro@york.ac.uk"
+            },
+            {
+                "first": "Rabah",
+                "middle": [
+                    "Saleh"
+                ],
+                "last": "Hagag",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Agder (UiA)",
+                    "location": {
+                        "settlement": "Grimstad",
+                        "country": "Norway"
+                    }
+                },
+                "email": "rabahh18@student.uia.no"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Due to the risk of discharge sparks and ignition, there are strict rules concerning the safety of high voltage electrostatic systems used in industrial painting robots. In order to assure that the system fulfils its safety requirements, formal verification is an important tool to supplement traditional testing and quality assurance procedures. The work in this paper presents formal verification of the most important safety functions of a high voltage controller. The controller has been modelled as a finite state machine, which was formally verified using two different model checking software tools; Simulink Design Verifier and RoboTool. Five safety critical properties were specified and formally verified using the two tools. Simulink was chosen as a low-threshold entry point since Math-Works products are well known to most practitioners. RoboTool serves as a software tool targeted towards model checking, thus providing more advanced options for the more experienced user. The comparative study and results show that all properties were successfully verified. The verification times in both tools were in the order of a few minutes, which was within the acceptable time limit for this particular application.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Formal verification provides an extra level of assurance by verifying the logic of a system and making sure that it works in accordance to its specifications in every situation. This will ideally help identify potential pitfalls in a much earlier phase of the development cycle [1] . The two main approaches are model checking [2] and theorem proving [3] . Application of formal methods in industrial use cases is an important supplement to the traditional testing and safety risk identification and mitigation actions which are already taking place [4] . Obtaining sufficiently high testing coverage in complex industrial systems may be very time consuming and tedious. In practice, it may even be impossible to test for every scenario or situation, which means that testing could possibly fail to reveal potential safety critical bugs and errors. As a testimony of this, Sect. 2 outlines some previous errors that went by undetected by traditional testing methods.",
+            "cite_spans": [
+                {
+                    "start": 278,
+                    "end": 281,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 327,
+                    "end": 330,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 351,
+                    "end": 354,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 550,
+                    "end": 553,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Industrial paint robots use High Voltage (HV) to perform electrostatic painting, where particles are electrically charged and attracted to the grounded paint object, as seen in Fig. 1 . In this way, painting quality is ensured while paint consumption and costs are minimized. However, HV also poses certain risks, particularly in explosive atmospheres where potential discharge sparks may cause ignition. Fire in the painting cell will result in costly production delays, as well as damage to the equipment. Therefore, it is of great importance that the High Voltage Controller (HVC) is working as intended, and there are strict rules to ensure the safety of the system and personnel. These include both software-based safety layers such as over current-and max current detection, as well as physical safety layers based on (optical) fencing, minimum clearance distances, and use of safety clothes such as anti-static shoes and gloves. An HVC used in an industrial paint robot has been provided for this case study. After passing the traditional quality assurance and testing procedures, some undesired system behavior was discovered. Thus, even though risk mitigation plans were identified systematically (e.g., using HAZID/HAZOP), and thorough testing on both component and system level had been conducted, some errors still managed to go undetected. The undetected errors had in common that they happened when certain conditions and situations happened in a very specific order, and that specific series of events had not been tested. This gave a strong motivation for performing a formal verification of the HVC, in order to ensure both that the found errors had been fixed and that there were no other situations where the same errors could occur.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 177,
+                    "end": 183,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "The logic of the C++ code of the HVC can be modelled as a finite state machine, which means that model checking is an appropriate method for the formal verification of the properties. The methodology of model checking has some apparent advantages that fits industrial applications very well; it is a rather general verification approach which has some commercial-grade, high-performance model checkers available. It provides diagnostic information (counter-example) that can be used for debugging purposes, is easier to integrate with existing development and engineering practices and last but not least; is more intuitive and familiar to most practitioners than theorem proving [2] .",
+            "cite_spans": [
+                {
+                    "start": 680,
+                    "end": 683,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, two different software tools have been used to model and verify the HVC system. The first is Simulink Design Verifier (SDV) by MathWorks [5] and the second is RoboTool [6, 7] , developed by the RoboStar group at University of York. Here-within, Simulink was chosen as a low-threshold entry point since MathWorks products are well known to most practitioners. RoboTool serves as a software tool targeted towards model checking, thus providing more advanced options for the more experienced user. In addition to presenting and analyzing an interesting industrial use case considering formal verification of the safety aspects of the HVC unit of a paint robot, the main objective of this work is to do a comparative study of the software tools with regards to functionality, usability and effectiveness, e.g., modelling, validation and analysis time.",
+            "cite_spans": [
+                {
+                    "start": 151,
+                    "end": 154,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 182,
+                    "end": 185,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 186,
+                    "end": 188,
+                    "text": "7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Application of formal verification methodology within the control and robotics community have mainly adopted the hybrid system and automata framework of Alur et al. [8, 9] . In this setting, finite-and infinite-time reachability constitute the main verification tools, but unfortunately turn out to be an undecidable problem in general, leaving conservative set approximation as the only viable approach [10, 11] . Hybrid automata theory also assumes having infinite accuracy and instantaneous reaction which serves as a noticeable discrepancy to the real system and implementation; potentially invalidating the formal verification results [12] . Narrowing down to industrial paint robots, [13] considers formal verification of the paint spraying use case using ARIADNE tool for reachability analysis. The focus here is solely on parametric design verification. To the best of our knowledge, there is no prior art considering formal verification of the safety aspects of the HVC unit of an industrial paint robot, which is the focus of the paper at hand.",
+            "cite_spans": [
+                {
+                    "start": 165,
+                    "end": 168,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 169,
+                    "end": 171,
+                    "text": "9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 404,
+                    "end": 408,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 409,
+                    "end": 412,
+                    "text": "11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 640,
+                    "end": 644,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The remaining of this paper is structured as follows. Section 2 details the HVC system and previous errors that were not found by traditional testing methods. It also contains formulation of the properties to be formally verified. Section 3 presents a simplified finite state machine of the HVC. Section 4 explains how the state machine was modelled in RoboTool and SDV, and how these tools were used to verify the properties. Finally, Sect. 5 provides some discussion and conclusions, as well as a comparison between the two tools. Additionally, suggestions for further research is presented.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A simplified block diagram of the part of the paint robot that contains the HVC can be seen in Fig. 2 . Here, the r(t) = HV _SetP oint signal is used as reference for the desired voltage level on the HVC, while the 24 V power signal provides the HVC with electrical power. The HVC module runs the control loop and associated control logic. The u(t) = P W M_Output signal shows the calculated value for the high voltage regulator, from 0 to 100%, which is then increased in the transformer. In the Cockcroft-Walton (CW) generator, there are several voltage doubling circuits, and the voltage is rectified and further increased, before arriving to the applicator. Here, y(t) = [IM, HV _Actual] T denote current and voltage measurements, respectively, which are fed back into the HVC. (a) Both the set-point and HV_Actual had a non-zero value, but they differed from each other. The HVC board did not respond to any further set-point changes, and had a constant actual value. (b) There was no set-point, but HV_Actual had a non-zero value. (c) There was a set-point, but HV_Actual was still zero. 2. Issues with the 24 V power signal:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 95,
+                    "end": 101,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "HVC and Previously Detected Errors"
+        },
+        {
+            "text": "(a) The HVC sometimes reported the 24 V power signal missing, even though it was actually present, resulting in a deadlock. (b) Sometimes, an additional bug also occurred, where the HVC froze when the 24 V power signal failed. In that case, the HVC limit supervision did not disable PWM, and the HVC continued to set out high voltage until it was reset or powered off. This can be seen graphically in Fig. 3 (b). The issues 1a-c, regarding the HV_Actual value, occurred if the 24 V power signal was switched off when the set-point had a value other than 0kV. When this happened, the set-point was turned off due to the missing 24 V power signal, and the HV_Actual signal dropped to 0kV. However, the problem was that the Pulse Width Modulation (PWM) output which drives the cascade, PWM_Output, was not disabled. Thus, when the 24 V power signal was switched on again, the PWM fed the cascade, and the voltage output from the cascade increased. The HVC limit supervision caught this voltage rise, and disabled the PWM, since the resulting voltage was too high. This problem can be seen graphically in Fig. 3(a) . As for issue 2a, the 24 V power signal missing issue was due to a deadlock in the HVC that resulted in the controller reporting the 24 V power signal missing, even though it was actually present. This can be seen graphically in Fig. 3 (c).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 401,
+                    "end": 407,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1101,
+                    "end": 1110,
+                    "text": "Fig. 3(a)",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1341,
+                    "end": 1347,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "HVC and Previously Detected Errors"
+        },
+        {
+            "text": "Upon rectifying these observed issues in a later software upgrade, the task at hand is to run formal verification on the upgraded software in order to ensure both that the previously found errors have been fixed and that there are no other situations where similar errors could occur.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "HVC and Previously Detected Errors"
+        },
+        {
+            "text": "In this section, the set of properties that are to be formally verified will be presented and discussed. Most of them are rather natural and generic properties to be fulfilled by any feedback controller tracking a set-point reference. Also, the previously detected errors provide a testimony of which properties that are necessary to formally verify in order to ensure that they will not happen again, under any circumstances.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "As one of the most profound properties of any feedback controller, it is reasonable to require that HV_Actual should always follow HV_SetPoint. This deserves particular attention in cases with residual voltage as depicted in for instance Fig. 3(b) . To formalize this, since all voltages here are non-negative, the following implications were considered:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 238,
+                    "end": 247,
+                    "text": "Fig. 3(b)",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "Notice that by logical transposition of (1), the following implications also hold true:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "As a result, the first property boils down to verification of:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "To avoid residual effects and windup type of behavior in the HVC, it is also reasonable to verify that both PWM_Output and HV_SetPoint are set to 0 whenever the 24 V power signal, and thereby the HVC-module, is switched off. Additionally, in order to increase the confidence in the correctness of the model, it is customary to verify that the HVC state machine is not able to go into deadlock, and that all the states in the finite state machine are reachable, i.e., the state machine has no dead logic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "To sum up, the properties chosen for the formal verification are:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "P1: That the actual system voltage always follows the set-point:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "P2: That PWM_Output is set to 0 whenever the 24 V power signal is off:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "P3: That HV_SetPoint is set to 0 when the 24 V power signal is switched off:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "P4: That the state machine is not able to go into deadlock P5: That all states in the state machine are reachable.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Properties for Formal Verification"
+        },
+        {
+            "text": "In order to perform model checking on the HVC, its functionalities were modeled as a finite state machine. This section presents the general finite state machine, which was directly derived from the implemented C++ code and depicted in Fig. 4 . This state machine was then modelled and verified in RoboTool and Simulink. This is the topic of Sect. 4. In the state GateDriverRamping, which is the state the HVC first enters when it is switched on, the PWM duty-cycle is ramped up gradually to ensure stability and gradual increasing of current and voltage. Then, in the Initialization state, initial parameters are set, as well as upper and lower limits for the high voltage.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 236,
+                    "end": 242,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Finite State Machine Modelling"
+        },
+        {
+            "text": "After the GateDriverRamping and Initialization steps are successfully finished, the state machine enters the Wait24VPower state. When the HVC has 24 V power switched on and stable, the system enters the ClosedLoop state. This is the ideal state for operation, and is where the controller is regulating the voltage in relation to the set-point. In case the voltage is breaching the upper or lower limits, the state machine moves from ClosedLoop to ErrorMode.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Finite State Machine Modelling"
+        },
+        {
+            "text": "There is also a possibility to go straight to ErrorMode from any of the other states, if certain variables are set or any watchdogs or interrupts are triggered. For instance, an interrupt is triggered if the supply voltage is below a certain threshold, and another is triggered if HV_Actual is above or below the upper and lower limits, respectively. Getting out of ErrorMode requires manual acknowledgement of the occurred errors. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Finite State Machine Modelling"
+        },
+        {
+            "text": "The finite state machine created from the C++ code of the HVC has to be modelled in a model checking tool in order to verify the selected properties. To this end, two different tools are adopted, in order to compare and evaluate their functionality and effectiveness. In this work, the finite state machine has been modelled in RoboTool [6] using the modelling language RoboChart, and in SDV [5] using the modelling language Stateflow. This is done in Sect. 4.1 and 4.2 respectively.",
+            "cite_spans": [
+                {
+                    "start": 337,
+                    "end": 340,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Checking"
+        },
+        {
+            "text": "RoboTool and its modelling language RoboChart are specifically designed to model robotic systems for formal verification [6] . The tool automatically generates Communicating Sequential Processes (CSP) [14] proof models, which are verified using the Failures-Divergences Refinement (FDR) model-checker [15, 16] .",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 124,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 201,
+                    "end": 205,
+                    "text": "[14]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 301,
+                    "end": 305,
+                    "text": "[15,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 306,
+                    "end": 309,
+                    "text": "16]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "When using RoboChart for modelling, it is important to be aware that the model has to be of a higher abstraction level than models used for dynamic simulation. Capturing the behaviour from the C++ code in an abstract modelling paradigm like RoboChart can be challenging, especially for practitioners who are used to work with input-driven, dynamic simulations. Instead, the model is analyzed by the verification tool by only assuming bounded data-types and going through all possible transitions in order to verify or disprove a property. Specific values for variables or inputs could be used, but this would restrict the range of values provided by the bounded data type. Thus, keeping a high level of abstraction during the modelling process is essential for getting a meaningful result from the model checking.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "Simplifications to Reduce Verification Time. State-space explosion is a well-known issue for model checkers. For this reason, some lower level functionalities from the C++ code were simplified. As an example, the ramping function in GateDriverRamping was modelled simply by staying in the state for a certain number of time steps, representing the ramping time. This simplification, justified by the fact that GateDriverRamping occurs before the initialization state and therefore does not influence neither the verification properties nor results, greatly reduced the verification time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The Model. For modelling the state machine as closely as possible to Fig. 4 , the software operations (IOps), variables (IVars), events (IEvents), external events (IEvents_ext) and a robotic platform (RP1), were specified as shown in Fig. 5 . The robotic platform (RP1) is an abstraction of the physical system, and only uses events that require communication with the system (IEvents_ext), whereas the other events and variables are internal to the software. For more details about the language structure and semantics used in RoboTool, please consult [6, 17] . Figure 6 shows the RoboChart module mod_sys, which defines the connections between the controllers (ctrl0-3), and the robotic platform (RP1). In RoboChart, connections with the platform are asynchronous, indicated by the keyword async, as interactions with the hardware cannot be refused, only ignored [7, p. 3110 ].",
+            "cite_spans": [
+                {
+                    "start": 553,
+                    "end": 556,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 557,
+                    "end": 560,
+                    "text": "17]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 865,
+                    "end": 876,
+                    "text": "[7, p. 3110",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 69,
+                    "end": 75,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 234,
+                    "end": 240,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 563,
+                    "end": 571,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "Using the components from Fig. 5 , a state machine model was created using the graphical user interface in RoboTool. An overview of the states and the transitions between them can be seen in Fig. 7 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 26,
+                    "end": 32,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 191,
+                    "end": 197,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "All of the top-level states have an entry action, which indicates the current state via the typed event currentState. This is useful for analysis of properties that are only applicable in certain states. The detailed view of the two most important states (ClosedLoop and ErrorMode) can be seen in Fig. 8 and 9 . Verification of Selected Properties. In order to verify the properties from Sect. 2 in FDR, the properties had to be formally written in CSP. To specify simple assertions, such as deadlock freedom, RoboTool provides a simple textual domain-specific language. More complex properties, however, have to be specified directly in CSP M , the machine-readable version of CSP. A full account of the CSP specifications for all properties discussed in what follows can be found online 1 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 297,
+                    "end": 309,
+                    "text": "Fig. 8 and 9",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The first property to verify, P1 as described in Sect. 2, is that HV_Actual follows HV_SetPoint. Due to the necessary simplifications that were made when modelling HV_Actual and HV_SetPoint, a binary version of property P1 had to be considered, where the signals HV_Actual and HV_SetPoint are considered to be either on or off. Notice that this modification is without loss of generality.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The CSP process Spec1A is a parallel composition of Behaviour, synchronising on the event buff _ ActualHV, with BufferedOutput (omitted) that accounts for the asynchronous communication of the output int_ActualHV in mod_sys (as shown in Fig. 6 ), and where the event buff _ ActualHV, used to communicate with the buffer, is hidden (\\). Behaviour behaves as CHAOS(Events), that can perform any event in the set Events (of all events) non-deterministically until the event mod _ sys::currentState.out.State _ ClosedLoop happens, and then behaves as Follow. Events in the CSP semantics of RoboChart are named according to the hierarchy, where :: is a delimiter, and have a parameter in or out to indicate whether an event is an input or output. This states that when the system is in the ClosedLoop state, then it behaves as Follow, which establishes that the input value x received via ext_setPoint is followed by an output of the same value via buff _ ActualHV, and a recursion. Follow may be interrupted if an error occurs, indicated by the currentState event with value ErrorMode. To ensure appropriate behaviour in that state, we specify the following property.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 237,
+                    "end": 243,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "Similarly to Spec1A, in Spec1B we have that in the ErrorMode state the value of the HV_SetPoint is 0, in this case observed as an output of the system via ext_setPoint, and that the value of int_ActualHV should also follow.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The specification for verifying P1 is written as two assertions, reproduced below, which were verified in FDR. Here, mod _ sys _ noppwm is a version of mod _ sys where the unrelated events ext_pow24VStatus and int_pwmSignal are hidden, to ensure that the verification with respect to Spec1A and Spec1B is meaningful. It is verified in the traces model that ensures safety [14, p. 36] , that is, an implementation P refines Spec if, and only if, every behaviour of P is also a behaviour of Spec. Both of the assertions passed, thus successfully verifying property P1.",
+            "cite_spans": [
+                {
+                    "start": 372,
+                    "end": 383,
+                    "text": "[14, p. 36]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The second property (P2) requires that PWM_Output should be set to 0 when the 24 V power signal switches off. The CSP specification is shown below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "In PWM, there is an external choice where the power status can be switched off via ext_pow24VStatus, or the int_pwmSignal may be switched Off. Once the int_pwmSignal becomes On, then the process behaves as PWM _ on, where there is another choice: if the power status changes to Off via ext_pow24VStatus, then the output int_pwmSignal should follow as Off, while allowing further readings of the power status, specified using RUN, via ext_pow24VStatus, to take place. Observe that P2 is specified by tracking the changes of int_pwmSignal relative to the input value of ext_pow24VStatus.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The assertion to verify the specification in FDR, as seen below, also passed, thus successfully verifying property P2, where mod _ sys _ pwm is a constrained form of mod _ sys where other events are hidden similarly to previous assertions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The third property to verify, P3, is that HV_SetPoint is set to 0 when the 24 power signal switches off. The specification in CSP is as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The assertion to verify P3 in FDR was written similarly to the ones for P1 and P2, as seen below. It passed in FDR, thus successfully verifying P3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "The assertion-specific language in RoboTool was used to specify and validate P4 and P5, which are that the state machine should be deadlock free and that all states should be reachable. The assertions written in RoboTool can be seen in the code below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "All these assertions passed in FDR, which implies that the state machine is in fact deadlock free, and all the states are reachable. Thus, also P4 and P5 were verified successfully.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in RoboTool"
+        },
+        {
+            "text": "Simulink is a popular tool for traditional, input-driven simulation, and the modelling in SDV is similar to regular modelling used for simulation [5] . Thus, it requires less abstraction than in RoboTool, and it is more straightforward to translate the C++ code directly to the modelling language. The graphical language Stateflow, which is specifically created to model state machines, can be used with SDV, and was chosen to model the finite state machine from Sect. 3. SDV uses Prover Plug-In R products from Prover R Technology to do the model checking and prove the model properties [18] . It is built upon Gunnar St\u00e5lmarck's proof procedure, which uses tautology checks to prove that an assertion holds true in every possible interpretation [19] .",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 149,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 588,
+                    "end": 592,
+                    "text": "[18]",
+                    "ref_id": null
+                },
+                {
+                    "start": 747,
+                    "end": 751,
+                    "text": "[19]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "Simplifications to Reduce Verification Time. Also in the Simulink Design Verifier model, some simplifications had to be made in order to keep verification times reasonable. For example when modelling the transformer and CW generator from Fig. 2 . The transformer is modelled as a simple transfer function, with non model-fitted values, poles and zeroes. The CW block is simply modelled with a gain block from the Simulink library, also this with an arbitrary value.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 238,
+                    "end": 244,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "Additionally, the 24 V power signal and the PWM output signal have been simplified to being modelled binary, so they can be either on or off. Knowing if the signal is on or off is sufficient for verifying the properties listed for this use case.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "The Model. An overview of the Simulink model can be seen in Fig. 10 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 60,
+                    "end": 67,
+                    "text": "Fig. 10",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "The main state machine from Fig. 4 can be found within the purple box, while variables, inputs and outputs are connected to it as seen in the figure. The grey box to the right contains the model of the transformer and CW block from Fig. 2 . The green boxes are the verification subsystems containing the code for verifying the selected properties.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 28,
+                    "end": 34,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 232,
+                    "end": 238,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "As seen in Fig. 10 , the model used in SDV allows for defining inputs and outputs, similarly to a traditional simulation model. This made it possible to model the finite state machine very closely to the C++ code. However, some extra variables were introduced in order to model the ramping function. Verification of Selected Properties. In order to verify the properties from Sect. 2, the properties had to be formally modelled in SDV, using logical operator blocks. For verifying property P1, the following implications were considered and modelled in Simulink, as seen in Fig. 11 :",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 11,
+                    "end": 18,
+                    "text": "Fig. 10",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 574,
+                    "end": 581,
+                    "text": "Fig. 11",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "HV _SetP oint = 0 \u2192 HV _Actual = 0, HV _SetP oint > 0 \u2192 HV _Actual > 0. For verifying property P2, the following implication was modelled in Simulink:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "24 V_P ower = 0 \u2192 P W M_Output = 0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "The assertion written in Simulink can be seen in Fig. 12 . As indicated by the green rectangle to the right, also this property was successfully verified. For verifying property P3, the following implication was modelled in Simulink:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 49,
+                    "end": 56,
+                    "text": "Fig. 12",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "24 V_P ower = 0 \u2192 HV _SetP oint = 0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "The Simulink assertion can be seen in Fig. 13 , and was successfully verified. As far as SDV is considered, it does not offer the possibility to verify deadlock freedom 2 . Thus, P4 was not verified.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 38,
+                    "end": 45,
+                    "text": "Fig. 13",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "By using the Design Error Detection mode in SDV, it is possible to check the reachability of the states in the finite state machine and the results proved that all the states were reachable. Thus, P5 was verified successfully.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Checking in Simulink Design Verifier (SDV)"
+        },
+        {
+            "text": "As detailed in Sect. 4, some simplifications had to be made to the models used in RoboTool and SDV. In RoboTool, all properties were verified. Since SDV is not able to verify deadlock freedom, P4 was not verified in this tool.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Concluding Remarks and Future Work"
+        },
+        {
+            "text": "The collective results formally show that all five specifications as listed in Sect. 2.1 are fulfilled, and thus the previously detected errors from Sect. 2 have been corrected. As these errors went undetected by traditional testing methods in an earlier version of the software, the results in this paper also serve as a testimony of the strength and suitability of using formal verification methods for industrial safety critical systems.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Concluding Remarks and Future Work"
+        },
+        {
+            "text": "Both tool-chains offered the necessary functionality to model the HVC state machine and perform model checking. The verification times in both tools were typically about 2-3 min when running on a Windows laptop with Intel R Core c i5 CPU @ 2.71 GHz. These computation times are well within acceptable limits for offline, one-time verification purposes. However, it can be a potential bottleneck if used for development and debugging purposes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Concluding Remarks and Future Work"
+        },
+        {
+            "text": "As most industrial practitioners are used to using MathWorks products but are not as familiar with CSP, the use of SDV will most likely be the fastest and easiest way to do a formal verification. Unfamiliarity with CSP and RoboTool, which required a different way of thought and modelling, resulted in some challenges during both the modelling and verification processes. However, RoboTool has the advantage of being designed specifically for robotic systems, which gives it more targeted modelling options. During this work, we often learned about new functionalities and new ways to solve problems in RoboTool, which indicates that it is the better choice for more advanced use cases and experienced users.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Concluding Remarks and Future Work"
+        },
+        {
+            "text": "To tap into this, future work involves further improvement of the RoboTool model. Instead of the simplifications made to the RoboTool model in order to reduce computation time, as mentioned in Sect. 4.1, it would be preferable to utilize distributed computation and parallel refinement checking capabilities of FDR. In this way, it could be possible to explore the possibility to include timed assertions and formulate requirements capturing the dynamic convergence of the HV_Actual to HV_SetPoint. By increasing the model's complexity, future work will also look into how the tools perform with increasingly computationally heavy models. Also, the potential of using RoboSim to generate (verified) simulations from RoboChart, is currently being further investigated.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Concluding Remarks and Future Work"
+        },
+        {
+            "text": "As far as MathWorks is considered, the Polyspace software tools provide some complementary verification capabilities, such as deadlock detection, that should be examined and utilized in future work. In order to continue the comparative study, updates and improvements will be made to the Simulink model as well in future work, to ensure a fair comparison with RoboTool. This includes, for instance, formulating a specification property that captures the dynamics of the set-point following.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Concluding Remarks and Future Work"
+        },
+        {
+            "text": "In this work, formal verification has been used on the already rectified code, in order to ensure that the errors have been corrected. However, to further demonstrate the abilities of formal verification as a supplement to testing, it would be interesting to repeat the process on the faulty code. This would increase the confidence that our modelling captures the behaviour properly, by showing that the errors would have been detected earlier if formal verification had been applied. Thus, future work will include repeating the verification steps on the faulty code as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Concluding Remarks and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Formal Verification: An Essential Toolkit for Modern VLSI Design",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Seligman",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schubert",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "V A K"
+                    ],
+                    "last": "Kumar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Principles of Model Checking",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Baier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Symbolic Logic and Mechanical Theorem Proving",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 1973,
+            "venue": "Computer Science and Applied Mathematics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Model checking industrial robot systems",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wei\u00dfmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bedenk",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Buckl",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Knoll",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "SPIN 2011",
+            "volume": "6823",
+            "issn": "",
+            "pages": "161--176",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-22306-8_11"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "MathWorks: Simulink Design Verifier",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "RoboChart reference manual",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Miyazawa",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cavalcanti",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Woodcock",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Timmis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "RoboChart: modelling and verification of the functional behaviour of robotic applications",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Miyazawa",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "L C"
+                    ],
+                    "last": "Cavalcanti",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Timmis",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C P"
+                    ],
+                    "last": "Woodcock",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Softw. Syst. Model",
+            "volume": "18",
+            "issn": "5",
+            "pages": "3097--3149",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Hybrid automata: an algorithmic approach to the specification and verification of hybrid systems",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Alur",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Courcoubetis",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Henzinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-H",
+                    "middle": [],
+                    "last": "Ho",
+                    "suffix": ""
+                }
+            ],
+            "year": 1993,
+            "venue": "HS 1991-1992",
+            "volume": "736",
+            "issn": "",
+            "pages": "209--229",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-57318-6_30"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Formal verification of hybrid systems",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Alur",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the Ninth ACM International Conference on Embedded Software, EMSOFT 2011",
+            "volume": "",
+            "issn": "",
+            "pages": "273--278",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Reachability verification for hybrid automata",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Henzinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Rusu",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "HSCC 1998",
+            "volume": "1386",
+            "issn": "",
+            "pages": "190--204",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-64358-3_40"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "What's decidable about hybrid automata?",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Henzinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Kopke",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Puri",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Varaiya",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "J. Comput. Syst. Sci",
+            "volume": "57",
+            "issn": "1",
+            "pages": "94--124",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Open problems in verification and refinement of autonomous robotic systems",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bresolin",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Di Guglielmo",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Geretti",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Muradore",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fiorini",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Villa",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Geretti",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Muradore",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bresolin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fiorini",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Villa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "20th IFAC World Congress",
+            "volume": "50",
+            "issn": "",
+            "pages": "9248--9253",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Understanding Concurrent Systems",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Roscoe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-1-84882-258-0"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "FDR3 -a modern refinement checker for CSP",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gibson-Robinson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Armstrong",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Boulgakov",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Roscoe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "TACAS 2014",
+            "volume": "8413",
+            "issn": "",
+            "pages": "187--201",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-54862-8_13"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "University of Oxford: FDR4 -The CSP Refinement Checker",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "RoboTool RoboChart Tool Manual",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Miyazawa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "MathWorks: Acknowledgments",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "A tutorial on St\u00e5lmarck's proof procedure for propositional logic",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sheeran",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "St\u00e5lmarck",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Form. Methods Syst. Des",
+            "volume": "16",
+            "issn": "",
+            "pages": "23--58",
+            "other_ids": {
+                "DOI": [
+                    "10.1023/A:1008725524946"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "), which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence and indicate if changes were made. The images or other third party material in this chapter are included in the chapter's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the chapter's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "In electrostatic painting, high voltage (approximately 50-100 kV) charges the paint particles at the applicator. The particles follow the lines of the electrostatic field from the applicator (cathode) to the earthed object (anode).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Block diagram of one part of the paint robot, containing the HVC. Referring to Fig. 3, the previous version of the HVC had two main issues, containing several variations: 1. Issues with the actual voltage level on the HVC, HV_Actual :",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Some errors that were not discovered through traditional testing of a previous version of the HVC software. These shed light on the need for the industry to adopt formal verification methodology when developing safety critical systems. The x-axis unit is time, while the y-axis units are kV for the high-voltage signals, percent for the PWM and binary on/off for the 24 V power signal. Here, the schematic representation and inter-relation between the signals are in focus, not the exact values.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Finite state diagram of the High Voltage Controller (HVC).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Components and enumerated types used in the RoboChart model.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "RoboChart module mod_sys defining the connections between controllers and the robotic platform. Controller ctrl0 contains the main State_machine, a recast in RoboChart of the state machine presented inFig. 4. The watchdogs have been combined into one state machine, defined inside controller ctrl1. Controllers ctrl2 and ctrl3 are used purely for relaying events int_ActualHV and ext_pow24VStatus to other controllers.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Main State_machine corresponding to that ofFig. 4recast in RoboChart, with the internal behaviour of composite states (other than Ramping) elided.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "ClosedLoop state of State_machine.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "ErrorMode state of State_machine.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "Overview of the Simulink model. (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Property P1 modelled and verified in SDV. It is checked that whenever the value of HV_SetPoint is 0 or above 0, it implies the same for HV_Actual. The green rectangles to the right indicate that the properties were successfully verified. (Colorfigure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "Property P2 modelled and verified in SDV. The assumption blocks assume the values of 24 V_Power and PWM_Output to be either 0 or 1, which is reasonable since they are modelled as binary. (Color figure online) Fig. 13. Property P3 modelled and verified in SDV.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. The authors gratefully acknowledge the value of all the input and support provided by ABB Robotics research group at Bryne, Norway, most prominently by Dr. Morten Mossige and Cato Jensen.The research presented in this paper has received funding from the Norwegian Research Council, SFI Offshore Mechatronics, project number 237896. Pedro Ribeiro is funded by the UK EPSRC under grant EP/M025756/1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

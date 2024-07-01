@@ -1,0 +1,2765 @@
+{
+    "paper_id": "66ec0199a32e32b055bea54160bbcb4ba1c6d5c2",
+    "metadata": {
+        "title": "Interpolation-Based Semantic Gate Extraction and Its Applications to QBF Preprocessing",
+        "authors": [
+            {
+                "first": "Friedrich",
+                "middle": [],
+                "last": "Slivovsky",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "TU Wien",
+                    "location": {
+                        "settlement": "Vienna",
+                        "country": "Austria"
+                    }
+                },
+                "email": "fs@ac.tuwien.ac.at"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We present a new semantic gate extraction technique for propositional formulas based on interpolation. While known gate detection methods are incomplete and rely on pattern matching or simple semantic conditions, this approach can detect any definition entailed by an input formula.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "As an application, we consider the problem of computing unique strategy functions from Quantified Boolean Formulas (QBFs) and Dependency Quantified Boolean Formulas (DQBFs). Experiments with a prototype implementation demonstrate that functions can be efficiently extracted from formulas in standard benchmark sets, and that many of these definitions remain undetected by syntactic gate detection.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "We turn this into a preprocessing technique by substituting unique strategy functions for input variables and test solver performance on the resulting instances. Compared to syntactic gate detection, we see a significant increase in the number of solved QBF instances, as well as a modest increase for DQBF instances.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Due to the effectiveness of modern satisfiability (SAT) solvers [20] , propositional logic has become the language of choice for encoding hard combinatorial problems arising in areas such as electronic design automation [50] and AI planning. Since many of these problems are hard for levels of the polynomial hierarchy beyond NP, their propositional encodings can be exponentially larger than their original descriptions. This imposes a limit on the problem instances that can be feasibly solved even with extremely efficient SAT solvers, and has prompted research on decision procedures for more succinct logical formalisms such as Quantified Boolean Formulas (QBFs).",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 68,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 220,
+                    "end": 224,
+                    "text": "[50]",
+                    "ref_id": "BIBREF51"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Quantified Boolean Formulas (QBFs) are propositional formulas combined with universal and existential quantification over truth values and offer much more succinct encodings of problems from domains such as planning and synthesis [12] . At the same time, QBF evaluation is PSPACE-complete, and in spite of substantial progress in solver technology, many practically relevant instances remain hard to solve.",
+            "cite_spans": [
+                {
+                    "start": 230,
+                    "end": 234,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In part, this hardness appears to be a matter of encoding. The most commonly used format for QBFs is Prenex Conjunctive Normal Form (PCNF). A PCNF formula consists of a quantifier prefix and a matrix in conjunctive normal form. As in the case of propositional logic, any QBF can be converted to PCNF with linear overhead but this transformation is known to adversely affect solver performance [1] . This appears to be due to two issues: First, conversion to CNF causes a bias towards reasoning about unsatisfiability while making it difficult to reason about solutions, violating the inherent duality of QBF solving. Second, prenexing introduces spurious variable dependencies that needlessly constrain solvers [5, 40] . In light of these issues, researchers have introduced two new formats for representing non-CNF (and even non-prenex) QBFs in the QCIR [30] and QAIGER standards, and solvers supporting these standards have been developed. When only a PCNF encoding is available, gate extraction techniques can be used to (re)construct a non-CNF QBF [21] . Syntactic gate extraction relies on the detection of patterns of clauses and auxiliary variables introduced when converting a propositional formula to CNF [16] . The corresponding algorithms are fast but incomplete and can only detect definitions from a pre-defined library of gates.",
+            "cite_spans": [
+                {
+                    "start": 393,
+                    "end": 396,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 711,
+                    "end": 714,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 715,
+                    "end": 718,
+                    "text": "40]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 855,
+                    "end": 859,
+                    "text": "[30]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 1052,
+                    "end": 1056,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1214,
+                    "end": 1218,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we introduce a new semantic gate extraction technique based on SAT solving and interpolation. In contrast to known approaches, this method is complete: a definition \u03c8 of a variable x can be extracted from a propositional formula \u03d5 whenever the equivalence x \u2261 \u03c8 is entailed by \u03d5. We obtain this result as a generalization of recent work that leverages definability for propositional model counting [25, 33] . Owing to a result known as Padoa's Theorem, determining whether a variable x is definable in terms of X is in coNP and can be decided by a SAT call [33] . We show that a definition \u03c8 of x in terms of X can be obtained as an interpolant of the formula passed to the SAT solver (Theorem 2). For SAT solvers that use a proof system with feasible interpolation-in particular, CDCL solvers that generate resolution proofs [32] -this means a definition can be efficiently extracted from a proof of definability.",
+            "cite_spans": [
+                {
+                    "start": 413,
+                    "end": 417,
+                    "text": "[25,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 418,
+                    "end": 421,
+                    "text": "33]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 572,
+                    "end": 576,
+                    "text": "[33]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 841,
+                    "end": 845,
+                    "text": "[32]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We apply this new gate extraction technique to identify unique strategy functions of QBFs and Dependency QBFs. In a controller synthesis setting, a variable with a unique strategy function corresponds to a control signal with a unique (as a Boolean function) implementation. We can add such an implementation to the specification without affecting the remaining control signals.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Experiments with a prototype show that definitions can be efficiently computed for formulas from standard QBF benchmark sets, and that for many instances a large fraction of variables have unique strategy functions that cannot be identified by syntactic gate detection. We further test the performance of solvers on instances obtained by replacing input variables with their definitions. For 2QBF formulas and PCNF formulas, this significantly increases the number of instances solved by some systems compared to purely syntactic gate extraction. Our experiments further show that semantic gate detection is orthogonal to techniques implemented in state-of-the-art preprocessors.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Semantic gate detection is efficient and conceptually simple. By definition, it preserves logical equivalence and is compatible with strategy extraction. As such, we believe it is an essential addition to the state of the art in preprocessing (D)QBF.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We assume a countably infinite set V of propositional variables and consider propositional formulas constructed from V using the connectives \u00ac (negation), \u2227 (conjunction), \u2228 (disjunction), \u2192 (implication), and \u2194 (the biconditional). For a propositional formula \u03d5, we write var (\u03d5) to denote the set of variables occurring in \u03d5. A literal is a variable v or a negated variable \u00acv. A clause is a finite disjunction of literals. A clause is tautological if it contains both v and \u00acv for some variable v. A propositional formula is in conjunctive normal form (CNF) if it is a finite conjunction of non-tautological clauses. An assignment of a subset X \u2286 V of variables is a function that maps X to the set {0, 1} of truth values. For a set X of variables we let [X] denote the set of assignments of X. Two assignments \u03c3 :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "For two assignments \u03c3 : X \u2192 {0, 1} and \u03c4 : Y \u2192 {0, 1} that agree on the entire intersection of their domains we define the combined assignment \u03c3\u222a\u03c4 :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "For a propositional formula \u03d5 and an assignment \u03c4 : X \u2192 {0, 1} with var (\u03d5) \u2286 X, we let \u03d5[\u03c4 ] denote the truth value obtained by evaluating \u03d5 under \u03c4 . The formula \u03d5 is satisfied by \u03c4 if \u03d5[\u03c4 ] = 1. In this case we call \u03c4 a satisfying assignment of \u03d5. Otherwise, if \u03d5[\u03c4 ] = 0, formula \u03d5 is falsified by \u03c4 . A formula is satisfiable if it has a satisfiable assignment, otherwise it is unsatisfiable. A formula \u03d5 implies a formula \u03c8 if \u03d5 \u2227 \u00ac\u03c8 is unsatisfiable.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "We consider Quantified Boolean Formulas (QBFs) in Prenex Normal Form (PNF). A QBF \u03a6 = Q.\u03d5 in PNF consists of a quantifier prefix Q and a propositional formula \u03d5, called the matrix of \u03a6. The quantifier prefix is a sequence Q 1 x 1 . . . Q n x n where Q i \u2208 {\u2200, \u2203} and the x i are pairwise distinct variables for 1 \u2264 i \u2264 n. The quantifier prefix defines an ordering < \u03a6 on its variables as x i < \u03a6 x j for 1 \u2264 i < j \u2264 n. We assume that QBFs do not contain free variables and every variable in the quantifier prefix appears in the matrix, formally {x 1 , . . . , x n } = var (\u03d5). Accordingly, we write var (\u03a6) = var (\u03d5) for the set of variables appearing in the QBF \u03a6. We further assume that every variable of \u03a6 occurs exactly once in its quantified prefix. The set of existential variables",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "Let \u03a6 a QBF and let x \u2208 var (\u03a6) be one of its variables with type(x) = Q. A strategy function for x is a function f : [var (\u03a6) \\ var Q (\u03a6)] \u2192 {0, 1} such that f (\u03c4 ) = f (\u03c4 ) for any two assignments \u03c4 and \u03c4 that agree on variables in 1 Given an indexed family F = {f x } x\u2208X of strategy functions such that X \u2286 var Q (\u03a6) for Q \u2208 {\u2200, \u2203}, the response of F to an assignment \u03c4 : (var (\u03a6) \\ var Q (\u03a6)) \u2192 {0, 1} is the assignment F (\u03c4 ) : X \u2192 {0, 1} given by F (\u03c4 )(x) = f x (\u03c4 ). An existential winning strategy (for \u03a6) is a family F = {f u } u\u2208var \u2203 (\u03a6) of strategy functions such that, for any universal assignment \u03c4 : var \u2200 (\u03a6) \u2192 {0, 1}, the assignment \u03c4 \u222a F (\u03c4 ) satisfies the matrix of \u03a6. Dually, a universal winning strategy (for \u03a6) is a family F = {f u } u\u2208var \u2200 (\u03a6) of strategy functions such that, for any existential assignment \u03c3 : var \u2203 (\u03a6) \u2192 {0, 1}, the assignment \u03c3 \u222a F (\u03c3) falsifies the matrix. A QBF \u03a6 is true if there is an existential winning strategy for \u03a6, and false if there exists a universal winning strategy for \u03a6.",
+            "cite_spans": [
+                {
+                    "start": 234,
+                    "end": 235,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "This work builds on an application of propositional definability to the model counting problem [33] . We begin by recalling two basic concepts.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[33]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Semantic Gate Extraction by Interpolation"
+        },
+        {
+            "text": "Let \u03d5 be a formula, let X be a subset of its variables, and let x be a variable. Variable x is defined in terms of X in \u03d5 if \u03c3(x) = \u03c4 (x) for any two satisfying assignments \u03c3 and \u03c4 of \u03d5 that agree on X. A definition of x by X in \u03d5 is a formula \u03c8 with var (\u03c8) \u2286 X such that \u03c3(x) = \u03c8[\u03c3] for any satisfying assignment \u03c3 of \u03d5.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1."
+        },
+        {
+            "text": "It is readily verified that there is a definition for every variable that is defined. Lagniez et al. [33] observe that the following result can be used to determine whether a variable is defined [34, 39] .",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 105,
+                    "text": "[33]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 195,
+                    "end": 199,
+                    "text": "[34,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 200,
+                    "end": 203,
+                    "text": "39]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Definition 1."
+        },
+        {
+            "text": "Let \u03d5 be a formula and let X \u2286 var (\u03d5) be a subset of its variables. Let \u03d5 be the propositional formula obtained by replacing every variable y \u2208 var (\u03d5) \\ X by a new variable y . Let x \u2208 var (\u03d5) be a variable. If x / \u2208 X, then x is defined in \u03d5 by X if, and only if, the formula \u03d5 \u2227 x \u2227 \u03d5 \u2227 \u00acx is unsatisfiable.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1 (Padoa's Theorem)."
+        },
+        {
+            "text": "For the purposes of preprocessing in model counting, it is sufficient to know that a variable x is defined by X in \u03d5, and the above result shows that this can be decided by a SAT solver. It is not necessary to compute the corresponding definition, whose size is not polynomially bounded in the size of \u03d5 under common assumptions in computational complexity [33] .",
+            "cite_spans": [
+                {
+                    "start": 357,
+                    "end": 361,
+                    "text": "[33]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theorem 1 (Padoa's Theorem)."
+        },
+        {
+            "text": "While finding definitions is harder than deciding definability in theory, the difference virtually disappears in practice. Our main theoretical contribution, stated as Theorem 2 below, says that a definition can be obtained as an interpolant of the formula constructed in the statement of Padoa's Theorem. Since interpolants can be efficiently (in linear time) generated from resolution proofs [22, 32] , the distinction between detecting definability and computing definitions becomes moot when a CDCL SAT solver is used to decide (un)satisfiability: once it determines that the formula is unsatisfiable it has already (implicitly or explicitly) produced a proof from which a definition can be extracted at a small overhead. 2 Before proving Theorem 2, we recall the definition of an interpolant following McMillan [36] .",
+            "cite_spans": [
+                {
+                    "start": 394,
+                    "end": 398,
+                    "text": "[22,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 399,
+                    "end": 402,
+                    "text": "32]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 726,
+                    "end": 727,
+                    "text": "2",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 816,
+                    "end": 820,
+                    "text": "[36]",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theorem 1 (Padoa's Theorem)."
+        },
+        {
+            "text": "Let \u03c8 and \u03c7 be an formulas such that \u03c8 \u2227 \u03c7 is unsatisfiable. An interpolant for \u03c8 and \u03c7 is a formula I such that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 2 (Interpolant)."
+        },
+        {
+            "text": "Craig's Interpolation Theorem [9] states that every pair of jointly unsatisfiable propositional formulas have an interpolant. 3 It remains to show that an interpolant for a formula witnessing definability in fact yields a definition.",
+            "cite_spans": [
+                {
+                    "start": 30,
+                    "end": 33,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 126,
+                    "end": 127,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "and (3) I only refers to variables common to \u03c8 and \u03c7."
+        },
+        {
+            "text": "Proof. Let I be an interpolant for \u03d5 \u2227 x and \u03d5 \u2227 \u00acx . By property (3) of Definition 2, I only refers to the common variables var (\u03d5 \u2227 x) \u2229 var (\u03d5 \u2227 \u00acx ) = X of these formulas. To see that I defines x in \u03d5, consider a satisfying assignment \u03c3 : var (\u03d5) \u2192 {0, 1} of \u03d5. If \u03c3(x) = 1 then \u03d5 \u2227 x is satisfied by \u03c3. The formula \u03d5 \u2227 x implies I by property (1), so I[\u03c3] = 1 as well. Otherwise, \u03c3(x) = 0 and we can construct a satisfying assignment \u03c3 of \u03d5 \u2227\u00acx by setting",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1. Let \u03d5 be a formula and let X \u2286 var (\u03d5) be a subset of its variables. Let \u03d5 be the formula obtained by replacing every variable"
+        },
+        {
+            "text": "Theorem 2. Let \u03d5 be a formula and let X \u2286 var (\u03d5) be a subset of its variables. Let \u03d5 be the formula obtained by replacing every variable y \u2208 var (\u03d5) \\ X by a new variable y . A variable x \u2208 var (\u03d5) \\ X is defined in terms of X in \u03d5 if, and only if, the formula \u03d5 \u2227 x \u2227 \u03d5 \u2227 \u00acx is unsatisfiable, and a definition of x in terms of X can be obtained as an interpolant for \u03d5 \u2227 x and \u03d5 \u2227 \u00acx .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1. Let \u03d5 be a formula and let X \u2286 var (\u03d5) be a subset of its variables. Let \u03d5 be the formula obtained by replacing every variable"
+        },
+        {
+            "text": "Theorem tells us that in this case there is an interpolant for \u03d5 \u2227 x and \u03d5 \u2227 \u00acx , which defines x in terms of X by Lemma 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1. Let \u03d5 be a formula and let X \u2286 var (\u03d5) be a subset of its variables. Let \u03d5 be the formula obtained by replacing every variable"
+        },
+        {
+            "text": "In this section, we show how Theorem 2 can be used to extract unique strategy functions of QBFs. We say that the Skolem (Herbrand) function of an existential (universal) variable x in a QBF is unique if it is the same in every existential (universal) winning strategy. In particular, if x is existentially (universally) quantified and the formula is false (true), then the strategy function of x is trivially unique (there is none). In other words, the strategy function of a variable x is unique if there is at most one such function for x that is part of a winning strategy. The following result states that propositional definability is a sufficient condition for uniqueness of a strategy function.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extracting Unique QBF Strategy Functions"
+        },
+        {
+            "text": "an assignment to the universal variables. Since F and G are existential winning",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extracting Unique QBF Strategy Functions"
+        },
+        {
+            "text": "Since \u03c4 was chosen arbitrarily, this identity holds for every universal assignment, so the functions f xi and g xi coincide.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extracting Unique QBF Strategy Functions"
+        },
+        {
+            "text": "To see that definability is not a necessary condition for a strategy function to be unique, consider the following example.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extracting Unique QBF Strategy Functions"
+        },
+        {
+            "text": "The formula \u03c8 = x represents the unique existential winning strategy (set y to the same value as x). However, variable y is not defined in terms of x: the assignments {x, y, z} and {x, \u00acy, z} both satisfy the matrix and agree on x, but differ on y. Intuitively, the reason why the existential strategy function for y is unique in spite of y not being defined is that the universal player would never assign z true as required by one of the assignments witnessing non-definability.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extracting Unique QBF Strategy Functions"
+        },
+        {
+            "text": "We now describe an algorithm for computing unique strategy functions of a QBF based on Proposition 1. By using an interpolating SAT solver (ItpSatSolver) that supports both incremental solving and assumptions [22] , we can extract definitions for variables of a given quantifier type (universal or existential) using a single solver instance. Pseudocode is shown as Algorithm 1 below.",
+            "cite_spans": [
+                {
+                    "start": 209,
+                    "end": 213,
+                    "text": "[22]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "An Algorithm for Computing Unique Strategy Functions"
+        },
+        {
+            "text": "Let \u03a6 = Q 1 x 1 . . . Q n x n .\u03d5 be a QBF and let Q \u2208 {\u2200, \u2203} be a quantifier type. Algorithm 1 first determines the leftmost variable x i in the prefix of \u03a6 that has quantifier type Q (line 3). The strategy function of any variable to the right of x i in the prefix (including x i itself) may use the variables to its left (shared ), so we can begin by looking for definitions of x i in terms of shared. Towards constructing the formula for the corresponding unsatisfiability check according to Theorem 2, copy(\u03d5, X) returns a copy \u03d5 of the matrix \u03d5 where each variable x \u2208 var (\u03d5) \\ shared has been replaced by a fresh variable x . Next (lines 9-14), we consider each variable x j with quantifier type Q-these are the variables we want to find definitions of-and introduce two fresh \"selector\" variables s i and s i , while adding clauses (\u00acs j \u2228 x j ) and (\u00acs j \u2228 \u00acx j ) to \u03d5 and \u03d5 , respectively. These clauses allow us to represent \u03d5 \u2227 x j \u2227 \u03d5 \u2227 \u00acx j by assuming literals s j and s j . 4 After initializing the SAT solver, we consider the variables x 1 , . . . , x n in the order of the quantifier prefix (lines [18] [19] [20] [21] [22] [23] [24] [25] [26] [27] [28] [29] . If variable x j has quantifier type Q, we want to check whether x j is defined in \u03d5 in terms of oppositely quantified variables X j that precede it in the prefix (Proposition 1 tells us that in this case the strategy function of x j is unique). For the first such variable x j , it is clear that the set of variables common to \u03d5 and \u03d5 is precisely X. Unsatisfiability of \u03d5\u2227x j \u2227\u03d5 \u2227\u00acx j is decided by calling the SAT solver under assumptions {s j , s j }: the assumptions ensure that x j and \u00acx j are set to true by propagation, and all remaining selector variables can be set to false so as to satisfy the clauses they occur in without interfering with the remaining clauses. If the solver determines unsatisfiability, an interpolant I j is computed (line 22), which by Theorem 2 corresponds to a definition of x j , and adds the pair (x j , I j ) to a list of definitions. Otherwise, if x j has the quantifier type opposite to Q, the strategy function of any variable with quantifier type Q considered later may use x j . Accordingly (lines 26-27), we add clauses (x j \u2228 \u00acx j ) and (\u00acx j \u2228 x j ) to \u03d5 through the incremental interface of the SAT solver. This has two effects: first, it enforces equivalence of x j and x j , and second, x j is added to the common vocabulary of \u03d5 and \u03d5 , so that it can appear in interpolants computed in later iterations. 5 Soundness of Algorithm 1 as stated in the following proposition can be proved by a straightforward induction on the quantifier prefix using Theorem 2 and Proposition 1.",
+            "cite_spans": [
+                {
+                    "start": 990,
+                    "end": 991,
+                    "text": "4",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1116,
+                    "end": 1120,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1121,
+                    "end": 1125,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1126,
+                    "end": 1130,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1131,
+                    "end": 1135,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1136,
+                    "end": 1140,
+                    "text": "[22]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1141,
+                    "end": 1145,
+                    "text": "[23]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1146,
+                    "end": 1150,
+                    "text": "[24]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1151,
+                    "end": 1155,
+                    "text": "[25]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1156,
+                    "end": 1160,
+                    "text": "[26]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1161,
+                    "end": 1165,
+                    "text": "[27]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1166,
+                    "end": 1170,
+                    "text": "[28]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 1171,
+                    "end": 1175,
+                    "text": "[29]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 2534,
+                    "end": 2535,
+                    "text": "5",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "An Algorithm for Computing Unique Strategy Functions"
+        },
+        {
+            "text": "{ (x 1 , I 1 ) . . . (x k , I k ) } of pairs (x i , I i ) such that I i represents the unique strategy function of x i in \u03a6 and var (x i ) \u2208 var Q (\u03a6) for 1 \u2264 i \u2264 k. Example 2. Consider the QBF \u03a8 = \u2200x 1 \u2203y 1 \u2200x 2 \u2203y 2 .\u03d5, where \u03d5 = (x 1 \u2228 y 1 ) \u2227 (\u00acx 1 \u2228 \u00acy 1 ) \u2227 (x 2 \u2228 y 2 ) \u2227 (\u00acx 2 \u2228 \u00acy 2 ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 2. Given a quantified Boolean formula \u03a6 and a quantifier type Q \u2208 {\u2200, \u2203}, Algorithm 1 terminates with a (possibly empty) set"
+        },
+        {
+            "text": "shared \u2190 {x1, . . . , xi\u22121} 5:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "if Q = \u2200 then 6:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "\u03d5 \u2190 \u00ac\u03d5 \u2200-strategies aim to falsify the matrix. 7: end if 8:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "\u03d5 \u2190 copy(\u03d5, shared ) 9:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "sametype \u2190 { j | 1 \u2264 j \u2264 n and Qj = Q } 10:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "for j \u2208 sametype do 11:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "sj, s j \u2190 fresh variables 12: We illustrate a run of Algorithm 1 on \u03a8 with Q = \u2203. Since y 1 is the leftmost existential variable, we create a copy \u03d5 of \u03d5 with every variable except x 1 renamed, that is,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "We also add the clauses (\u00acs 1 \u2228y 1 ) and (\u00acs 2 \u2228y 2 ) to \u03d5 and the clauses (\u00acs 1 \u2228\u00acy 1 ) and (\u00acs 2 \u2228 \u00acy 2 ) to \u03d5 . In the main loop, Algorithm 1 first checks whether \u03d5 \u2227 \u03d5 is unsatisfiable under the assumptions {s 1 , s 1 }. Unit propagation simplifies \u03d5 to (omitting unused selector variables and clauses)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "and \u03d5 simplifies to (x 1 ) \u2227 (\u00acx 2 \u2228 y 2 ) \u2227 (\u00acx 2 \u2228 \u00acy 2 ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "By resolving (\u00acx 1 ) with (x 1 ) we obtain the empty clause, and \u00acx 1 is the corresponding interpolant, 6 so (y 1 , \u00acx 1 ) is added to the set of definitions. Next, we consider the universally quantified variable x 2 and add the clauses (x 2 \u2228 \u00acx 2 ) and (\u00acx 2 \u2228 x 2 ) to \u03d5 . Finally, we check whether y 2 is definable by calling the SAT solver under the assumptions {s 2 , s 2 }. Now, the formula \u03d5 simplifies to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "and \u03d5 simplifies to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": "Unit propagation derives the clause (x 2 ) from the clauses in the second line, which can be resolved with the clause (\u00acx 2 ) from \u03d5 to obtain a resolution refutation of the formula \u03d5 \u2227 \u03d5 , with \u00acx 2 as an interpolant. Accordingly, (y 2 , \u00acx 2 ) is added to the set of definitions. Algorithm 1 terminates with the definitions {(y 1 , \u00acx 1 ), (y 2 , \u00acx 2 )}, and it is readily verified that y 1 \u2261 \u00acx 1 , y 2 \u2261 \u00acx 2 is indeed the unique existential winning strategy of \u03a8 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Extracting Unique Strategy Functions by Interpolation"
+        },
+        {
+            "text": ". It is easy to verify that \u03a6 is true and that y 1 and y 2 do not have unique Skolem functions: for every assignment to the universal variables there are two ways of setting y 1 and y 2 so as to satisfy the matrix, so neither existential variable is defined by the universal variables alone. However, each variable is defined by all remaining variables. For instance, variable y 2 is defined by x 1 , x 2 , and y 1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvements and Generalization to Dependency QBF"
+        },
+        {
+            "text": "More generally, increasing the set of defining variables allows us to detect more definitions: if x is defined in terms of X then it is also defined in terms of any enclosing set X \u2283 X. To exploit this, we modified Algorithm 1 so as to assume a total ordering of variables and check for definitions of a variable x in terms of all variables X which precede it in the quantifier prefix. This can be implemented by simply adding clauses encoding equivalence of x j and x j (lines 26-27) regardless of quantifier type.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improvements and Generalization to Dependency QBF"
+        },
+        {
+            "text": "Technically, this leads to an alternative definition of a \"winning strategy\" for a QBF where each strategy function takes an assignment to all preceding variables as input. Both definitions are ultimately equivalent in the sense that a winning strategy according to one definition can be transformed into a winning strategy according to the other definition without changing its responses (cf. the work on quantifier elimination by functional composition and selfsubstitution [8, 14, 28, 29] ). One can prove an analogue of Proposition 1 stating that the strategy function-according to the alternative definition-of a variable x is unique whenever x is defined in terms of the variables preceding x in the quantifier prefix.",
+            "cite_spans": [
+                {
+                    "start": 476,
+                    "end": 479,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 480,
+                    "end": 483,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 484,
+                    "end": 487,
+                    "text": "28,",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 488,
+                    "end": 491,
+                    "text": "29]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Improvements and Generalization to Dependency QBF"
+        },
+        {
+            "text": "Dependency Quantified Boolean Formulas (DQBFs) generalize QBFs by allowing a non-linear quantifier prefix. More specifically, each existential variable is annotated with a set of universal variables its Skolem function may depend on. A DQBF is true if there is an existential winning strategy such that each Skolem function satisfies these restrictions [2] . Although evaluating DQBF is NEXPTIME-complete and thus believed to be much harder than evaluating QBF, the fact that problems can be concisely encoded in DQBF [12, 18] has prompted the development of dedicated DQBF solvers [13, 15, 17, 48] .",
+            "cite_spans": [
+                {
+                    "start": 353,
+                    "end": 356,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 518,
+                    "end": 522,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 523,
+                    "end": 526,
+                    "text": "18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 582,
+                    "end": 586,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 587,
+                    "end": 590,
+                    "text": "15,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 591,
+                    "end": 594,
+                    "text": "17,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 595,
+                    "end": 598,
+                    "text": "48]",
+                    "ref_id": "BIBREF49"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Improvements and Generalization to Dependency QBF"
+        },
+        {
+            "text": "Algorithm 1 can easily be extended to compute unique Skolem functions of DQBF. The standard DQDIMACS format [15] allows for the combination of a linear quantifier prefix with variables for which the dependency sets are explicitly stated. The linear quantifier prefix can be handled as before. For each existential variable x with explicit dependency set D x we simply check whether x is defined by D x . If multiple variables x 1 , . . . , x k have the same dependency set D x (which is frequently the case in benchmark formulas) we check whether x i is defined by D x \u222a {x 1 , . . . , x i\u22121 } for each 1 \u2264 i \u2264 k. Again, this technically requires a non-standard definition of Skolem functions for DQBF but can easily be proven sound.",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 112,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Improvements and Generalization to Dependency QBF"
+        },
+        {
+            "text": "We implemented the algorithm described in the previous section in a prototype named Unique. As a back end SAT solver we use ItpMiniSat, a modified version of MiniSat [11] bundled with the ExtAvy model checker that efficiently generates interpolants in memory and supports both assumptions and incremental solving [22, 49] . Unique can read PCNF formulas (QDIMACS), prenex non-CNF QBFs (QCIR), as well as DQBFs with CNF matrices (DQDIMACS).",
+            "cite_spans": [
+                {
+                    "start": 166,
+                    "end": 170,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 313,
+                    "end": 317,
+                    "text": "[22,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 318,
+                    "end": 321,
+                    "text": "49]",
+                    "ref_id": "BIBREF50"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Interpolants obtained from ItpMiniSat are represented as And-Inverter graphs (AIGs) and accessed through the AIG library of ABC [7] . To make use of the structural sharing capabilities of AIGs, we maintain a single AIG representing the interpolants computed in the main loop (lines 18-29) of Algorithm 1. Whenever a new interpolant is obtained, the corresponding AIG returned by Itp-MiniSat is merged into the existing AIG. If the number of AIG nodes exceeds a (geometrically increasing) threshold, we use the ABC macro compress2 to reduce the size of the combined AIG. Upon termination, and assuming the AIG is not too large, this is followed up by a round of FRAIGing [37] and a final application of compress2.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 131,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 670,
+                    "end": 674,
+                    "text": "[37]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "While running Unique on QBFs with multiple quantifier alternations we noticed that ItpMiniSat got stuck attempting to solve some of the definability queries. Further testing revealed that the corresponding instances were hard for most state-of-the-art solvers. Increasing the overall timeout would allow us to solve these instances in some cases, but naturally the corresponding interpolants (for unsatisfiable instances) were very large (and difficult to compress with ABC). This clearly defeats the purpose of detecting unique strategy functions quickly. We thus decided to impose a limit on the number of conflicts for each call of ItpMiniSAT (currently set to 1000 conflicts). This significantly reduces the overall running time of Unique for many instances and ensures that individual interpolants are small, but only marginally decreases the total number of definitions found.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Since the individual definability queries are independent of each other, it is not necessary to determine for each input variable whether it is defined. Accordingly, we implemented Unique as an anytime algorithm: upon termination, it returns the set of variables with unique strategy functions identified up to that point, along with the AIG representing the corresponding functions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "For the experiments described below we used a cluster with Intel Xeon E5649 processors at 2.53 GHz running 64-bit Linux.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We first ran Unique to compute unique strategy functions for the instances in the 2QBF (402 instances) benchmark set from the 2018 QBF Evaluation, as well as the PCNF (558), QCIR (341), and DQBF (333) benchmark sets from the 2019 QBF Evaluation. 7 For each job we imposed a time limit of 600 s and a memory limit of 1.8 GB. Figure 1 shows a histogram for the running time of Unique on different benchmark sets. While most instances are processed quickly, Unique runs into the time limit for a significant number of PCNF instances. Generally, the running time increases with the size of the matrix and the number of variables. This explains why almost all DQBF formulas are processed quickly, as these tend to be much smaller compared to formulas from the other benchmark sets. Figure 2 shows a histogram for the fraction of existential variables with unique strategy functions in 2QBF and PCNF instances (turquoise bars). We clearly see a bimodal distribution here: there is a large number of instances where the strategy functions of most variables are unique, but also a significant number of instances where few existential strategy functions are unique. To determine how many of the corresponding definitions cannot be found by syntactic gate detection, we used the QCIR-conv script provided by GhostQ [31] to convert 2QBF and PCNF instances to QCIR, and ran Unique again on the resulting circuits. To do this, the circuit is translated (back) to CNF, but auxiliary variables representing gates are ignored by the definability check. Testing showed that a one-sided CNF encoding [42] works better than standard Tseitin conversion. Table 1 (left) shows quartiles for the distributions of unique existential strategy functions detected by Unique in each benchmark set. 8 We only show the distribution for existential variables in Table 1 and Fig. 2 since very few universal variables were found to have unique strategy functions. In fact, only 51 instances from the QCIR benchmark set encoding bounded synthesis for Petri games contained such universal variables.",
+            "cite_spans": [
+                {
+                    "start": 246,
+                    "end": 247,
+                    "text": "7",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1306,
+                    "end": 1310,
+                    "text": "[31]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1583,
+                    "end": 1587,
+                    "text": "[42]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 1771,
+                    "end": 1772,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 324,
+                    "end": 332,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 777,
+                    "end": 785,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1635,
+                    "end": 1642,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 1832,
+                    "end": 1839,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 1844,
+                    "end": 1850,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Gate Extraction"
+        },
+        {
+            "text": "The fraction of variables with unique strategy functions was smallest for QCIR instances. This is expected, since they can represent circuit structure directly and do not require auxiliary variables to encode gate definitions. By contrast, 2QBF and DQBF instances contain many variables with unique strategy functions. For about half of the instances, between roughly 90% and 95% of the existential strategy functions are unique. On the right of Table 1 we show the distribution of unique existential strategy functions after preprocessing with HQSPre [52] . Clearly, only very few unique Skolem functions are detected by Unique. This may be in part due to the fact that preprocessing detects and removes gate definitions [27] . Another possibility is that definitions are simply lost: some of the most powerful preprocessing techniques for QBF currently used only preserve the truth value and not the set of strategies [23] . We will return to this topic at the end of the next subsection.",
+            "cite_spans": [
+                {
+                    "start": 552,
+                    "end": 556,
+                    "text": "[52]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 722,
+                    "end": 726,
+                    "text": "[27]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 920,
+                    "end": 924,
+                    "text": "[23]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 446,
+                    "end": 453,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Gate Extraction"
+        },
+        {
+            "text": "Unique strategy functions of a (D)QBF can be substituted for their variables without changing the set of winning strategies. This can be used in preprocessing to reduce the number of quantified variables, typically at the cost of increasing the size of the matrix. In the following experiments, we substituted definitions found by Unique for the defined variables and ran QBF and DQBF solvers on the resulting instances.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Solving Formulas Augmented with Definitions"
+        },
+        {
+            "text": "First, we considered the 2QBF benchmark set. We picked the QCIR solvers Quabs [47] , QFun [26] , and GhostQ [31] , along with the dedicated 2QBF (PCNF) solver CADET [43] . For the QCIR solvers, the performance on instances constructed by syntactic gate detection with QCIR-conv serves as a baseline. We compare it with performance on instances obtained by Unique and-since QCIR-conv also performs circuit-level simplifications that go beyond gate extraction-with a combination of both where QCIR-conv and Unique are run in sequence.",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 82,
+                    "text": "[47]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 90,
+                    "end": 94,
+                    "text": "[26]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 108,
+                    "end": 112,
+                    "text": "[31]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[43]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Solving Formulas Augmented with Definitions"
+        },
+        {
+            "text": "For CADET, we compare performance on the original 2QBF instances with performance on QDIMACS instances augmented with CNF encodings of definitions extracted by Unique. For each configuration, we report the number of instances solved within a time limit of 15 min. To isolate the effect of adding definitions, the time required by Unique (and QCIR-conv) is not counted towards the time limit. 9 The results are shown in Fig. 3 QFun, Quabs, and GhostQ benefit considerably from semantic gate extraction, in particular when applied on top of syntactic gate extraction. By contrast, CADET solves fewer instances augmented with gate definitions than original instances. We found this surprising, since variable definitions should be detected by CADET's heuristic for identifying unique Skolem functions. Perhaps most definitions found by Unique are already covered in this way, so that the additional clauses simply slow down propagation. We believe that explicitly telling CADET which variables have already been identified as determined should result in a speedup overall. Figure 4 takes a closer look at solving times for individual instances (for this plot, memory outs are treated as timeouts). CADET is slower on instances augmented by Unique but fairly consistent, while the effect on the other solvers is more erratic. We conjecture that this is because the set of existential strategies is preserved and the instances thus \"look similar\" to CADET.",
+            "cite_spans": [
+                {
+                    "start": 392,
+                    "end": 393,
+                    "text": "9",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 419,
+                    "end": 425,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1070,
+                    "end": 1078,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Solving Formulas Augmented with Definitions"
+        },
+        {
+            "text": "Next, we tested with PCNF instances and considered the QDIMACS solvers DepQBF [5] and CAQE [44] , as well as the QCIR solvers Quabs [47] , QFun [26] , and Qute [40] . Again, we compare the number of instances solved in 15 min with different options for gate detection. Results are shown in Fig. 5 (left). Again all QCIR solvers benefit from gate detection with Unique when performed on top of syntactic gate detection with QCIR-Conv, while performance decreases for both QDIMACS solvers. The additional clauses and variables introduced by Unique apparently do not help these solvers and simply result in a slowdown. Finally, we tested the impact of Unique on DQBF (DQDIMACS) instances solved by HQS [19] and DCAQE [48] within 15 min. Since DQBF solvers currently do not (yet) support non-CNF input, we translate definitions to CNF and add them to the original formulas. Note that whenever an existential variable x is defined by (a subset of) its dependency set, we can safely let x depend on additional variables. This is sound since the response of variable x is already determined by the variables in the original dependency set and cannot change depending on other inputs. In particular, we can collect all defined variables (and auxiliary variables) in an \"innermost\" existential quantifier block that depends on all universal variables. Since many existential variables have uniquely determined strategy functions (see Table 1 ), this allows us to push many variables into the innermost quantifier block and get closer to a linear quantifier prefix. For HQS, this translates into a small increase in the number of solved instances (208 vs. 189), whereas DCAQE basically solves the same number of instances (133 vs. 135).",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 81,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 91,
+                    "end": 95,
+                    "text": "[44]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "[47]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 144,
+                    "end": 148,
+                    "text": "[26]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 160,
+                    "end": 164,
+                    "text": "[40]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 699,
+                    "end": 703,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 714,
+                    "end": 718,
+                    "text": "[48]",
+                    "ref_id": "BIBREF49"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 290,
+                    "end": 296,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 1425,
+                    "end": 1432,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Solving Formulas Augmented with Definitions"
+        },
+        {
+            "text": "Interaction with Preprocessing. QBF solvers for PCNF are typically paired with preprocessors such as Bloqqer [6] or HQSPre [52] . These are highly engineered tools that batter instances with a barrage of techniques and can often solve formulas completely on their own. Most solvers benefit greatly from preprocessing. This is evident in Fig. 5 (right), which shows the number of solved PCNF instances with different forms of gate detection after preprocessing with HQSPre (within a timeout of 600 s). Here, the number of solved instances increases significantly for almost all systems. At the same time, preprocessing appears to obscure or destroy definitions. Unique hardly finds any definitions in preprocessed instances (cf. Table 1 ) and accordingly has little impact on performance. For QFun, which benefitted most from gate detection in our experiments, this translates to a substantial reduction in the number of solved instances. On the 2QBF benchmark set (Fig. 3) , both QFun and GhostQ solve significantly fewer instances with HQSPre compared to the combination of Unique and QCIR-Conv, whereas the number of solved instances almost doubles for QuAbS. Understanding which preprocessing techniques obscure gate definitions and why certain solvers benefit more from gate detection than others are important questions for future work. 10 ",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 123,
+                    "end": 127,
+                    "text": "[52]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 1342,
+                    "end": 1344,
+                    "text": "10",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 337,
+                    "end": 343,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 728,
+                    "end": 735,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 964,
+                    "end": 972,
+                    "text": "(Fig. 3)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Solving Formulas Augmented with Definitions"
+        },
+        {
+            "text": "Our semantic gate detection technique is closely related to a method for determinizing Boolean relations by Jiang et al. [29] , a problem that essentially corresponds to solving 2QBF. The authors show that, for a (total) relation R(X, y) with a single output variable y, a functional implementation of y can be obtained as an interpolant for \u00acR(X, 0) \u2227 \u00acR(X, 1). This can be used to determinize relations R(X, Y ) with a set of output variables Y = {y 1 , . . . , y n }. First, an implementation f n for y n can be computed by treating R as a relation with inputs X \u222a {y 1 , . . . , y n\u22121 } and single output y n . Subsequently, the implementation f n can be substituted for y n to obtain a relation R (X, Y \\ {y n }). By repeating this process, a functional implementation f 1 of y 1 can eventually be obtained. Substituting f i into f i+1 for 1 \u2264 i < n results in functional implementations that only depend on the original input variables X. This approach does not require for any of the output variables to be defined by X, but an implementation of y i solely in terms of the input variables X is only available at the very end of this process. For deterministic relations R(X, Y ) (where every y is defined in terms of X), the authors show that a functional implementation of y \u2208 Y can be obtained as the interpolant of a formula that corresponds to the formula in the statement of Padoa's theorem. Our result stated as Theorem 2 is more general in that it holds for multi-output relations that are not necessarily deterministic.",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 125,
+                    "text": "[29]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Hofferek et al. use interpolation to synthesize multiple functional implementations from a single proof and thus avoid the increase in formula size incurred by repeated substitution [24] . This has an analogue in strategy extraction for QBF, which allows for implementations of all (existential or universal) variables to be obtained from a proof [3] . However, strategy extraction requires the input QBF has been solved, whereas our main interest is in preprocessing QBF.",
+            "cite_spans": [
+                {
+                    "start": 182,
+                    "end": 186,
+                    "text": "[24]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 347,
+                    "end": 350,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "There is a series of works on recovering gate definitions from CNF formulas. Li integrated rules for detecting equivalent literals in a Davis-Putnam style algorithm [35] . Ostrowski et al. represent formulas as graphs to detect patterns corresponding to and-gates, or-gates, and equivalences [38] . Roy et al. use CNF signatures to detect a richer set of gates [45] . Fu and Malik extend this to arbitrary (user-specified) gate libraries and ensure that a maximum acyclic circuit is constructed [16] .",
+            "cite_spans": [
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[35]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 292,
+                    "end": 296,
+                    "text": "[38]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 361,
+                    "end": 365,
+                    "text": "[45]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 495,
+                    "end": 499,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In the context of QBF, Bacchus and Goultiaeva showed that circuit reconstruction can speed up solvers by providing them with a better set of initial cubes [21] . They also extended the scope of these techniques to CNF formulas obtained from circuits by the Plaisted-Greenbaum encoding [42] . Scholl and Pigorsch developed a QBF solver that manipulates an AIG representation of the matrix to perform quantifier elimination and relies on circuit reconstruction to simplify the initial AIG [41] .",
+            "cite_spans": [
+                {
+                    "start": 155,
+                    "end": 159,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 285,
+                    "end": 289,
+                    "text": "[42]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 487,
+                    "end": 491,
+                    "text": "[41]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Balabanov et al. proposed a SAT-based semantic gate extraction technique [4] . Their approach has the disadvantage that a subset of clauses inducing a definition has to be guessed. As a more efficient heuristic, they suggest to identify pseudo definitions instead. A set of clauses (A 1 \u2228 x) , . . . , (A k \u2228 x), (B 1 \u2228 \u00acx), . . . , (B l \u2228 \u00acx) is a pseudo definition of x if the formula A 1 \u2227 \u00b7 \u00b7 \u00b7 \u2227 A k \u2227 B 1 \u2227 \u00b7 \u00b7 \u00b7 \u2227 B l is unsatisfiable. Rabe and Seshia use a similar criterion in their incremental determinization algorithm to identify variables that are (locally) deterministic [43] . Checking for pseudo definitions is typically efficient but limits the range of definitions that can be detected.",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 76,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 585,
+                    "end": 589,
+                    "text": "[43]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 282,
+                    "end": 291,
+                    "text": "(A 1 \u2228 x)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "Syntactic gate detection has been shown to benefit SAT solvers [10, 16] and QBF solvers [21] . The underlying algorithms are fast but limited to a predefined library of gates. By contrast, our semantic gate extraction method can detect any definition entailed by an input formula but requires an interpolating SAT solver. In the context of SAT, this overhead likely outweighs any potential benefits. However-as demonstrated by our experiments-there is significant potential for application to harder problems such as QBF and DQBF evaluation. Here, preprocessing is just a first step.",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 67,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 68,
+                    "end": 71,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 88,
+                    "end": 92,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "At the same time, our results show that substituting unique strategy functions can slow down solvers. In some sense, this is counter-intuitive: ideally, providing solvers with unique strategy functions should give them a head start, or at least not hurt their performance. By analogy, if we give a SAT solver part of a backbone assignment, it can simply instantiate accordingly and need not consider the corresponding variables for the remainder of its run. With the exception of CADET, QBF solvers currently cannot \"instantiate\" variables with strategy functions in this way, since they are only equipped to reason about assignments. We believe that designing techniques for reasoning about strategies is a key challenge in developing the next generation of QBF solvers.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The Achilles' heel of QBF",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Ans\u00f3tegui",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Gomes",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Selman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "275--281",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Henkin quantifiers and Boolean formulae: a certification perspective of DQBF",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Balabanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J K"
+                    ],
+                    "last": "Chiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jiang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Theor. Comput. Sci",
+            "volume": "523",
+            "issn": "",
+            "pages": "86--100",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Unified QBF certification and its applications",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Balabanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jiang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Formal Methods Syst. Des",
+            "volume": "41",
+            "issn": "1",
+            "pages": "45--65",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Clauses versus gates in CEGAR-based 2QBF solving",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Balabanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mishchenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Scholl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Beyond NP, Papers from the 2016 AAAI Workshop, AAAI Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Integrating dependency schemes in search-based QBF solvers",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Lonsing",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Biere",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "SAT 2010",
+            "volume": "6175",
+            "issn": "",
+            "pages": "158--171",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-14186-7_14"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Blocked clause elimination for QBF",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Biere",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Lonsing",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Seidl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "CADE 2011. LNCS (LNAI)",
+            "volume": "6803",
+            "issn": "",
+            "pages": "101--115",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-22438-6_10"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "ABC: an academic industrial-strength verification tool",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Brayton",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mishchenko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "CAV 2010",
+            "volume": "6174",
+            "issn": "",
+            "pages": "24--40",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-14295-6_5"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Nested boolean functions as models for quantified boolean formulas",
+            "authors": [
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Bubeck",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kleine B\u00fcning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "SAT 2013",
+            "volume": "7962",
+            "issn": "",
+            "pages": "267--275",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-39071-5_20"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Three uses of the Herbrand-Gentzen theorem in relating model theory and proof theory",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Craig",
+                    "suffix": ""
+                }
+            ],
+            "year": 1957,
+            "venue": "J. Symb. Log",
+            "volume": "22",
+            "issn": "3",
+            "pages": "269--285",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Effective preprocessing in SAT through variable and clause elimination",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "E\u00e9n",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Biere",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "SAT 2005",
+            "volume": "3569",
+            "issn": "",
+            "pages": "61--75",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/11499107_5"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "An extensible SAT-solver",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "E\u00e9n",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "S\u00f6rensson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "SAT 2003",
+            "volume": "2919",
+            "issn": "",
+            "pages": "502--518",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-24605-3_37"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Encodings of bounded synthesis",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Faymonville",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Finkbeiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Rabe",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Tentrup",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "TACAS 2017",
+            "volume": "10205",
+            "issn": "",
+            "pages": "354--370",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-662-54577-5_20"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Fast DQBF refutation",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Finkbeiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Tentrup",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "SAT 2014",
+            "volume": "8561",
+            "issn": "",
+            "pages": "243--251",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-09284-3_19"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "BDD-based boolean functional synthesis",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Fried",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Tabajara",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Vardi",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "CAV 2016",
+            "volume": "9780",
+            "issn": "",
+            "pages": "402--421",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "iDQ: Instantiation-based DQBF solving",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fr\u00f6hlich",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kov\u00e1sznai",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Biere",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Veith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Pragmatics of SAT 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Extracting logic circuit structure from conjunctive normal form descriptions",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "VLSI Design",
+            "volume": "",
+            "issn": "",
+            "pages": "37--42",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Localizing quantifiers for DQBF",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ge-Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Scholl",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wimmer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Formal Methods in Computer Aided Design",
+            "volume": "",
+            "issn": "",
+            "pages": "184--192",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Equivalence checking of partial designs using dependency quantified Boolean formulae",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Gitina",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Reimer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wimmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Scholl",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Becker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "31st International Conference on Computer Design, ICCD 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "396--403",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Solving DQBF through quantifier elimination",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Gitina",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wimmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Reimer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Scholl",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Becker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1617--1622",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Satisfiability solvers",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Gomes",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kautz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sabharwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Selman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Handbook of Knowledge Representation",
+            "volume": "3",
+            "issn": "",
+            "pages": "89--134",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Recovering and utilizing partial duality in QBF",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Goultiaeva",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Bacchus",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "SAT 2013",
+            "volume": "7962",
+            "issn": "",
+            "pages": "83--99",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Druping for interpolates",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gurfinkel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Vizel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "FMCAD 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "99--106",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Clause elimination for SAT and QSAT",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Heule",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "J\u00e4rvisalo",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Lonsing",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Seidl",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Biere",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "J. Artif. Intell. Res",
+            "volume": "53",
+            "issn": "",
+            "pages": "127--168",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Synthesizing multiple Boolean functions using interpolation on a single proof",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hofferek",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "K\u00f6nighofer",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Bloem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Formal Methods in Computer-Aided Design",
+            "volume": "",
+            "issn": "",
+            "pages": "77--84",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "On computing minimal independent support and its applications to sampling and counting",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ivrii",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Meel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Vardi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Constraints",
+            "volume": "21",
+            "issn": "1",
+            "pages": "41--58",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Towards generalization in QBF solving via machine learning",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Janota",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "AAAI-18",
+            "volume": "",
+            "issn": "",
+            "pages": "6607--6614",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Simulating circuit-level simplifications on CNF",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "J\u00e4rvisalo",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Biere",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Heule",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "J. Autom. Reasoning",
+            "volume": "49",
+            "issn": "4",
+            "pages": "583--619",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Quantifier elimination via functional composition",
+            "authors": [
+                {
+                    "first": "J.-H",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jiang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "CAV 2009",
+            "volume": "5643",
+            "issn": "",
+            "pages": "383--397",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-02658-4_30"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Interpolating functions from large Boolean relations",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "779--784",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Non-CNF QBF solving with QCIR",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Jordan",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Klieber",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Seidl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Beyond NP, Papers from the 2016 AAAI Workshop. AAAI Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "A non-prenex, non-clausal QBF solver with game-state learning",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Klieber",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sapra",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Clarke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "SAT 2010",
+            "volume": "6175",
+            "issn": "",
+            "pages": "128--142",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-14186-7_12"
+                ]
+            }
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Interpolation theorems, lower bounds for proof systems, and independence results for bounded arithmetic",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kraj\u00edcek",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "J. Symb. Log",
+            "volume": "62",
+            "issn": "2",
+            "pages": "457--486",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Improving model counting by leveraging definability",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lagniez",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Lonca",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Marquis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "751--757",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "On propositional definability",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Marquis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Artif. Intell",
+            "volume": "172",
+            "issn": "8-9",
+            "pages": "991--1017",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Integrating equivalency reasoning into Davis-Putnam procedure",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Proceedings of the Seventeenth National Conference on Artificial Intelligence and Twelfth Conference on on Innovative Applications of Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "291--296",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Interpolation and SAT-based model checking",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Mcmillan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "CAV 2003",
+            "volume": "2725",
+            "issn": "",
+            "pages": "1--13",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-45069-6_1"
+                ]
+            }
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "FRAIGs: A unifying representation for logic synthesis and verification",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mishchenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chatterjee",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Brayton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Recovering and exploiting structural knowledge from CNF formulas",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ostrowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "\u00c9",
+                    "middle": [],
+                    "last": "Gr\u00e9goire",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mazure",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Sa\u00efs",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "CP 2002",
+            "volume": "2470",
+            "issn": "",
+            "pages": "185--199",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-46135-3_13"
+                ]
+            }
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Essai d'une th\u00e9orie alg\u00e9brique des nombres entiers, pr\u00e9c\u00e9d\u00e9 d'une Introduction logique\u00e0 une th\u00e9orie d\u00e9ductive quelconque",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Padoa",
+                    "suffix": ""
+                }
+            ],
+            "year": 1903,
+            "venue": "Biblioth\u00e8que du Congr\u00e8s International de Philosophie",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Dependency learning for QBF",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Peitl",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Slivovsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Szeider",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "J. Artif. Intell. Res",
+            "volume": "65",
+            "issn": "",
+            "pages": "180--208",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Exploiting structure in an AIG based QBF solver",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Pigorsch",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Scholl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1596--1601",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "A structure-preserving clause form translation",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Plaisted",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Greenbaum",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "J. Symb. Comput",
+            "volume": "2",
+            "issn": "3",
+            "pages": "293--304",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Incremental determinization",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Rabe",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Seshia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "SAT 2016",
+            "volume": "9710",
+            "issn": "",
+            "pages": "375--392",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-40970-2_23"
+                ]
+            }
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "CAQE: A certifying QBF solver",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Rabe",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Tentrup",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "136--143",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Restoring circuit structure from SAT instances",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Roy",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Markov",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Bertacco",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of International Workshop on Logic and Synthesis",
+            "volume": "",
+            "issn": "",
+            "pages": "663--678",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Labelled interpolation systems for hyperresolution, clausal, and local proofs",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schlaipfer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Weissenbacher",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "J. Autom. Reasoning",
+            "volume": "57",
+            "issn": "1",
+            "pages": "3--36",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Non-prenex QBF solving using abstraction",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Tentrup",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "SAT 2016",
+            "volume": "9710",
+            "issn": "",
+            "pages": "393--401",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-40970-2_24"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Clausal abstraction for DQBF",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Tentrup",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Rabe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SAT 2019",
+            "volume": "11628",
+            "issn": "",
+            "pages": "388--405",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-24258-9_27"
+                ]
+            }
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Fast interpolating BMC",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Vizel",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gurfinkel",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "CAV 2015",
+            "volume": "9206",
+            "issn": "",
+            "pages": "641--657",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-21690-4_43"
+                ]
+            }
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Boolean satisfiability solvers and their applications in model checking",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Vizel",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Weissenbacher",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. IEEE",
+            "volume": "103",
+            "issn": "11",
+            "pages": "2021--2035",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "DRAT-trim: efficient checking and trimming using expressive clausal proofs",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Wetzler",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J H"
+                    ],
+                    "last": "Heule",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Hunt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "SAT 2014",
+            "volume": "8561",
+            "issn": "",
+            "pages": "422--429",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-09284-3_31"
+                ]
+            }
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "HQSpre -an effective preprocessor for QBF and DQBF",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wimmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Reimer",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Marin",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Becker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "TACAS 2017",
+            "volume": "10205",
+            "issn": "",
+            "pages": "373--390",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-662-54577-5_21"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "This research was supported by the Vienna Science and Technology Fund (WWTF) under grant number ICT19-060.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Running time (s) of Unique by benchmark set. For each 50-s interval within the time limit (x-axis), the number of instances (y-axis) processed by Unique with a running time in that interval is shown.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Fraction of existential variables with unique strategy functions in 2QBF (left) and PCNF (right) instances before (turquoise) and after (red) syntactic gate detection. For each fraction (x-axis) we see the number of instances (y-axis) with the corresponding fraction of unique existential strategy functions. (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Distribution (quartiles) of the fraction of unique Skolem functions identified by Unique before (left) and after (right) preprocessing with HQSPre.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Solving time (s) for 2QBF instances with (x-axis) and without Unique (y-axis).",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "(left).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Fig. 5. PCNF instances solved (y-axis) by solver (x-axis) using different methods for gate detection before (left) and after (right) preprocessing with HQSPre.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The author would like to thank Adrian Rebola-Pardo, Matthias Schlaipfer, and Georg Weissenbacher for helpful discussions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements."
+        }
+    ]
+}

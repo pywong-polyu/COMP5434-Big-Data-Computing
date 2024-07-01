@@ -1,0 +1,2715 @@
+{
+    "paper_id": "71f0b8207012b70dc293a535c5e4abc4a0442b81",
+    "metadata": {
+        "title": "PSI from PaXoS: Fast, Malicious Private Set Intersection",
+        "authors": [
+            {
+                "first": "Benny",
+                "middle": [],
+                "last": "Pinkas",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Bar-Ilan University",
+                    "location": {
+                        "settlement": "Ramat Gan",
+                        "country": "Israel"
+                    }
+                },
+                "email": "benny.pinkas@biu.ac.il"
+            },
+            {
+                "first": "Mike",
+                "middle": [],
+                "last": "Rosulek",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Oregon State University",
+                    "location": {
+                        "settlement": "Corvallis",
+                        "country": "USA"
+                    }
+                },
+                "email": "rosulekm@oregonstate.edu"
+            },
+            {
+                "first": "Ni",
+                "middle": [],
+                "last": "Trieu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Oregon State University",
+                    "location": {
+                        "settlement": "Corvallis",
+                        "country": "USA"
+                    }
+                },
+                "email": "trieun@oregonstate.edu"
+            },
+            {
+                "first": "Avishay",
+                "middle": [],
+                "last": "Yanai",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "VMware Research",
+                    "location": {
+                        "settlement": "Herzliya",
+                        "country": "Israel"
+                    }
+                },
+                "email": "yanaia@vmware.com"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We present a 2-party private set intersection (PSI) protocol which provides security against malicious participants, yet is almost as fast as the fastest known semi-honest PSI protocol of Kolesnikov et al. (CCS 2016).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Our protocol is based on a new approach for two-party PSI, which can be instantiated to provide security against either malicious or semihonest adversaries. The protocol is unique in that the only difference between the semi-honest and malicious versions is an instantiation with different parameters for a linear error-correction code. It is also the first PSI protocol which is concretely efficient while having linear communication and security against malicious adversaries, while running in the OT-hybrid model (assuming a non-programmable random oracle).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "State of the art semi-honest PSI protocols take advantage of cuckoo hashing, but it has proven a challenge to use cuckoo hashing for malicious security. Our protocol is the first to use cuckoo hashing for malicioussecure PSI. We do so via a new data structure, called a probe-and-XOR of strings (PaXoS), which may be of independent interest. This abstraction captures important properties of previous data structures, most notably garbled Bloom filters. While an encoding by a garbled Bloom filter is larger by a factor of \u03a9(\u03bb) than the original data, we describe a significantly improved PaXoS based on cuckoo hashing that achieves constant rate while being no worse in other relevant efficiency measures.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Private set intersection (PSI) allows two parties with respective input sets X and Y to compute the intersection of the two sets without revealing anything else about their inputs. PSI and its variants have numerous applications, such as for contact discovery, threat detection, advertising, etc. (see e.g., [14, 31] and references within). Privately computing the size of the intersection (known as 'PSI cardinality') is also important for computing conditional probabilities, which are useful for computing different analytics of private distributed data.",
+            "cite_spans": [
+                {
+                    "start": 308,
+                    "end": 312,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 313,
+                    "end": 316,
+                    "text": "31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "While there are generic methods for secure multi-party computation of any function (MPC), finding a specific protocol for PSI is interesting in its own sake since generic MPC protocols are relatively inefficient for computing PSI: generic MPC operates on a circuit representation of the computed functionality, while the intersection functionality can be represented only by relatively large circuits (the naive circuit for computing the intersection of two sets of size n is of size O(n 2 ); a circuit based on sorting networks is of size O(n log n) [12] ; and new results reduce the circuit to size O(n) by utilizing different hashing schemes, but seem to be hard to be adapted to the malicious setting [28, 29] .)",
+            "cite_spans": [
+                {
+                    "start": 551,
+                    "end": 555,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 705,
+                    "end": 709,
+                    "text": "[28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 710,
+                    "end": 713,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "There has been tremendous progress in computing PSI in the semi-honest model, where the parties are assured to follow the protocol (see [19, 26, 28] ). However, protocols for the malicious setting, where parties can behave arbitrarily, are much slower, with the protocol of Rosulek and Rindal [34] being the best in terms of concrete efficiency. Protocols in both settings reduce the computation of PSI to computing many oblivious transfers (OT), which can be implemented extremely efficiently using oblivious transfer extension [1, 15] . The protocols also benefit from hashing the items of the input sets to many bins, and computing the intersection separately on each bin. In the semi-honest setting it was possible to use Cuckoo hashing, which is a very efficient hashing method that maps each item to one of two possible locations [17, 25] . However, it was unknown how to use Cuckoo hashing in the malicious setting: the problem was that a malicious party Alice can learn the location to which an input element of Bob is mapped. The choice of this location by Bob leaks information about the other inputs of Bob, including items which are not in the intersection.",
+            "cite_spans": [
+                {
+                    "start": 136,
+                    "end": 140,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 141,
+                    "end": 144,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 145,
+                    "end": 148,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 293,
+                    "end": 297,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 529,
+                    "end": 532,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 533,
+                    "end": 536,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 836,
+                    "end": 840,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 841,
+                    "end": 844,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our protocol is the first to use Cuckoo hashing for PSI in the malicious setting. This is done by introducing a new data structure, called a probe-and-XOR of strings (PaXoS). This is a randomized function, mapping n binary strings to m binary strings, where each of the n original strings can be retrieved by XOR'ing a specific subset of the m strings. PaXoS can be trivially implemented using a random m\u00d7n matrix, but then the encoding and decoding times are prohibitively high when n is large. We show how to implement PaXoS using a Cuckoo graph (a graph representing the mapping in Cuckoo hashing), with efficient encoding and decoding algorithms. This is essentially equivalent to Cuckoo hashing where instead of storing an item in one of two locations, we set the values of these two locations such that their XOR is equal to the stored value. As a side-effect, this does away with the drawback of using Cuckoo hashing in malicious PSI. Namely, parties do not need to choose one of two locations in which an input item is stored, and thus there is no potential information leakage by Cuckoo hashing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our Contributions"
+        },
+        {
+            "text": "Our protocol uses a PaXoS data structure D as a key-value store, mapping the inputs values (aka keys) of one of the parties to values which are encoded as linear combinations of the string in D. It then uses the OT extension protocol of Orr\u00f9 et al. [23] (OOS), to build a PSI protocol from this data structure. The OOS protocol is secure against malicious adversaries, and is parameterized by a linear error-correcting code. Our PSI construction is unique in that the only difference between the semi-honest and malicious instantiations is only in the parameters of this code.",
+            "cite_spans": [
+                {
+                    "start": 249,
+                    "end": 253,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Our Contributions"
+        },
+        {
+            "text": "The semi-honest instantiation improves over the state of the art KKRT protocol [19] by 25% in concrete communication cost, while having a comparable running time. More importantly, the malicious instantiation has only slightly higher overhead than the best semi-honest protocol, and significantly better performance than the state of the art for malicious security [34] (about 8\u00d7 less communication, and 3\u00d7 faster computation). Source code is available at github.com/cryptobiu/PaXoS PSI.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 365,
+                    "end": 369,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Our Contributions"
+        },
+        {
+            "text": "From a theory perspective, we introduce the first concretely efficient protocol in the OT-hybrid model (assuming a non-programmable random oracle), which is secure in the malicious setting and has linear communication. The previous state-of-the-art [34] has O(n log n) communication complexity.",
+            "cite_spans": [
+                {
+                    "start": 249,
+                    "end": 253,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Our Contributions"
+        },
+        {
+            "text": "We focus on the discussion of the state-of-the-art of semi-honest PSI protocols. We note that the earliest PSI protocols, based on Diffie-Hellman assumptions, can be traced back to the 1980s [13, 20, 35] , and refer the reader to [30] for an overview of the different PSI paradigms for PSI. Protocols [26] based on oblivious transfer extension have proven to be the fastest in practice.",
+            "cite_spans": [
+                {
+                    "start": 191,
+                    "end": 195,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "20,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 200,
+                    "end": 203,
+                    "text": "35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 230,
+                    "end": 234,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 301,
+                    "end": 305,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "A more popular public-key based approach to low-communication PSI is based on Diffie-Hellman key agreement, and presented in the 1980s [13, 21] in the random oracle model. The high-level idea is for the parties to compute the",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 140,
+                    "end": 143,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "the clear, where r and k are secrets known by receiver and sender, respectively. However, This protocol requires O(n) exponentiations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Current state-of-the-art semi-honest PSI protocols in the two-party setting are [19, 26, 31] . They all rely on oblivious transfer. Most work on concretely efficient PSI is in the random oracle model, and with security against semi-honest, rather than malicious, adversaries. Some notable exceptions are [7, 11, 16] in the standard model, and [4, 7, 33, 34] with security against malicious adversaries.",
+            "cite_spans": [
+                {
+                    "start": 80,
+                    "end": 84,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 85,
+                    "end": 88,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 89,
+                    "end": 92,
+                    "text": "31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 304,
+                    "end": 307,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 308,
+                    "end": 311,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 312,
+                    "end": 315,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 343,
+                    "end": 346,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 347,
+                    "end": 349,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 350,
+                    "end": 353,
+                    "text": "33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 354,
+                    "end": 357,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "We refer the reader to the full paper [27] for a detailed and technical comparison of the many different protocol paradigms for PSI.",
+            "cite_spans": [
+                {
+                    "start": 38,
+                    "end": 42,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In Sect. 2 we present the preliminaries required in order to understand our techniques (linear codes, correlation-robustness, oblivious transfer and PSI). We then introduce the notion of Probe and Xor of Strings (PaXoS) in Sect. 3 and show an efficient construction of a PaXoS in Sect. 5. In Sect. 4 we present and prove our PSI protocol, which is obtained from any PaXoS. We show our main construction of an efficient PaXoS in Sect. 3.2 (and an alternative, more compact one, in the full paper [27] ). We present a detailed, qualitative as well as experimental, comparison to previous work in Sects. 6 and 7.",
+            "cite_spans": [
+                {
+                    "start": 495,
+                    "end": 499,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Organization"
+        },
+        {
+            "text": "We denote the computational and statistical security parameters by \u03ba and \u03bb respectively. We say that a function \u03bc : N \u2192 N is negligible if for every positive polynomial p(\u00b7) and all sufficiently large \u03ba it holds that \u03bc(\u03ba) < 1 p(\u03ba) . For a bit string x (or a vector) of length m, we refer to the j-th coordinate of x by x j . A matrix is denoted by a capital letter. For a matrix X, we refer to the j-th row of X by x j and the j-th column of X by x j . For two bit strings a, b with |a| = |b|, a \u2227 b (resp. a \u2295 b) denotes the bitwise-AND (resp. bitwise-XOR) of a and b.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "is a linear map such that for every nonzero m \u2208 F kC 2 , the Hamming weight of C(m) is at least d C .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Error-correcting codes. A binary linear code"
+        },
+        {
+            "text": "Code-correlation-robustness of random oracles. Our construction uses the fact that when H is a random oracle, C is a linear code with minimum distance \u03ba, and s is secret, terms of the form H(a \u2295 C(b) \u2227 s) look random. This property was introduced in [18] as a generalization of correlation-robust hashing (from [15] ), and a variant is also used in the context of PSI in [19] . It is described in the following lemma. ",
+            "cite_spans": [
+                {
+                    "start": 311,
+                    "end": 315,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 371,
+                    "end": 375,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Error-correcting codes. A binary linear code"
+        },
+        {
+            "text": "Proof (Proof Sketch). If C has minimum distance \u03ba, then any nonzero codeword C(b i ) has hamming weight at least \u03ba, so the term C(b i ) \u2227 s involves at least \u03ba unknown bits of the secret s. Hence, each argument of the form H(a i \u2295 C(b i ) \u2227 s) has at least \u03ba bits of entropy, from the point of view of the distinguisher, so it is negligibly likely that the distinguisher will ever query H at such a point.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "Oblivious transfer. Oblivious Transfer (OT) is a central cryptographic primitive in the area of secure computation. It was introduced by Rabin [6, 32] . 1-out-of-2 OT is a two-party protocol between a sender, who inputs two messages v 0 , v 1 , and a receiver who inputs a choice bit b and learns as output v b and nothing about v 1\u2212b . The sender remains oblivious as what message was received by the receiver. The general case of 1-out-of-N OT on \u03c4 -bit strings is defined as the functionality:",
+            "cite_spans": [
+                {
+                    "start": 143,
+                    "end": 146,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 147,
+                    "end": 150,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "1} \u03c4 are the sender's inputs and c \u2208 {0, . . . , N \u2212 1} is the receiver's input. We denote by F \u03c4,m N -OT the functionality that runs F N -OT for m times on messages in {0, 1} \u03c4 . An important variant is the random OT functionality, denoted F \u03c4,m N -ROT in which the sender provides no input, but receives from the functionality as output random messages (v 0 , . . . , v N \u22121 ) (or a key which enables to compute these messages).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "The OOS oblivious transfer functionality. We will use a specific construction, by Orr\u00f9, Orsini and Scholl [23] (hereafter referred to as OOS) that realizes F \u03c4,m N -ROT , and supports an exponentially large N , e.g. N = 2 \u03c4 . OOS is parameterized with a binary linear code [n C , k C , d C ] where k C = \u03c4 and d C \u2265 \u03ba. OOS features a useful homomorphism property that we use in our PSI construction (see Sect. 4).",
+            "cite_spans": [
+                {
+                    "start": 106,
+                    "end": 110,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "Specifically, we describe OOS as the functionality:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": ". These outputs can be used for m instances of 1-out-of-N OT as follows. The random OT values for the ith OT instance are H(q i \u2295 s \u2227 C(x)), where H is a random oracle and x ranges over all N possible \u03c4 -bit strings. The sender can compute any of these values as desired, whereas the receiver can compute only H(r i ) = H(q i \u2295 s \u2227 C(d i )), which is the OT value corresponding to choice index d i . The fact that other OT values H(q i \u2295s\u2227C(d )), for d = d i , are pseudorandom is due to Lemma 1. Specifically, we can write",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "and observe that C(d i \u2295 d ) has Hamming weight at least d C \u2265 \u03ba. Hence Lemma 1 applies. Note that the \"raw outputs\" of the OOS functionality are XOR-homomorphic in the following sense: for every i, j \u2208 [m],",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "In this expression we use the fact that C is a linear code.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "Secure computation and 2-party PSI. Informally, security is defined in the real/ideal paradigm [9, Chapter 7] . A protocol is secure if, for any attack against the protocol, there is an equivalent attack in an \"ideal\" world where the function is computed by a trusted third party. More formally, a functionality is a trusted third party who cannot be corrupted and who carries out a specific task in response to invocations (with arguments) from parties. This is considered as the ideal world. Parties interact with each other according to some prescribed protocol; in other words, the parties execute a protocol in the real world. Parties, who execute some protocol, may interact/invoke functionalities as well, in which case we consider this to be a hybrid world. A semi-honest adversary may corrupt parties and obtain their entire state and all subsequent received messages; a malicious adversary may additionally cause them deviate, arbitrarily, from their interaction with each other and with a functionality (i.e. modify/omit messages, etc.). In this work there are only two parties, sender and receiver, and the adversary may statically corrupt one of them (at the onset of the execution).",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 98,
+                    "text": "[9,",
+                    "ref_id": null
+                },
+                {
+                    "start": 99,
+                    "end": 109,
+                    "text": "Chapter 7]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "We denote by ideal f,A (x, y) the joint execution of some task f by an ideal world functionality, under inputs x and y of the receiver and sender, resp., in the presence of an adversary A. In addition, we denote by real \u03c0,A (x, y) the joint execution of some task f by a protocol \u03c0 in the real world, under inputs x and y of the receiver and sender, resp., in the presence of an adversary A.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1 ([18]). Let"
+        },
+        {
+            "text": "A protocol \u03c0 is said to securely compute f (in the malicious model) if for every probabilistic polynomial time adversary A there exists a probabilistic polynomial time simulator S such that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 2."
+        },
+        {
+            "text": "We consider a 2-party PSI functionality, described in Fig. 1 , that does not strictly enforce the size of a corrupt party's input set. In other words, while ostensibly running the protocol on sets of size n, an adversary may learn as much as if he used a set of bounded size n > n in the ideal world (typically, n = c\u00b7n for some constant c, This is the case in this work as well). This property is shared by several other 2-party malicious PSI protocols [33, 34] .",
+            "cite_spans": [
+                {
+                    "start": 454,
+                    "end": 458,
+                    "text": "[33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 459,
+                    "end": 462,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 54,
+                    "end": 60,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Definition 2."
+        },
+        {
+            "text": "Our main tool is a mapping which has good linearity properties. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definitions"
+        },
+        {
+            "text": "-Two parties: a sender and receiver.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters:"
+        },
+        {
+            "text": "-Set size n for honest parties and n for corrupt parties.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters:"
+        },
+        {
+            "text": "Functionality: 1. Wait for input Y = {y 1 , y 2 , . . .} from the receiver. Abort if the receiver is corrupt and |Y | > n . 2. Wait for input X = {x 1 , x 2 , . . .} from the sender. Abort if the sender is corrupt and |X| > n . 3. Give output X \u2229 Y to the receiver. where the probability is over choice of random function H, and linear independence is over the vector space (Z 2 ) m , i.e. for x \u2208 {0, 1} * we look at v H (x) as a vector from (Z 2 ) m . We often let H be implicit and eliminate it from the notation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters:"
+        },
+        {
+            "text": "In other words, this is a randomized function mapping n binary strings to binary vectors of length m, satisfying the property that the output strings are independent except with probability 2 \u2212\u03bb .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters:"
+        },
+        {
+            "text": "We would like the output/input rate, m/n, to be as close as possible to 1. A random mapping would satisfy the PaXoS definition and will have a good rate, but will be bad in terms of encoding/decoding efficiency properties that will be defined in Sect. 3.4. A PaXoS has the implicit property that the mapping is independent of the inputs. Namely, the goal is not to find a function that works well for a specific set of inputs, but rather to find a function that works well with high probability for any input set. This is crucial in terms of privacy, since the function must not depend on any input, as this would leak information about the input.",
+            "cite_spans": [
+                {
+                    "start": 252,
+                    "end": 256,
+                    "text": "3.4.",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Parameters:"
+        },
+        {
+            "text": "A key-value store, or mapping, is a database which maps a set of keys to corresponding values. 1 A PaXoS leads to a method for encoding a key-value mapping into a concise data structure, as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PaXoS as Key-Value Mapping"
+        },
+        {
+            "text": ". . , y n ) . Namely, the following linear system of equations (over the field of order 2 ) is satisfied:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PaXoS as Key-Value Mapping"
+        },
+        {
+            "text": "When the v(x i )'s are linearly independent, a solution to this system of equations must exist. Therefore, when v(\u00b7) is a PaXoS, the system has a solution except with probability 1/2 \u03bb . Decode(D, x): Given a data structure D \u2208 ({0, 1} ) m and a \"key\" x \u2208 {0, 1} * , we can retrieve its corresponding \"value\" via",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PaXoS as Key-Value Mapping"
+        },
+        {
+            "text": "In other words, probing D for a key x amounts to computing the XOR of specific positions in D, where the choice of positions is defined by v(x) and depends only on x (not D). It is easy to see that when x is among the x i values that was used to create D as above, then y obtained this way is equal to the corresponding y i . However, the PaXoS can be probed on any key x.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PaXoS as Key-Value Mapping"
+        },
+        {
+            "text": "It is often more convenient to discuss PaXoS in terms of the corresponding Encode/Decode algorithms than the v mapping.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PaXoS as Key-Value Mapping"
+        },
+        {
+            "text": "The Decode algorithm enjoys the following homomorphic properties. Let ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Homomorphic Properties"
+        },
+        {
+            "text": "where \"\u2227\" refers to bitwise-AND. Then we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Homomorphic Properties"
+        },
+        {
+            "text": "The following measures of efficiency are relevant in our work, and are crucial for the efficiency of the resulting PSI protocols:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Efficiency Measures"
+        },
+        {
+            "text": "-Rate: The Encode algorithm must encode n values (y 1 , . . . , y n ), which have total length n bits, into a data structure D of total length m bits. The ratio n/m defines the rate of the PaXoS scheme, with rate 1 being optimal and constant rate being desirable. -Encoding complexity: What is the computational cost of the Encode algorithm, as a function of the number n of key-value pairs? In general, solving a system of n linear equations requires O(n 3 ) computation using Gaussian elimination. However, the structure of the v(x) constraints may lead to a more efficient method for solving the system. We strive for an encoding procedure that is linear in n, for example O(n\u03bb) where \u03bb is the statistical security parameter. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Efficiency Measures"
+        },
+        {
+            "text": "Below are some existing concepts that fall within the abstraction of a PaXoS:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Examples and Simple Constructions"
+        },
+        {
+            "text": "Random Boolean Matrix. A natural approach is to let v(x) simply be a random vector for each distinct x. 3 It is elementary to show that a random boolean matrix of dimension n \u00d7 (n + \u03bb) has full rank with probability at least 1 \u2212 1/2 \u03bb . This leads to a (n, m, 2 \u2212\u03bb )-PaXoS scheme with m = n + \u03bb. This scheme has excellent rate n/(n + \u03bb) (which is likely optimal), but poor efficiency of encoding/decoding. Encoding corresponds to solving a random linear system of equations, requiring O(n 3 ) if done via Gaussian elimination. Decoding one item requires computing the XOR of \u223c n/2 positions from the data structure.",
+            "cite_spans": [
+                {
+                    "start": 104,
+                    "end": 105,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Examples and Simple Constructions"
+        },
+        {
+            "text": "Garbled Bloom Filter. A garbled Bloom filter works in the following way: Let h 1 , . . . , h \u03bb be random functions with range {1, . . . , m}. To query the data structure at a key x, compute the XOR of positions h 1 (x), . . . , h \u03bb (x) in the data structure. In our terminology, v(x) is the vector that is 1 at position i if and only if \u2203j : h j (x) = i.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Examples and Simple Constructions"
+        },
+        {
+            "text": "Garbled Bloom Filters were introduced by Dong, Chen, Wen in [5] . They showed that if the Bloom filter has size m = \u0398(\u03bbn) then the Encode algorithm succeeds with probability 1 \u2212 1/2 \u03bb . The concrete error probability is identical to the false-positive probability of a standard Bloom filter.",
+            "cite_spans": [
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Examples and Simple Constructions"
+        },
+        {
+            "text": "Garbled Bloom filters are an instance of (n, m, 2 \u2212\u03bb )-PaXoS with m = \u0398(\u03bbn) and therefore rate \u0398(1/\u03bb). Items can be inserted into the garbled Bloom filter in an online manner, leading to a total cost of O(n\u03bb) to encode n items. Decoding requires taking the XOR of at most \u03bb positions per item.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Examples and Simple Constructions"
+        },
+        {
+            "text": "Garbled Cuckoo table. We introduce in Sect. 5 a new PaXoS construction, garbled Cuckoo table, with a size which is almost optimal, and optimal encoding and decoding times.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Examples and Simple Constructions"
+        },
+        {
+            "text": "It is also worth mentioning a variant of Bloomier filters that was introduced in [3] , is similar to our garbled Cuckoo table construction, and yet is insecure for our purposes. The construction of [3] works for a specific input set S. It chooses random hash functions and generates a graph by mapping the items of S to edges. The construction works well if the graph is acyclic. If the graph contains cycles then a new set of hash functions is chosen, until finding hash functions which map S to an acyclic graph. This construction is not a PaXoS since the choice of hash functions depends on the input and therefore leaks information about it. (Our garbled Cuckoo table construction, on the other hand, chooses the hash functions independently of the inputs, and works properly, except with negligible probability, even if the graph has cycles (Fig. 2) .) scheme size m encoding (n items) decoding (single item) random matrix ",
+            "cite_spans": [
+                {
+                    "start": 81,
+                    "end": 84,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 198,
+                    "end": 201,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 846,
+                    "end": 854,
+                    "text": "(Fig. 2)",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Examples and Simple Constructions"
+        },
+        {
+            "text": "In this section we describe a generic construction of PSI from PaXoS.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PSI from PaXoS"
+        },
+        {
+            "text": "The fastest existing 2-party PSI protocols [19, 34] are all based on efficient OT extension and its variants. The leading OT extension protocol for malicious security is due to Orr\u00f9 et al. [23] (hereby called OOS), and it serves as the basis of our PSI protocol. The OOS OT extension protocol implements the OOS functionality defined in Sect. 2, and provides many instances of 1-out-of-N OT of random strings, where N can even be exponentially large. Our PSI protocol involves the internals of the OOS protocol to some extent, so let us start by reviewing the relevant details. Suppose we are interested in 1-out-of-N OT for N = 2 t . In OOS, the sender chooses a string s and receives a string q i for each OT instance. In this OT instance, the sender can derive N random values as follows:",
+            "cite_spans": [
+                {
+                    "start": 43,
+                    "end": 47,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 48,
+                    "end": 51,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 189,
+                    "end": 193,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "H q i \u2295C(00 \u00b7 \u00b7 \u00b7 0)\u2227s ; H q i \u2295C(00 \u00b7 \u00b7 \u00b7 01)\u2227s ; \u00b7 \u00b7 \u00b7 H q i \u2295C(11 \u00b7 \u00b7 \u00b7 1)\u2227s ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "where C is a linear error-correcting code with t input/data bits, H is a correlation-robust hash function, and \"\u2227\" denotes bitwise-AND (whenever we",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "The receiver has a \"choice string\" d i \u2208 {0, 1} t for each instance, and as a result of the OOS protocol he receives",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Clearly H(r i ) is one of the N random values that the sender can compute for this OT instance. The security of the OOS protocol is that the N \u2212 1 other values look pseudorandom to the receiver, given r i , despite the fact that the same s is used in all OT instances.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "One important property of the OOS values is that they enjoy an XORhomomorphic property:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Note that we use the fact that C is a linear code. The fact that these values have such a homomorphic property was already pointed out and used in the OOS protocol as a way to check consistency for a corrupt receiver. Our main contribution is to point out how to leverage this homomorphic property for PSI as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Suppose the receiver uses the strings of a PaXoS D = (d 1 , . . . , d m ) as its OOS inputs, and the parties further interpret their OOS outputs Q = (q 1 , . . . , q m ) (for the sender) and R = (r 1 , . . . , r m ) (for the receiver) as PaXoS data structures as well. Then we find that the identity r i = q i \u2295C(d i )\u2227s facilitates the homomorphic properties of PaXoS:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Suppose the receiver encodes the PaXoS D so that Decode(D, x) is something \"recognizable\" (say, x itself) for every item x in his PSI input set. Then the expression above is something that both parties can compute: the receiver computes it as Decode(R, x), and the sender computes it as Decode(Q,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Hence, we can obtain a PSI protocol by having the sender send H(Decode(Q, x) \u2295 C(x) \u2227 s) for each of her items x. The receiver compares these values to H(Decode(R, y)) for each of his items y, to determine the intersection.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Our full protocol follows the general outline described above, but with some minor technical changes to facilitate the security proof.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Protocol Details"
+        },
+        {
+            "text": "One change is that instead of generating a PaXoS D where Decode(D, x) = x, the receiver arranges for Decode(D, x) = H 1 (x) (for x in his input set) where H 1 is a random oracle. This modification allows the simulator to extract a malicious receiver's effective input set by observing D (used as input to OOS) and the receiver's queries to H 1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Protocol Details"
+        },
+        {
+            "text": "Also, instead of sending values of the form H(Decode(Q, x) \u2295 C (H 1 (x) ) \u2227 s), we have the sender send values of the form H(x, Decode(Q, x) \u00b7 \u00b7 \u00b7 ). That is, the item x is included in the clear as an additional argument to H (named H 2 in our construction to avoid confusion with H 1 ). Additionally, H (H 2 ) is a (nonprogrammable) random oracle. As above, this allows the simulator to extract a malicious sender's effective input by observing its random-oracle queries.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 63,
+                    "end": 71,
+                    "text": "(H 1 (x)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Protocol Details"
+        },
+        {
+            "text": "The protocol is described formally in Fig. 3 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 38,
+                    "end": 44,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Protocol Details"
+        },
+        {
+            "text": "Recall that we are using as our definition an ideal PSI functionality (Fig. 1 ) that does not strictly enforce the size of a corrupt party's set. In other words, a corrupt party may provide more items (n ) than they claim (n). We prove security of our construction without making explicit reference to the relationship between n and n. That is, in the proofs below we show that a simulator is able to extract some set (of size polynomial in the security parameter) in the ideal interaction, but the proofs do not explicitly bound the size of these sets. The protocol contains several parameters 1 and 2 which affect the value of n that can be proven. We discuss how to choose these parameters, and the resulting n that one obtains, in Sect. 4.4. Fig. 3 is a secure 2-party PSI protocol against malicious adversaries in the random oracle model.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 70,
+                    "end": 77,
+                    "text": "(Fig. 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 746,
+                    "end": 752,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Security Analysis"
+        },
+        {
+            "text": "We prove the theorem in the following two lemmas: Fig. 3 is secure against a malicious receiver in the random oracle model. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 50,
+                    "end": 56,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "randomly permuted. 4. The receiver coutputs {y \u2208 Y | H 2 (y, Decode(R, y)) \u2208 M }. We prove the indistinguishability of this simulation in the following sequence of hybrids:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "-Hybrid 1: Same as the real protocol interaction, but the simulator maintains a list L of all queries that the adversary makes to random oracle H 1 . When the adversary selects its OOS input D, the simulator checks all y \u2208 L and defines the set\u1ef8 = {y \u2208 L | Decode(D, y) = H 1 (y)}. This hybrid is indistinguishable from the real protocol interaction, since the only difference is in internal bookkeeping information that is not used.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "-Hybrid 2: Same as Hybrid 1, except that immediately after defining\u1ef8 , the simulator aborts if the honest sender holds an x \u2208 X where Decode(D, x) = H 1 (x) but x \u2208\u1ef8 . It suffices to show that the probability of this artificial abort is negligible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "\u2022 Case x \u2208 L: then H 1 (x) was known at the time\u1ef8 was defined. Therefore it is by construction that x \u2208\u1ef8 \u21d4 Decode(D, x) = H 1 (x). In other words, the abort does not happen in this case \u2022 Case x \u2208 L: then H 1 (x) is independent of D, and thus Decode(D, x) = H 1 (x) with probability 1/2 1 where 1 is the output length of H 1 . If 1 = \u03bb + log 2 n then by a union bound over at most n possible sender's values x \u2208 X, the abort probability is indeed bounded by 1/2 \u03bb . -Hybrid 3: Same as Hybrid 2, except we can rewrite the computation that defines the sender's message M . Observe that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "In particular, the term inside C is zero if and only if Decode(D, x) = H 1 (x). Furthermore, because of the artificial abort introduced in the previous hybrid, this happens for x \u2208 X if and only if x \u2208 X \u2229\u1ef8 . Hence, we can rewrite the sender's message M as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "where the \u03b4 x := Decode(D, x) \u2295 H 1 (x) values are guaranteed to be nonzero. This hybrid is identical to the previous one, as we have only rewritten the same computation in an equivalent way. -Hybrid 4: Same as Hybrid 3, except we replace every term of the form",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "The two hybrids are indistinguishable by Lemma 1 since C(\u03b4 x ) are nonzero codewords and hence have Hamming weight at least \u03ba. Now note that the sender's message M is generated as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "where each m i is uniformly chosen in {0, 1} 2 . -Hybrid 5: Same as Hybrid 4, except the simulator no longer artificially aborts in the manner introduced in Hybrid 2. The hybrids are indistinguishable for the same reasoning as before. Now the simulator does not use the items of X \\\u1ef8 at all. We conclude the proof by observing that this hybrid exactly describes the final ideal-world simulation: the simulator extracts\u1ef8 , sends it to the ideal PSI functionality, receives Z = X \u2229\u1ef8 , and uses it to simulate the sender's message M . Fig. 3 is secure against a malicious sender in the random oracle model.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 532,
+                    "end": 538,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Theorem 4. The protocol of"
+        },
+        {
+            "text": "Proof. The simulator for a corrupt sender behaves as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "-It observes the sender's input s and output Q from OOS, and also observes all of the sender's queries to random oracle H 2 . -When the sender produces protocol message M , the simulator computes",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "and sends this to the ideal functionality as the sender's effective input.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "We prove the indistinguishability of this simulation in the following sequence of hybrids:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "-Hybrid 1: Same as the real protocol interaction, except that the simulator observes the sender's input s and output Q for OOS, and additionally observes all queries made to random oracle H 2 . The simulator defines a set L of all the values x such that the adversary queried H 2 on the \"correct\" value (x, Decode(Q, x)\u2295C(H 1 (x))\u2227s). When the sender gives protocol message M , the simulator defines the setX := {x \u2208 L | H 2 (x, Decode(Q, x) \u2295 C(H 1 (x)) \u2227 s) \u2208 M }. This hybrid is identical to the real protocol interaction, since the only change is to record bookkeeping information that is not used. -Hybrid 2: Same as Hybrid 1, except the simulator aborts if the honest receiver holds y \u2208 Y \\X where H 2 (y, Decode(Q, y) \u2295 C(H 1 (y)) \u2227 s) \u2208 M . There are two cases for why such a y may not be inX:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "\u2022 Case y \u2208 L: then the value H 2 (y, Decode(Q, y)\u2295C(H 1 (y))\u2227s) was defined at the timeX was computed, and y was excluded because the correct value was not in M . The simulator will never abort in this case. \u2022 Case y \u2208 L: the adversary never queried H 2 at H 2 (y, Decode(Q, y) \u2295 C(H 1 (y)) \u2227 s) before sending M , so this output of H 2 is random and independent of M . The probability that this H 2 -output appears in M is thus |M |/2 2 where 2 is the output length of H 2 . Overall, the probability of such an artificial abort is bounded by n|M |/2 2 \u2264 n 2 /2 1 \u2264 1/2 \u03bb (since 1 < 2 and 1 \u2265 \u03bb + 2 log n). Hence the two hybrids are indistinguishable.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "-Hybrid 3: Same as Hybrid 2, except we change the way the honest receiver's output is computed. In Hybrid 2, the honest receiver computes output as in the protocol specification:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "In this hybrid we make the honest receiver compute its output as, simply, X \u2229 Y . These two expressions are in fact equivalent, from the definition ofX, the artificial abort introduced in the previous expression, and the equivalence of Decode(R, y) and Decode(Q, y) \u2295 C(H 1 (y)) \u2227 s discussed in the previous proof. -Hybrid 4: Same as Hybrid 3, except we remove the artificial abort condition that was introduced in Hybrid 2. The hybrids are indistinguishable for the same reason as before. Note that in this hybrid, the simulator does not use the honest receiver's input Y except to compute the receiver's final output. We conclude the proof by observing that this hybrid exactly describes the ideal world simulation: The simulator observes s, Q and the sender's oracle queries to determine a setX. It sendsX to the ideal functionality andX \u2229 Y is delivered to the receiver.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 6. The protocol of"
+        },
+        {
+            "text": "The protocol contains several parameters:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "-Random oracle output lengths 1 , 2 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "As shown in the security proof, the following facts must be true in order for security to hold:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "-C must have minimum distance at least \u03ba (the computational security parameter). -1 , 2 \u2265 \u03bb + 2 log n, where \u03bb is the statistical security parameter.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "However, the parameters 1 , 2 also have an effect on the size of the corrupt party's set, as extracted by the simulator. In particular, increasing these values causes the protocol to more tightly enforce the size (n ) of the corrupt party's input set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "We note that the communication cost of the protocol is roughly 2 bits per item from the sender and roughly t bits per item from the receiver (sent as part of the OOS protocol, where t is the length of the code used in the OOS protocol).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "Semi-honest security. To instantiate our protocol for semi-honest security, it is enough to set 1 = 2 = \u03bb + 2 log n, the minimum possible value for security. The issue of extracting a corrupt party's input, which involves further increasing n 1 = 2 = \u03bb + 2 log n codeword lengh t choice of code 2 12 64 448 RS [28, 13, 16] Malicious sender's set size. Consider a malicious sender and recall how the simulator extracts an effective input for that sender. The sender gives protocol message M and the simulator extracts vi\u00e3",
+            "cite_spans": [
+                {
+                    "start": 297,
+                    "end": 299,
+                    "text": "12",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 310,
+                    "end": 314,
+                    "text": "[28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 315,
+                    "end": 318,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 319,
+                    "end": 322,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "where L is the set of x values such that the adversary has queried H 2 (x, \u00b7). The protocol limits the protocol message M to have n items, but stillX may have many more than n items if the adversary manages to find collisions in H 2 . If we set 2 (the output length of H 2 ) to be 2\u03ba, then collisions are negligibly likely and indeed |X| \u2264 n except with negligible probability. While it is possible to set 2 < 2\u03ba, doing so has less impact on the protocol than the other parameters ( 1 and hence t). One can reduce 2 only very slightly before the adversary can find a very large amount (e.g., superlinear in n) of collisions. For these reasons, we recommend setting 2 = 2\u03ba in our malicious instantiation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "Malicious receiver's set size. Consider a malicious receiver and recall how the simulator extracts an effective input for that receiver. The simulator observes the receiver's input D (a PaXoS) to OOS and also observes all queries made to the random oracle H 1 . Then the simulator extracts via:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "where L is the set of queries made to H 1 . The question becomes: as a function of |D| and 1 (the output length of H 1 ), what is an upper bound on the number of items in\u1ef8 ?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "In the full version [27] we prove the following, using an information-theoretic compression argument:",
+            "cite_spans": [
+                {
+                    "start": 20,
+                    "end": 24,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "Claim. Suppose an adversary makes q queries to random oracle H 1 with output length 1 and then generates a PaXoS D of size m (hence m 1 bits) total. Fix a value n and let E denote the event that Decode(D, y) = H 1 (y) for at least n values y that were queried to H 1 . Then",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "The idea behind the proof is that if a PaXoS D happens to encode many H 1 (y) values, then D could be used to compress H 1 . However, this is unlikely due to H 1 being a random object and therefore incompressible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "For reference, we have computed some concrete parameter settings so that Pr[E] < 2 \u221240 (the probability that the simulator extracts more than n items). The values are given in Fig. 5 . We consider an adversary making q = 2 128 queries to H 1 , which is rather conservative (in terms of security). In practice significantly smaller parameters may be possible. 4 Note that if the PaXoS has size m, then a compression argument such as the one we use only starts to apply when n > m. Hence all of our bounds are expressed as n = cm where c > 1 is a small constant.",
+            "cite_spans": [
+                {
+                    "start": 359,
+                    "end": 360,
+                    "text": "4",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 176,
+                    "end": 182,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "Recall that 1 is the input length to the linear code C, so increasing it has the effect of increasing t (the codeword length) as well. We include good choices of codes (achieving minimum distance \u03ba = 128) in the figure as well. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Choosing Parameters"
+        },
+        {
+            "text": "We introduce a new approach for PaXoS that enjoys the best of all worlds: it has the same asymptotic encoding and decoding costs as a garbled Bloom filter, but with constant rate (e.g., \u223c 1/(2 + )) rather than a O(1/\u03bb) rate.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Garbled Cuckoo Table"
+        },
+        {
+            "text": "Furthermore, it has a linear time construction, just like the modified Bloomier filter of [3] , but with the advantage of having the hash function(s) independent of the keys/values.",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 93,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Garbled Cuckoo Table"
+        },
+        {
+            "text": "Our construction uses ideas from both garbled Bloom filters as well as Cuckoo hashing. Recall that in Cuckoo hashing, it is typical to have only 2 hash functions h 1 , h 2 , where an item x is associated with positions h 1 (x) and h 2 (x) in the data structure. So as a starting point, consider a garbled Bloom filter with just 2 hash functions rather than \u03bb. Such a data structure corresponds to the decoding function Decode(D, x) = d h1(x) \u2295 d h2(x) . 5 (Using the PaXoS key-value mapping terminology of Sect. 3.2, the vector v(x) has only two non-zero entries, in locations h 1 (x) and h 2 (x).) Given n key-value pairs (x i , y i ), how can we generate a data structure D = (d 1 , . . . , d m ) that encodes them in this way?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "An important object in analyzing our construction is the cuckoo graph. The vertices in the cuckoo graph are numbered 1 through m, and correspond to the positions in the data structure D. The (undirected) edges of the graph correspond to items that are meant to be inserted. An item x corresponds to the edge {h 1 (x), h 2 (x)}. (The graph may contain self-loops and repeated edges.) We refer to such graphs with m vertices and n edges as (n, m)-cuckoo graphs and note that the distribution over such graphs is independent of X. We write G h1,h2,X to refer to the specific (n, m)-cuckoo graph corresponding to a particular set of hash functions and keys X. All properties of our PaXoS can be understood in terms of properties of random (n, m)-cuckoo graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "In the simplest case, suppose that G h1,h2,X happens to be a tree. Our goal is to encode the items X into the data structure D. Each node g in the graph corresponds to a row d g of D. Then we can do this encoding in linear time as follows: We choose an arbitrary root vertex r of the tree and set d r of the data structure arbitrarily. We then traverse the tree, say, in DFS or BFS order. Each time we visit a vertex j for the first time, we set its corresponding value d j in the data structure, to agree with the edge we just traversed. This is done as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Recall that each edge ij corresponds to a key-value pair (x, y) in the sense that {i, j} = {h 1 (x), h 2 (x)} and our goal is to arrange that d i \u2295 d j = y. As we cross an edge from i to j in the traversal, we have the invariant that position d i in the data structure has been already fixed but d j is still undefined. Hence, we can always set d j := d i \u2295 y.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Handling Cycles. When m = O(n), corresponding to a PaXoS of constant rate, the corresponding Cuckoo graph is unlikely to be acyclic [10] . In this case the encoding procedure that we just outlined does not work, since when the graph traversal closes a circuit it encounters a vertex whose value has already been defined and cannot be set to satisfy the constraint imposed by the current edge.",
+            "cite_spans": [
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "We can handle acyclic Cuckoo graphs by adding d+\u03bb additional entries to the data structure D. We first describe an analysis where d is an upper bound on the size \u03c7 of the 2-core of the graph, and then an analysis where d is an upper bound on the cyclomatic number \u03c3 of the graph. (These bounds are O((log n) 1+\u03c9(1) ) and log n, respectively.) We recall below the definitions of both these values, and note that \u03c3 < \u03c7 always.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "The 2-core of a graph is the maximum subgraph where each node has degree at least 2 (namely, the subgraph containing all cycles, as well as all paths connecting cycles). We use \u03c7 to denote the number of edges in the 2-core. The cyclomatic number of a graph is the minimum number of edges to remove to leave an acyclic graph. Equivalently, it is the number of non-tree edges (back edges) in a DFS traversal of the graph. We use \u03c3 to denote the cyclomatic number. The cyclomatic number is equal to the minimal number of independent cycles in the graph, and is therefore smaller than or equal to the number of cycles. It is also always strictly less than the size of the 2-core.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "The construction. D will be structured as D = L R, where |L| = m (the number of vertices in the Cuckoo graph) and |R| = d+\u03bb. Each decoding/constraint vector v(x) then has the form v(x) = l(x) r(x), where l(x) determines the positions of L to be XOR'ed and r(x) determines the positions of R to be XOR'ed. We will let L correspond to the simple Cuckoo hashing idea above, so each l(x) vector is zeroes everywhere except for two 1s. We will let r(x) be determined uniformly at random for each x (similar to the random matrix construction of a PaXoS).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "To encode n key-value pairs into the data structure in this way, first consider the system of linear equations induced by the constraints v(x i ), D = y i , restricted to only the \u03c7 items (edges) in the 2-core. (Once we set values that encode the items in the 2-core, we will be able to encode the other items using graph traversal as in an acyclic graph.) These constraints refer to a vertex u of G only if that vertex is in the 2-core. We get \u03c7 equations over m + d + \u03bb variables, where the coefficients of the last d + \u03bb variables (the r(x) part) are random. If we set d to be an upper bound on \u03c7 then we get that the system has a solution with probability 1 \u2212 2 \u2212\u03bb .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "So, using a general-purpose linear solver we can find values for R and for the subset of L corresponding to the vertices in the 2-core, that satisfies these constraints. This can be done in O((d + \u03bb) 3 ) time. For vertices u outside of the 2-core, the value of d u in the data structure remains undefined. But after removing the 2-core, the rest of the graph is such that these values in the data structure can be fixed according to a tree traversal process:",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 201,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "Every edge not in the 2-core can be oriented away from all cycles (if an edge leads to a cycle in both directions, then that edge would have been part of the 2-core). We traverse those edges following the direction of their orientation. Let edge i \u2192 j correspond to a key-value pair (x, y). Let d j denote the position in D (in its \"L region\") corresponding to vertex j. By our invariant, d j is not yet fixed when we traverse i \u2192 j. Yet it is the only undefined value relevant to the constraint v(x), D = y, so we can satisfy the constraint by solving for d j . Hence with a linear pass over all remaining items, we finish constructing the data structure D.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "The total cost of encoding is therefore O((d + \u03bb) 3 + n\u03bb). We explained above that we can set d to be an upper bound on the size of the 2-core. 6 As we shall see (in Sect. 5.2), it is possible to set d to be the cyclomatic number of the Cuckoo graph, which is logarithmic in n. Therefore the dominating part of the expression is n\u03bb.",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 145,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Overview"
+        },
+        {
+            "text": "The garbled-cuckoo construction is presented formally in Fig. 6 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 57,
+                    "end": 63,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Details"
+        },
+        {
+            "text": "In the full version of the paper [27] we show that the number \u03c3 of cycles is smaller than log n+O(1) except with negligible probability. Therefore we can set d = (1 + \u03b5) log n. 7 This bound also applies to the cyclomatic number (which is always smaller than or equal to the number of cycles). Theorem 7 shows that it is sufficient to set d to be equal to this upper bound on the cyclomatic number.",
+            "cite_spans": [
+                {
+                    "start": 33,
+                    "end": 37,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 177,
+                    "end": 178,
+                    "text": "7",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Analysis & Costs."
+        },
+        {
+            "text": "Recall that each item is mapped to a row l(x i ) r(x i ) which contains an l(x i ) part with two 1 entries, and a random binary vector r(x i ) of length \u03bb + d. We set \u03bb = 40, and therefore for all practical input sizes we get that d < \u03bb. We conclude that the number of 1 entries in the row vector is O(\u03bb).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Analysis & Costs."
+        },
+        {
+            "text": "The encoding processes each of n edges once during the traversal. The computation involves XORing the locations pointed to by 1 entries in the row. The overhead of encoding all rows is O(n\u03bb). The decoding of a single item involves XORing the rows pointed by the two rows to which it is mapped, and is O(\u03bb). There are up to d cycles in the graph, denoted as C 1 , . . . , C d . Let us focus on the matrix M L , and more specifically on the rows corresponding an arbitrary cycle C i (each of these rows has two 1 entries, at the locations of the vertices touching the corresponding edge). It is easy to see that there is a single linear combination D i of these rows which is 0 (the XOR of all these rows). Any linear combination of D 1 , . . . , D d is 0, and these are the only linear combinations of rows which are equal to 0. Therefore there are at most 2 d such combinations and the kernel of M L is of dimension at most d.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Analysis & Costs."
+        },
+        {
+            "text": "Our goal is to find the probability of the existence of a zero linear combination of the rows of M L |M R , rather than the rows of M L alone. Since in M R each row contains d + \u03bb random bits, this probability is at most 2 \u2212\u03bb .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Analysis & Costs."
+        },
+        {
+            "text": "Our construction shares many features with garbled Bloom filters (GBF), and indeed is somewhat inspired by them. Both our construction and GBF involve probing about the same number of positions per item ( \u03bb+\u03c7+2 2 in average vs. O(\u03bb)), however we are able to obtain constant rate while GBFs have rate O(1/\u03bb). We point out that GBFs inherit from standard Bloom filters their support for fully online insertion; that is, their analysis proves that items can be added to a GBF in any order. Our approach builds the data structure in a very particular order (according to a global tree or tree-like structure of a graph). This qualitative difference seems important for achieving constant rate.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison"
+        },
+        {
+            "text": "We also use much of the analysis techniques and terminology from cuckoo hashing (especially cuckoo hashing with a stash). However, one important difference with typical cuckoo hashing is that our construction can handle multiple cycles in a connected component of the cuckoo graph. Indeed, usual cuckoo hashing (without a stash) succeeds if each connected component of the graph has at most one cycle. The items in a cycle can be handled by arbitrarily assigning an orientation to the cycle, and assigning each edge (item) to its forward endpoint (position in the table). In our case, if some items form a cycle, their corresponding constraint vectors become linearly dependent and we cannot solve the system of linear equations. In general, our approach has a larger class of subgraphs which present a \"barrier\" to the process (where graphs with only 1 cycle are a barrier for us but not for standard cuckoo hashing), making the analyses slightly different.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison"
+        },
+        {
+            "text": "In full version of the paper [27] we describe a modified construction which is based on a DFS traversal of the graph, and has a similar overhead to the construction described in this section.",
+            "cite_spans": [
+                {
+                    "start": 29,
+                    "end": 33,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "An Alternative Construction"
+        },
+        {
+            "text": "In Table 1 we show the theoretical communication complexity of our protocol compared with the Diffie-Hellman based PSI, the KKRT protocol [19] and the SpoT protocol [26] in the semi-honest setting, and the Rindal-Rosulek [34] and Ghosh-Nilges [8] protocols in the malicious setting. This comparison measures how much communication the protocols require on an idealized network where we do not care about protocol metadata, realistic encodings, byte alignment, etc. In practice, data is split up into multiples of bytes (or CPU words), and different data is encoded with headers, etc.-empirical measurements of such real-world costs are given later in Sect. 7. Table 1 . Theoretical communication costs of PSI protocols (in bits), calculated using computational security \u03ba = 128 and statistical security \u03bb = 40. Ignores cost of base OTs (in our protocol, KKRT, Sp) which are independent of input size. n1 and n2 are the input sizes of the sender and receiver respectively. \u03c6 is the size of elliptic curve group elements (256 is used here). is width of OT extension matrix (depends on n1 and protocol. \u03c7 is the upper bound on the number of cycles in a cuckoo graph. \u03c3 is the length of items (\u03c3 = 64 in the concrete numbers). \"SH\" and \"M\" denotes semi-honest and malicious setting. In RR protocols, EC-ROM and SM respectively denote their encode-commit model and the standard model dual execution variant.",
+            "cite_spans": [
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 221,
+                    "end": 225,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 243,
+                    "end": 246,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 660,
+                    "end": 667,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "A Theoretical Comparison"
+        },
+        {
+            "text": "Communication n = n 1 = n 2 2 16 2 20 2 24",
+            "cite_spans": [
+                {
+                    "start": 30,
+                    "end": 32,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Protocol"
+        },
+        {
+            "text": "Semi Honest DH-PSI \u03c6n 1 z + (\u03c6 + \u03bb + log(n 1 n 2 ))n 2 584n 592n 600n KKRT [19] (3 + s)(\u03bb + log(n 1 n 2 ))n 1 + 1.2 n 2 1042n 1018n 978n SpOT-low-comm [26] 1.02(\u03bb + log 2 (n 2 ) + 2)n 1 + n 2 488n 500n 512n SpOT-fast [26] 2(\u03bb + log(n 1 n 2 ))n 1 + (1 + 1/\u03bb)n 2 583n 609n 634n ours (\u03bb + log 2 (n 1 n 2 ))n 1 + (2.4n 2 + \u03bb + \u03c7) \u223c 1207n \u223c 1268n \u223c 1302n",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 79,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 151,
+                    "end": 155,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 217,
+                    "end": 221,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Protocol"
+        },
+        {
+            "text": "Malicious RR (EC-ROM) [34] 3\u03ban + n(2\u03ba + \u03ba log n + log 2 n) 10112n 10576n 11024n RR (SM) [34] 3\u03ban + n(2\u03ba + \u03c3\u03ba log n + log 2 n) (200k)n (220k)n > (240k)n GN [8] at least 8(n + 1)(\u03ba + 2\u03c3) > 3072n > 3072n > 3072n ours (\u03bb + log 2 (n 1 n 2 ))n 1 + (2.4n 2 + 2\u03bb + \u03c7) + \u03bb(2.4n 2 + 2 ) \u223c 1623n \u223c 1621n \u223c 1602n",
+            "cite_spans": [
+                {
+                    "start": 22,
+                    "end": 26,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 88,
+                    "end": 92,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 155,
+                    "end": 158,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Protocol"
+        },
+        {
+            "text": "PaXoS PSI has linear communication complexity. Let us clarify our claim of \"linear communication.\" Consider the insecure intersection protocol where Alice sends H(x) for every x in her set. H could have output length equal to security parameter, giving O(n \u00b7 \u03ba) communication. But with semi-honest parties H can also have output length as small as \u03bb + 2 log(n) to ensure correctness with probability 1 \u2212 1/2 \u03bb . When viewed this way, it looks like the protocol has complexity O(n log n)! However, if 1/2 \u03bb is supposed to be negligible then certainly log n \u03bb, so one could still write O(n \u00b7 \u03bb). If we let L be a length that depends on the security parameters and log n (which is inherent to all intersection protocols, secure or not), then insecure PSI and PaXoS-PSI have complexity O(L \u00b7 n), while previous OT-based malicious PSI [34] has complexity O(L \u00b7 n log n) or even O(L \u00b7 n\u03ba) [33] . For comparison, semi-honest KKRT [19] protocol has complexity \u03c9(L\u00b7n) (from the stash growing as \u03c9(1)) and semi-honest PRTY [26] has complexity O(L \u00b7 n).",
+            "cite_spans": [
+                {
+                    "start": 830,
+                    "end": 834,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 883,
+                    "end": 887,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 923,
+                    "end": 927,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1013,
+                    "end": 1017,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Protocol"
+        },
+        {
+            "text": "In [26] and in this work, L can depend on the security parameter alone, leading to a O(n \u00b7 \u03ba) communication, which we would characterize as linear in n. But when choosing concrete parameters (just like in the insecure protocol) L can be made smaller by involving a O(log n) term. Again, this is endemic to all intersection protocols.",
+            "cite_spans": [
+                {
+                    "start": 3,
+                    "end": 7,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Protocol"
+        },
+        {
+            "text": "We now present a comparison based on implementations of all protocols. We used the implementation of KKRT [19] , RR [34] , HD-PSI, spot-low, spot-fast [26] from the open source-code 8 provided by the authors.",
+            "cite_spans": [
+                {
+                    "start": 106,
+                    "end": 110,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 116,
+                    "end": 120,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 151,
+                    "end": 155,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "We evaluate the DH-PSI protocol, instantiated with two different elliptic curves: Curve25519 [2] and Koblitz-283. Curve25519 elements are 256 bits while K-283 elements are 283 bits. Using the Miracl library, K-283 operations are faster than Curve25519, giving us a tradeoff of running time vs. communication for DH-PSI.",
+            "cite_spans": [
+                {
+                    "start": 93,
+                    "end": 96,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "All OT-based PSI protocols [19, 26, 34] (including our protocols) require the same underlying primitives: a Hamming correlation-robust function H, a pseudorandom function F , and base OTs for OT extension. We instantiated these primitives exactly as in previous protocols (e.g, KKRT, RR): both H and F instantiated using AES, and base OTs instantiated using Naor-Pinkas [22] . We use the implementation of base OTs from the libOTe library 9 . All protocols use a computational security parameter of \u03ba = 128 and a statistical security parameter \u03bb = 40.",
+            "cite_spans": [
+                {
+                    "start": 27,
+                    "end": 31,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 32,
+                    "end": 35,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 36,
+                    "end": 39,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 370,
+                    "end": 374,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "For our own protocols, we implemented two variants of our PaXoS. We implemented the DFS traversal of the cuckoo graph (see the full version [27] ) using the boost library. We used additional libraries linbox, gmp, ntl, givaro iml, blas for solving systems for linear equations and generating the required concatenated linear codes needed for the 2-core based variant of Sect. 5. We use 2n bins in our DFS based PaXoS, and 2.4n bin in our 2-core based variant.",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 144,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "We performed a series of benchmarks on the Amazon web services (AWS) EC2 cloud computing service. We used the M5.large machine class with 2.5 GHz Intel Xeon and 8 GB RAM. 6 We tested the protocols over three different network settings: LAN -two machines in the same region (N.Virginia) with bandwidth 4.97 GiB/s; WAN1one machine in N.Virginia and the other in Oregon with bandwidth 155 MiB/s; and WAN2 -one machine in N.Virginia and the other in Sydney with bandwidth 55 MiB/s. All experiments are performed with a single thread (with an additional thread used for communication). Find the result of the WAN2 setting in the full version of the paper [27] .",
+            "cite_spans": [
+                {
+                    "start": 171,
+                    "end": 172,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 650,
+                    "end": 654,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "A detailed benchmark for set sizes n = {2 12 , 2 16 , 2 20 } is given in Table 2 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 73,
+                    "end": 80,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Semi-honest PSI Comparison. Our best protocol in terms of communication is PaXoS-DFS. The communication of this protocol is less than 10% larger than that of KKRT [19] , and slightly more than twice the communication of SpOTlow.",
+            "cite_spans": [
+                {
+                    "start": 163,
+                    "end": 167,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Our best protocol in terms of run time is PaXoS 2-core. In the LAN setting for 2 20 inputs, it runs only 18% slower than KKRT. In the two WAN settings it is about 80% slower. Table 2 . Communication in MB and run time in milliseconds for related works over n = {2 12 , 2 16 , 2 20 } items and over three network settings as described in the text. DH-PSI has two versions, with two different curves: K-283 and 25519. EC-ROM is the encode-commit version in [34] and \u03c3 is the input length of the parties. All protocols run with \u03c3 = 128 except RR (SM) that can run with 64 at most bit items. The upper part of the table refers to semi-honest (SH) protocols whereas the lower part refers to malicious (M) protocols. Missing entries refer to experiment that failed due to lack of memory or they took too much time. Malicious PSI Comparison. The communication of both implementations of our protocol is better than that of RR. For 2 20 items, PaXoS-DFS uses almost 8 times less communication, and PaXoS 2-core uses 6.5 less communication.",
+            "cite_spans": [
+                {
+                    "start": 455,
+                    "end": 459,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 175,
+                    "end": 182,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "In terms of run time, PaXoS 2-core is faster than RR by a factor of about 2.5 on a LAN, and factors of 3.7-4 in the two WAN settings. The larger improvement in the WAN settings is probably due to the larger effect that the improvement in the communication has over a WAN.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Semi-honest vs. Malicious. In both our implementations of PaXoS the malicious implementation uses only about 25% more communication than the semihonest implementation. In the LAN setting, our malicious protocols run about 4% slower than our corresponding semi-honest protocols.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "More efficient oblivious transfer and extensions for faster secure computation",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Asharov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lindell",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zohner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "ACM CCS",
+            "volume": "",
+            "issn": "",
+            "pages": "535--548",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Curve25519: new Diffie-Hellman speed records",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bernstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yung",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Dodis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kiayias",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "",
+            "volume": "3958",
+            "issn": "",
+            "pages": "207--228",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/11745853_14"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Bloomier filters: a second look",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Charles",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chellapilla",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "ESA 2008",
+            "volume": "5193",
+            "issn": "",
+            "pages": "259--270",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-87744-8_22"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Labeled PSI from fully homomorphic encryption with malicious security",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Laine",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rindal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 ACM SIGSAC Conference on Computer and Communications Security",
+            "volume": "",
+            "issn": "",
+            "pages": "1223--1237",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "When private set intersection meets big data: an efficient and scalable protocol",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "ACM CCS 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "789--800",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A randomized protocol for signing contracts",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Even",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Goldreich",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lempel",
+                    "suffix": ""
+                }
+            ],
+            "year": 1985,
+            "venue": "Commun. ACM",
+            "volume": "28",
+            "issn": "",
+            "pages": "637--647",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Efficient private matching and set intersection",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Freedman",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Nissim",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "EUROCRYPT 2004",
+            "volume": "3027",
+            "issn": "",
+            "pages": "1--19",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-24676-3_1"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "An algebraic approach to maliciously secure private set intersection",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Nilges",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "EUROCRYPT 2019",
+            "volume": "11478",
+            "issn": "",
+            "pages": "154--185",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-17659-4_6"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Graphs, hypergraphs and hashing",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Havas",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Majewski",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wormald",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Czech",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "",
+            "volume": "790",
+            "issn": "",
+            "pages": "153--165",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-57899-4_49"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Efficient protocols for set intersection and pattern matching with security against malicious and covert adversaries",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hazay",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lindell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "J. Cryptology",
+            "volume": "23",
+            "issn": "3",
+            "pages": "422--456",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s00145-008-9034-x"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Private set intersection: are garbled circuits better than custom protocols",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Evans",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Enhancing privacy and trust in electronic communities",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Huberman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Franklin",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hogg",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "78--86",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Private intersection-sum protocol with applications to attributing aggregate ad conversions",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ion",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Extending oblivious transfers efficiently",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Ishai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kilian",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Nissim",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Petrank",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "CRYPTO 2003",
+            "volume": "2729",
+            "issn": "",
+            "pages": "145--161",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-45146-4_9"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Efficient oblivious pseudorandom function with applications to adaptive OT and secure computation of set intersection",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jarecki",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "TCC 2009",
+            "volume": "5444",
+            "issn": "",
+            "pages": "577--594",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-00457-5_34"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "More robust hashing: cuckoo hashing with a stash",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kirsch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mitzenmacher",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Wieder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "SIAM J. Comput",
+            "volume": "39",
+            "issn": "4",
+            "pages": "1543--1561",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Improved OT extension for transferring short secrets",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Kolesnikov",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kumaresan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CRYPTO 2013",
+            "volume": "8043",
+            "issn": "",
+            "pages": "54--70",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-40084-1_4"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Efficient batched OPRF with applications to PSI",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Kolesnikov",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kumaresan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rosulek",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Trieu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A more efficient cryptographic matchmaking protocol for use in the absence of a continuously available third party",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Meadows",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "IEEE S&P",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A more efficient cryptographic matchmaking protocol for use in the absence of a continuously available third party",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Meadows",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "Proceedings of the 1986 IEEE Symposium on Security and Privacy",
+            "volume": "",
+            "issn": "",
+            "pages": "134--137",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Efficient oblivious transfer protocols",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Naor",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "448--457",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Actively secure 1-out-of-N OT extension with application to private set intersection",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Orr\u00fa",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Orsini",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Scholl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CT-RSA 2017",
+            "volume": "10159",
+            "issn": "",
+            "pages": "381--396",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-52153-4_22"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Uniform hashing in constant time and optimal space",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pagh",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pagh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "SIAM J. Comput",
+            "volume": "38",
+            "issn": "1",
+            "pages": "85--96",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Cuckoo hashing",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pagh",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Rodler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "J. Algorithms",
+            "volume": "51",
+            "issn": "2",
+            "pages": "122--144",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "SpOT-light: lightweight private set intersection from sparse OT extension",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rosulek",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Trieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yanai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CRYPTO 2019",
+            "volume": "11694",
+            "issn": "",
+            "pages": "401--431",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-26954-8_13"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "PSI from PaXoS: fast, malicious private set intersection",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rosulek",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Trieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yanai",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Efficient circuit-based PSI with linear communication",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Tkachenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yanai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "EUROCRYPT 2019",
+            "volume": "11478",
+            "issn": "",
+            "pages": "122--153",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-17659-4_5"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Efficient circuit-based PSI via cuckoo hashing",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Weinert",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Wieder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "EUROCRYPT 2018",
+            "volume": "10822",
+            "issn": "",
+            "pages": "125--157",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-78372-7_5"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Faster private set intersection based on OT extension",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zohner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "USENIX 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "797--812",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Scalable private set intersection based on OT extension",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pinkas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zohner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ACM Trans. Priv. Secur",
+            "volume": "21",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "How to exchange secrets with oblivious transfer. ePrint Archive",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Rabin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "187",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Improved private set intersection against malicious adversaries",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rindal",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rosulek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "EUROCRYPT 2017",
+            "volume": "10210",
+            "issn": "",
+            "pages": "235--259",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-56620-7_9"
+                ]
+            }
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Malicious-secure private set intersection via dual execution",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rindal",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rosulek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ACM CCS 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "1229--1242",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "On the power of commutativity in cryptography",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shamir",
+                    "suffix": ""
+                }
+            ],
+            "year": 1980,
+            "venue": "ICALP 1980",
+            "volume": "85",
+            "issn": "",
+            "pages": "582--595",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-10003-2_100"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "A (n, m, 2 \u2212\u03bb )-probe and XOR of strings (PaXoS) is an oracle function v H : {0, 1} * \u2192 {0, 1} m such that for any distinct x 1 , . . . , x n \u2208 {0, 1} * ,",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Ideal functionality for 2-party PSI.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "D = (d 1 , . . . , d m ) \u2208 ({0, 1} ) m . Then: -For any linear map L : {0, 1} \u2192 {0, 1} , extend the notation L(D) to mean (L(d 1 ), . . . , L(d m )). Then we have Decode(L(D), x) = L(Decode(D, x)).-If D and D have the same dimension, then define D\u2295D = (d 1 \u2295d 1 , . . . , d m \u2295 d m ). Then we have",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Decoding complexity: What is the computational cost of the Decode algorithm? The cost is proportional to the Hamming weight of the v(k) vectorsi.e., the number of positions of D that are XOR'ed to give the final result. We strive for decoding which is sublinear in n, for example O(\u03bb) or O(log n).2",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "A comparison between the different PaXoS schemes, where n is the number of items, \u03bb is a statistical security parameter (e.g., \u03bb = 40), is the a Cuckoo hash parameter (typically = 0.4), and d is an upper bound the number of cycles of a Cuckoo hash graph (d = log n except with negligible probability, and therefore for all reasonable input sizes d < \u03bb).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Computational and statistical security parameters \u03ba and \u03bb -Sender with setX \u2286 {0, 1} * of size n -Receiver with set Y \u2286 {0, 1} * of size n -(n, m, 2 \u2212\u03bb )-PaXoS scheme (Encode, Decode) -Random oracles H 1 : {0, 1} * \u2192 {0, 1} 1 and H 2 : {0, 1} * \u2192 {0, 1} 2 , where 2 , 1 \u2265 \u03bb + 2 log n -Linear error correcting code C : [t, 1 , \u03ba]Protocol:1. The receiver generates a PaXoS D = Encode({(y, H 1 (y)) | y \u2208 Y }). 2. The parties run the OOS functionality (as defined in Section 2) where the receiver uses as input D = (d 1 , . . . , d m ) and the sender uses a random string s as input. As a result, the sender obtains output strings Q = (q 1 , . . . , q m ) and the receiver obtains output strings R = (r 1 , . . . , r m ) that follow Eq, (1). We interpret both D, Q and R as PaXoS data structures. 3. The sender computes and sends the set",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Our PaXoS-PSI protocol Proof. The simulator for a corrupt receiver behaves as follows:-It observes the receiver's input D to OOS, and also observes all of the receiver's queries to random oracle H 1 . -The simulator computes\u1ef8 = {y | y was queried to H 1 and Decode(D, y) = H 1 (y)} and sends this to the ideal functionality as the receiver's effective input. -Upon receiving from the ideal functionality the intersection Z = X \u2229\u1ef8 , the simulator simulates the sender's message M as {H 2 (z, Decode(R, z)) | z \u2208 Z} along with |X \\ Z| additional random values.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Parameters for semi-honest instantiation of PaXoS-PSI, with \u03ba = 128 and \u03bb = 40.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "When setting d = (1 + \u03b5) log n, the garbled cuckoo PaXoS of Fig. 6 with parameter \u03bb is a (n, m, + 2 \u2212\u03bb )-PaXoS where = Pr[the cyclomatic number of a random (n, m)-cuckoo graph > log n + O(1)]Proof. As discussed above, we use here an upper bound d for the cyclomatic number of the graph. Setting the bound to d = (1 + \u03b5) log n works excepts with a negligible failure probability.Parameters: -upper bound d on the cyclomatic number of the Cuckoo graph error parameter \u03bb random functions h 1 , h 2 : {0, 1} * \u2192 {1, . . . , m} -random function r : {0, 1} * \u2192 {0, 1} d+\u03bb Decode(D, x): 1. Parse D as D = L R where |L| = m and |R| = d + \u03bb 2. Set l(x) \u2208 {0, 1} m to be all zeroes except 1s at positions h 1 (x) and h 2 (x) 3. Return l(x), L \u2295 r(x), R Encode((x 1 , y 1 ), . . . , (x n , y n )): 1. Construct the Cuckoo graph G h1,h2,X for X = {x 1 , . . . , x n } and let\u1e7c ,\u1ebc be the vertices and edges of its 2-core. If the number of cycles is greater than d then abort. 2. Initialize variables L = (l 1 , . . . , l m ) and R = (r 1 , . . . , r d+\u03bb ). 3. Solve (e.g., with Gaussian elimination) for variables {l u | u \u2208\u1e7c } \u222a R that satisfy: l(x i ) r(x i ), L R = y i , \u2200x i \u2208\u1ebc where l(\u00b7), r(\u00b7) are as above. 4. For each connected component which is a tree, pick an arbitrary vertex v as the root of the tree. Set the variable l v to a random value. 5. For each item/edge x i \u2208\u1ebc, in order of a DFS traversal directed away from the 2-core (in connected components which include a cycle), or directed away from the root (in connected components which do not include a cycle) (a) Let {u, v} = {h 1 (x i ), h 2 (x i )} so that l u is already defined and l v is not. (b) Set l v := l u \u2295 r(x i ), R \u2295 y i 6. Output D = L R Garbled Cuckoo PaXoS The proof bounds the probability that the Encode algorithm fails to satisfy the linear constraints v(x i ), D = y i for every i. For items x i that do not correspond to edges in the 2-core, Step 4 of Encode satisfies the appropriate linear constraint, by construction. For items in the 2-core, their linear constraints are fixed all at once in Step 3 of Encode. Hence, the construction only fails if Step 3 fails. Step 3 solves for the following system of equations: l(x i ) r(x i ), L R = y i , \u2200x i \u2208\u1ebc We interpret {l(x i ) r(x i )} xi\u2208\u1ebc as a matrix M L |M R where the first m columns (i.e., M L ) are {l(x i )} xi\u2208\u1ebc and the remaining d + \u03bb columns (i.e., M R ) are {r(x i )} xi\u2208\u1ebc . We therefore ask whether the rows of the matrix M L |M R are linearly independent.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "C be a linear error correcting code [n, k, d] with d \u2265 \u03ba. Let H be a random oracle and let s \u2190 {0, 1} n be chosen uniformly at random.Then for all a 1 , . . . , a m \u2208 {0, 1} n and nonzero b 1 , . . . , b m \u2208 {0, 1} k , the following values are indistinguishable from random:",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Fig. 5. Parameters for malicious PaXoS-PSI with \u03ba = 128 and Pr[simulator extracts > n items from malicious receiver] < 1/2 40 , where adversary makes 2 128 queries to H1.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

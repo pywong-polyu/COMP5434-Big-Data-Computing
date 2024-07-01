@@ -1,0 +1,3765 @@
+{
+    "paper_id": "df2e921ab8b8988d4d7046aac79bdf5073d86ef2",
+    "metadata": {
+        "title": "Verifying Compliance in Process Choreographies: Foundations, Algorithms, and Implementation",
+        "authors": [
+            {
+                "first": "Walid",
+                "middle": [],
+                "last": "Fdhila",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Security Business Austria (SBA-research)",
+                    "location": {
+                        "settlement": "Vienna",
+                        "country": "Austria"
+                    }
+                },
+                "email": "wfdhila@sba-research.org"
+            },
+            {
+                "first": "David",
+                "middle": [],
+                "last": "Knuplesch",
+                "suffix": "",
+                "affiliation": {},
+                "email": "d.knuplesch@alphaquest.de"
+            },
+            {
+                "first": "Stefanie",
+                "middle": [],
+                "last": "Rinderle-Ma",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Technical University of Munich",
+                    "location": {
+                        "addrLine": "Boltzmannstrasse 3",
+                        "settlement": "Garching",
+                        "country": "Germany"
+                    }
+                },
+                "email": "stefanie.rinderle-ma@tum.de"
+            },
+            {
+                "first": "Manfred",
+                "middle": [],
+                "last": "Reichert",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ulm University",
+                    "location": {
+                        "settlement": "Ulm",
+                        "country": "Germany"
+                    }
+                },
+                "email": "manfred.reichert@uni-ulm.de"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The current push towards interoperability drives companies to collaborate through process choreographies. At the same time, they face a jungle of continuously changing regulations, e.g., due to the pandemic and developments such as the BREXIT, which strongly affect cross-organizational collaborations. Think of, for example, supply chains spanning several countries with different and maybe even conflicting COVID19 travelling restrictions. Hence, providing automatic compliance verification in process choreographies is crucial for any cross-organizational business process. A particular challenge concerns the restricted visibility of the partner processes at the presence of global compliance rules (GCR), i.e., rules that span across the process of several partners. This work deals with the question how to verify global compliance if affected tasks are not fully visible. Our idea is to decompose GCRs into so called assertions that can be checked by each affected partner whereby the decomposition is both correct and lossless. The algorithm exploits transitivity properties of the underlying rule specification, and its correctness and complexity are proven, considering advanced aspects such as loops. The algorithm is implemented in a proof-of-concept prototype, including a model checker for verifying compliance. The applicability of the approach is further demonstrated on a real-world manufacturing use case.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Gartner regards interoperability as \"strategic imperative\" 1 for healthcare. Especially the global push by digitalization and the current pandemic require the collaboration and integration of (business) partners and organizations. Process technology serves as enabler for process-oriented collaborations between distributed business partners, realized and implemented through so-called process choreographies. Applications include healthcare (34) , blockchain-based processes (47; 46) , multi-modal logistics scenarios (7; 10), and supply chains (22) . Digitalization and ongoing changes due to, for example, the pandemic situation or the BREXIT flood enterprises and organizations with updated or even new regulations at a fast pace. For example, \"bank regulations change every 12 minutes\". 2 Regulatory frameworks comprise application-independent frameworks such as the GDPR on \"data processing boundaries of the personal data of European Union's citizens\" (65) and the ISO 27001 security standard 3 as well as application-specific ones, e.g., the WHO regulations defined in the context of COVID19 4 . As a consequence, in our globalized world, regulations and their changes affect process collaborations (54) and lead to an increased need for compliance verification in process choreographies.",
+            "cite_spans": [
+                {
+                    "start": 442,
+                    "end": 446,
+                    "text": "(34)",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 476,
+                    "end": 484,
+                    "text": "(47; 46)",
+                    "ref_id": null
+                },
+                {
+                    "start": 546,
+                    "end": 550,
+                    "text": "(22)",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 792,
+                    "end": 793,
+                    "text": "2",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 959,
+                    "end": 963,
+                    "text": "(65)",
+                    "ref_id": "BIBREF65"
+                },
+                {
+                    "start": 1000,
+                    "end": 1001,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1100,
+                    "end": 1101,
+                    "text": "4",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1207,
+                    "end": 1211,
+                    "text": "(54)",
+                    "ref_id": "BIBREF54"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "What are the particular challenges with respect to compliance verification in process choreographies? Let us illustrate them by an example. Figure 1 depicts the choreography model of a supply chain scenario adapted from (22) . It involves five process partners, i.e., Bulk Buyer, Manufacturer, Middleman, Supplier, and Special Carrier that interact through Verifying Compliance in Process Choreographies message exchanges. First, the Bulk Buyer orders a set of products from the Manufacturer (e.g., an aircraft). The manufacturing of the product requires several sub-products (intermediates) to be provided by different suppliers. In this scenario, we assume that only one intermediate is required and provided by the Supplier. After processing the order, hence, the Manufacturer sends an order for the intermediate (e.g., the fuselage or engines) to the Middleman. Obviously, none of the GCR can be directly verified on basis of the choreography model in Fig. 1 as none of the public and message exchanging tasks corresponds to any of the tasks referred to in the GCR. Let us have a look at the public processes of the partners involved in the choreography as shown in Fig. 3 . These public process models contain all public tasks that are visible to the other partners, including the tasks that exchange messages, but also other visible tasks such as Production at the Manufacturer. Based on the public process models, C1 and C2, Verifying Compliance in Process Choreographies as depicted in Fig. 2 , can be verified: C1 refers to public tasks of the Manufacturer process, which obviously complies with C1, i.e., public task Production is followed by public task Final Test. C2 can be verified over the Supplier and Special Carrier processes. The order between tasks Pack Intermediate and Transport Intermediate is determined by the message exchange between sending and receiving Waybill Intermediate. As opposed to C1 and C2, C3 cannot be verified based on the public processes of the partners as there are no public tasks for Safety check and Get permission of authority. The presumption is that C3 also refers to private tasks of the partners, i.e., tasks that are only present in the private process models of the partners. In general, private process models of the partners implement and possibly extend the behavior of the corresponding public models. As opposed to public tasks, private tasks are not visible to the partners. Figure 4 shows the private process models of partners Special Carrier and Middleman where private tasks are highlighted in gray color. Although private tasks are usually hidden to other partners, restrictions over them might exist. In the supply chain, for example, C3 refers to private tasks Safety Check for partner Special Carrier and Get permission of authority for partner Middleman. If private tasks are affected by a GCR, no information about how and when these tasks are executed, or how they are connected to other nodes of the corresponding private process model, becomes visible to the other partners. Usually, this happens when a collaborating partner p1 imposes the execution of a specific task that must exist in its private process and comply with a given rule involving another partner p2. Partner p1 should then assure the existence of such task and that it follows the imposed rule. As can be seen from the example depicted in Figs. 1-4, GCRs constrain actions of multiple partners and/or the interactions between them. Ensuring the compliance of process choreographies with a GCR is crucial and challenging (32) as a partner \"only has the visibility of the portion of the process under its direct control\" (48) . Reconsider GCR C3 as an example. It asks for a safety check accomplished by a private task of the Special Carrier. To cope with this issue, assertions can be used. An assertion (A) corresponds to a commitment of a partner guaranteeing that its private/public process complies with the imposed rule (22) . Figure 5 depicts the two assertions A1 and A2: the Middleman agrees to get the permission of the authority before ordering the special transport (A1). Moreover, the Special Carrier commits to perform a safety check before transporting the intermediate (A2). In combination, assertions A1 and A2 enable Verifying Compliance in Process Choreographies ",
+            "cite_spans": [
+                {
+                    "start": 220,
+                    "end": 224,
+                    "text": "(22)",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 3561,
+                    "end": 3565,
+                    "text": "(32)",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 3660,
+                    "end": 3664,
+                    "text": "(48)",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 3965,
+                    "end": 3969,
+                    "text": "(22)",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 140,
+                    "end": 148,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 956,
+                    "end": 962,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1170,
+                    "end": 1176,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1494,
+                    "end": 1500,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 2435,
+                    "end": 2443,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 3972,
+                    "end": 3980,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Problem Statement"
+        },
+        {
+            "text": "Overall, this leads to the overarching research question RQ tackled in this work:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contribution"
+        },
+        {
+            "text": "In literature, there is a \"knowledge gap\" when it comes to compliance verification in process choreographies (32) . (48) tackles the problem of checking a GCR on private tasks based on IoT-enabled artifacts. However, not all process choreography settings with compliance requirements feature IoT-enabled artifacts. Hence, this works aims at providing a formal approach that is independent of any technology or application. The central idea is to decompose the GCR into assertions in a lossless way, i.e., the verification of all assertions guarantees the one of the GCR. Note that this solves the problem as assertions may be checked separately by each of the partners. Hence, infringing the privacy of any partner is avoided. The decomposition algorithm presented in this article exploits transitivity properties of the underlying GCR specification and was originally presented in (23) . The decomposition relies on transitivity properties of the underlying GCR specification. The transitivity properties are shown by the example of a translation to first order predicate logic. Similarly, for example, (57) presents declarative patterns based on Linear Temporal Logic (LTL). In our approach, GCRs are specified in a pattern-based and visual way using the eCRG formalism (40) . This means that a GCR may be composed of so called antecedence patterns and consequence patterns. The patterns can be connected reflecting pre-/post-conditions of the respective GCR. C1 in Fig. 2 , for example, connects antecedence pattern Production with consequence pattern Final test, demanding that after the production a final test is required. Note that antecedence and consequence patterns may require occurrence (i.e., something must happen) and absence (i.e., something must not happen). In (23), we relied on simple rules that consist of single antecedent and multiple occurrence patterns. Aside the decomposition algorithm itself, (23) provides basic proofs, simple GCR decomposition scenarios, and the embedding of the approach in the overall digitalized change and compliance management framework C 3 Pro. 5 This article extends and elaborates the results presented in (23) in several directions:",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 113,
+                    "text": "(32)",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 116,
+                    "end": 120,
+                    "text": "(48)",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 882,
+                    "end": 886,
+                    "text": "(23)",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1272,
+                    "end": 1276,
+                    "text": "(40)",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 2098,
+                    "end": 2099,
+                    "text": "5",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 2161,
+                    "end": 2165,
+                    "text": "(23)",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1468,
+                    "end": 1474,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "\u2022 We allow for additional and more complex compliance rules with multiple antecedence patterns. This significantly increases the complexity of the theoretical considerations as well as the one of the provided GCR decomposition scenarios. As a result, we obtain new theorems and algorithms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "\u2022 The decomposition proofs are extended to cover the additional complexity of the GCR; in particular they now consider loops as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "\u2022 The decomposition algorithm with extensions is prototypically implemented and integrated with the C 3 Pro framework, which deals with both change and compliance in process choreographies.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "\u2022 A model checker for verifying decomposition correctness is provided.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "\u2022 A manufacturing use case illustrates the applicability of the approach. Specifically, the use case demonstrates the applicability of the approach beyond regulatory compliance, i.e., it shows how decomposition can be used to lift implicit connections to explicit assertions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "\u2022 The related work section is significantly extended.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "The remainder of the paper is structured as follows: Section 2 provides fundamentals required for understanding this work, and Section 3 introduces the foundations for GCR decomposition (including transitivity theorems). Section 4 then presents the decomposition algorithm for global compliance rules, whereas Section 5 deals with the automated verification of the resulting decompositions based on model checking. Sections 6 and 7 cover the evaluation of the approach, i.e., the implementation and application of the algorithms. Section 8 discusses related work. Section 9 concludes the paper with a summary and an outlook.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "This section presents definitions and formal backgrounds for global compliance rules (GCRs) to be obeyed by a process choreography . A choreography includes three types of overlapping models: (i) a private model representing the executable process and including both private and public activities (see Fig. 4 for examples of private process models), (ii) a public model (also called the interface of the process) that solely includes the public activities and the interactions of a given partner (see Fig. 3 for the public process models of our running example), and (iii) a choreography model providing a global view on the interactions between all partners (see Fig. 1 for the choreography model of our running example) (21) . Compared to (21; 2), this paper assumes that public activities are not necessarily interactions with other partners, but may additionally represent tasks made visible by the corresponding partners. Therefore, both interactions and non-interaction public activities of a single partner are described in a public model. The latter serves as public (restricted) view on the private model of the partner, which \"describes the internal logic of a partner including its private and public activities\" (6) . For a formal definition of process choreography, we refer to Definition 1. (21)). We define a choreography as a tuple (\ue23c, \ue233, \u03a0, \ue238, , \u0393, ) where -\ue23c is the set of all participating partners.",
+            "cite_spans": [
+                {
+                    "start": 722,
+                    "end": 726,
+                    "text": "(21)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1224,
+                    "end": 1227,
+                    "text": "(6)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 302,
+                    "end": 308,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 501,
+                    "end": 507,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 664,
+                    "end": 670,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Fundamentals"
+        },
+        {
+            "text": "-\ue233 is the choreography model representing the interactions \ue235 between partners in \ue23c (cf. Fig. 1 ).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 88,
+                    "end": 94,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": "-\u03a0 = { } \u2208\ue23c is the set of all private models (cf. Fig. 4 ).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 50,
+                    "end": 56,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": "-\ue238 = { } \u2208\ue23c is the set of all public models (cf. Fig. 3 ). -= { \u2236 \u2194 } \u2208\ue23c is a partial mapping function between nodes of the public and private models.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 49,
+                    "end": 55,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": "-\u0393: \u2194 \u2032 is a partial mapping function between nodes of different public models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": "-\u2236 \ue233 \u2194 is a partial mapping function between nodes of the choreography model and the public models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": "As depicted in Figures 1, 3 and 4 , choreography, public and private models are defined as graphs, where nodes are either activities (i.e., interaction, public or private activities) or gateways (e.g., sequence, exclusive or parallel), and arrows are the dependencies between them. As described above, each of these three models use specific type of activity nodes (e.g., interaction activities for choreography models). Because the focus of this paper is mainly on GCR decomposition, we abstract their respective formal definitions, but the reader may refer to (21) for more details. While function maps the activities of the public models to those of the private models, function \u0393 determines the dependencies between the interactions of different public models (e.g., \u0393( _ ( _ )) = _ ( )). Finally, function represents the dependencies between the activities in the choreography model and those of the public models (e.g.,",
+            "cite_spans": [
+                {
+                    "start": 562,
+                    "end": 566,
+                    "text": "(21)",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 15,
+                    "end": 33,
+                    "text": "Figures 1, 3 and 4",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": ". Note that in the examples above, connected interaction activities (i.e., the send and the corresponding receive) of different public models have the same labels, while in practice, it is possible to have them different. Based on functions and \u0393, certain soundness properties of choreography can be checked, including structural and behavioral compatibility between public models, and consistency between public and private models (15) . Structural consistency requires that for each public activity of the public model of a partner p, there should be a matching element in the corresponding private model of p, but not vice versa (21) . Structural compatibility states that for each interaction activity of the public model of a partner p, there should be a matching interaction activity in the public model of another partner. Note that this is a necessary, but not yet sufficient condition for ensuring compatibility and consistency-the models' behaviors (control flow dependencies) should also be compatible and consistent. In this paper, we assume that the choreography is sound. In previous work (20) , multiple formal languages employed for business process compliance modelling and checking (e.g., linear temporal logic LTL, event calculus EC, extended compliance rule graph eCRG) were compared. It was shown that most of these languages can deal with most qualitative time patterns, and can therefore be used to model the compliance constructs addressed in this paper. Similar results were proven in (30) . In order to specify these constructs as well as transitivity properties required for the GCR decomposition, this work utilizes the visual eCRG (extended Compliance Rule Graph) language (42; 38; 36). The eCRG language offers a visual rule notation for expressing compliance rules over process choreographies and is based on first order predicate logic (cf. Fig. 6 ). To distinguish between a precondition (i.e., antecedence) and corresponding postconditions (i.e., consequences), an eCRG can be partitioned into an antecedence pattern and a consequence pattern. The antecedence pattern specifies when the compliance rule is triggered (i.e., activated), whereas the consequence pattern specifies what the rule demands. As compliance rules may require the occurrence or absence of certain activities or interactions (i.e., message exchanges), the antecedence and consequence patterns are further sub-divided into occurrence and absence nodes. Sequence conditions between these events can be expressed using directed connectors between the respective nodes. We use the following notation:",
+            "cite_spans": [
+                {
+                    "start": 432,
+                    "end": 436,
+                    "text": "(15)",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 632,
+                    "end": 636,
+                    "text": "(21)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1103,
+                    "end": 1107,
+                    "text": "(20)",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1510,
+                    "end": 1514,
+                    "text": "(30)",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1873,
+                    "end": 1879,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": ": Antecedence occurrence; : Antecedence absence; : Consequence occurrence;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": ": Consequence absence. Fig. 6 introduces the elements of the eCRG language. For a formal definition of eCRG, we refer to Def. 2. \u2022 \u2236 \u2192 \ue23c returning the partner responsible for a node.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 23,
+                    "end": 29,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Definition 1 (Choreography"
+        },
+        {
+            "text": "\u2022 \u2236 \u00d7 \u2192 { \u290f,\u2192, \u2205} returning the sequence flow connector between two nodes, i.e., consequence sequence and antecedence sequence connectors respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Occurence"
+        },
+        {
+            "text": "\u2022 \u2236 \u2192 \ue22d \u222a \ue235 mapping each node to an activity or an interaction (i.e., message exchange).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Occurence"
+        },
+        {
+            "text": "Think of an eCRG as a graph of connected nodes, where each node is assigned to a particular partner (e.g., in C1, ( ) = ). A node may either be a private, non-interaction public activity, or an interaction (see Figure 6 ). Given two nodes of an eCRG, function returns the sequence flow connector as depicted in Figure 6 , where a dashed arrow (i.e., consequence connector) connects an antecedence pattern to set of consequence patterns (e.g, 1: After production a final test is required), and an antecedence connector expresses a relation between antecedence patterns solely (i.e, the pre-condition). For example, assume that we change 3 as follows:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 211,
+                    "end": 219,
+                    "text": "Figure 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 311,
+                    "end": 319,
+                    "text": "Figure 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Occurence"
+        },
+        {
+            "text": "Then: if the pre-condition (i.e., execution of activity _ _ _ \u210e followed by the one of activity _ \u210e ) is met, the post condition (i.e., activity _ ) will be triggered. Finally, function pattern evaluates whether a node is an antecedence or consequence, and whether or not it should occur.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Occurence"
+        },
+        {
+            "text": "This section introduces the theoretical foundations for the decomposition of global compliance rules (including theorems and proofs) illustrated by a number of examples, which we have extracted from the application scenario introduced in Section 1. Section 3.1 first describes the basic idea of our approach (i.e., why do we need to decompose a GCR), followed by the presentation, proofs and illustrations of the theorems in Section 3.2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Global Compliance Rule Decomposition Theorems"
+        },
+        {
+            "text": "Our method for the decentralized checking of global compliance rules relies on the decomposition of the original GCR into a set of assertions that can be checked locally by each partner and collectively reproduce the behavior of the GCR (cf. Fig. 7) . A communication between partners is only required in the setup phase to deduct the assertions. During runtime, however, no further compliance-related communication becomes necessary for checking the GCR unless a local assertion becomes violated. The decomposition of a GCR into a set of assertions is based on well-grounded theorems, which ensure that if a conjunction of hypotheses is true, the conclusion (GCR) is true as well. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 242,
+                    "end": 249,
+                    "text": "Fig. 7)",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Basic Idea"
+        },
+        {
+            "text": "In this section, we provide a decomposition method for selected global compliance patterns and show how they can be applied in a collaborative setting. In particular, we prove a set of theorems required for ensuring the correctness of our decomposition method. Each theorem represents a possible decomposition of a given compliance pattern.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorems"
+        },
+        {
+            "text": "We illustrate the translation of a GCR into a First Order Logic (FOL) expression using basic equivalences as in Def. 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorems"
+        },
+        {
+            "text": "Based on (41) , the following equivalences hold by definition. Predicate ( , ) describes that at the point in time an activity (message) of type was executed (i.e., sent or received).",
+            "cite_spans": [
+                {
+                    "start": 9,
+                    "end": 13,
+                    "text": "(41)",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 73,
+                    "end": 78,
+                    "text": "( , )",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Definition 3 (Basic Equivalences)."
+        },
+        {
+            "text": ". Thereby, relation < expresses a temporal precedence between points in time and . The decomposition algorithm presented in Section 4 exploits the transitivities for GRC as in Theorem 1. Specifically, by combining transitive relations, where each relation can be checked locally by a single partner, it becomes possible to reconstruct the original GCR behavior. Theorem 1 ensures that the behavior of the derived assertions reproduces the behavior of the GCR, but not vice versa.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3 (Basic Equivalences)."
+        },
+        {
+            "text": "Let , , and be three activity or message types. Then: a. The rightwards transitivity holds:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1 (Transitivities)."
+        },
+        {
+            "text": "The leftwards transitivity holds:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1 (Transitivities)."
+        },
+        {
+            "text": "In the following, the correctness of Theorem 1 is proven applying Def. 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1 (Transitivities)."
+        },
+        {
+            "text": "Let , , and be three activities or interactions. Then \u290f \u2227 \u290f Leftwards transitivity can be proven similarly by replacing '<' with '>'.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 1 (Rightwards Transitivity)."
+        },
+        {
+            "text": "In the following, we use Examples (1) -(3) (cf. Fig. 8 ), which we extracted from our running example (cf. Figs. 3 and 4), in order to illustrate how we use Theorem 1 for decomposing a simple compliance rule of type \u290f that involves two private tasks and of two different partners 1 and 2 respectively.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 48,
+                    "end": 54,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": "\u2022 Example (1):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": "In this example, both activities are private, which would normally require and _ to share runtime information about the execution time of the respective activities. In turn, this would require an agreement on a time synchronization protocol that considers network failures and message transmission delays. This can be solved by identifying a transitive relation between the two private activities that include an interaction activity. According to Theorem 1, the interaction activity _ _ between and _ fulfills the conditions",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": "The behavioral and structural compatibility (cf. Section 2) between the partner processes ensures that message _ _ sent by shall be correctly received by _ . By locally checking 1 and 2 by and _ respectively, we can ensure that the original GCR is not violated as long as the assertions are not violated. If one assertion is violated, a communication between the two partners will become necessary. Note that this violation does not necessarily mean that the original GCR is violated. For example, assume that for a given process instance, assertion 1 evaluates to true, and _ execute\u015b activity _ \u210e before the message arrival. Although this would result in 2 being evaluated to false, it does not necessarily mean that _ \u210e is executed before _ _ _ \u210e .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": "\u2022 Example (2): _ \u290f _ . In this example, and do not engage in any direct interaction. However, by looking at the public processes of the collaboration model from Fig. 3 , it becomes possible to identify a double transitive relation through , which interacts with both partners. Therefore, using Corollary 1, the transitive relations (assertions):",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 161,
+                    "end": 167,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": ", which has initially not been involved in the GCR, becomes involved in the derived assertions. We call an intermediary partner.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": "In this example, it is not possible to identify any transitive relation between and _ that involve private activities _ and _ \u210e . The interaction activity _ _ connects both partners immediately after the activities in question, which discards any possibility of a transitive relation. In this case, it is not possible to satisfy Theorem 1 and, hence, additional message exchanges become necessary to inform about the execution state of the activities involved in the GCR. Message exchanges can be either synchronous or asynchronous. Asynchronous message exchange only allows for reactive GCR checking and, therefore, detecting violations after their occurrence. Synchronous message exchange, in turn, is proactive as it enforces the GCR with new restrictions to the process models, e.g., the execution of activity _ \u210e becomes enabled only after receiving a synchronization message (i.e., about whether or not _ is executed). shall also inform _ in case activity _ is not executed, as this does not prevent activity _ \u210e from being executed according to the GCR.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": "Rightwards transitivity (cf. Theorem 1.a) directly ensures the correctness of the assertions derived in the above examples. It should be clear that the correctness of the derived assertions in Example (2) can be directly concluded based on Corollary 1. The same examples can be also used to illustrate leftwards transitivity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. Let , , , and be activities or interactions. Then"
+        },
+        {
+            "text": "Let , , and be three activity or message types. Then:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 2 (Zig zag Transitivities)."
+        },
+        {
+            "text": "a. The rightwards zig zag transitivity holds for the consequence absence:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 2 (Zig zag Transitivities)."
+        },
+        {
+            "text": "The leftwards zig zag transitivity holds for the consequence absence:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 2 (Zig zag Transitivities)."
+        },
+        {
+            "text": "Let , , and be activities or interactions. Then:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "Leftwards zig zag transitivity of absence can be proven similarly by replacing '<' with '>' and '\u2264' with '\u2265'.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "In the following, we use Examples (4) and (5) from Fig. 9 to illustrate and discuss how Theorem 2 can be used to decompose a GCR of type rightwards zigzag \u290f . Note that these two examples are adopted from the running example we introduced in Section 1 in order to fulfill the decomposition requirements.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 51,
+                    "end": 57,
+                    "text": "Fig. 9",
+                    "ref_id": "FIGREF8"
+                }
+            ],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "\u2022 Example (4):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "In this example, _ and _ _ in _ belong to different XOR branches, which means that the execution of activity _ implies the non-execution of activity _ _ and vice versa (fulfilling assertion 1 _ _ \u290f _ ). Additionally, in , the interaction activity _ _ and the private activity _ _ belong to the same XOR branch, and fulfill assertion 2 _ \u290f _ _ . According to Theorem 2.a, the conjunction of 1 and 2 reproduces the behavior of the original GCR. Note that process compatibility ensures that whenever sending _ _ occurs in _ , receiving _ _ should occur in as well. At the presence of loops that encapsulate the depicted process part of _ , the XOR fragment can be executed multiple times possibly leading to an alternate execution of the corresponding branches. For example, if in the first loop iteration, _ is executed and _ _ is not executed, then, to this point both derived assertions are satisfied. Let us assume that a future iteration over the XOR fragment in the context of the same process instance triggers _ _ execution, thus, violating the original GCR. iteration 1:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "} By looking at the combined trace, it becomes clear that the GCR is violated. Unfortunately, this would require both partners to exchange the traces and use a common time stamping system to obtain the same chronological order of activities. Using the theorems, however, the can locally run its derived assertion against its own execution trace of the same process instance, and identify the violation. Note that the decomposition does not enforce the processes with new restrictions (except when no transitivity could be derived), but uses the existing control flow and interactions between partners to derive assertions that can be used for a decentralized checking of the original GCR.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "\u2022 Example (5):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "The second part of the decomposition can be directly derived from the process control flow of _ : _ \u290f _ _ . The same reasoning applies to this example at the presence of loops. The correctness of Example (5) concludes from the leftwards zig zag transitivity (cf. Theorem 2.b), whereas Example (4) relies on the rightwards zig zag transitivity of the absence (cf. Theorem 2.a). The decomposition process is not limited to these scenarios and, as aforementioned, the decomposition cannot always be automated, but might require manual interaction and processing. Altogether, the decomposition eases global compliance rule checking, where each partner checks its corresponding derived assertions locally. A GCR is rechecked only if at least one of the derived assertions is not evaluated to true. Note that this does not necessarily imply that the GCR is violated.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 2 (Rightwards Zig Zag Transitivity of Absence)."
+        },
+        {
+            "text": "Let , , , and be activities or interactions such as \u2192 \u290f \u290f : if and occur, and shall occur afterwards. Let 1 , 2 , and 3 be three interactions such as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 3 (Rightwards Chaining Transitivity)."
+        },
+        {
+            "text": "(",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 3 (Rightwards Chaining Transitivity)."
+        },
+        {
+            "text": "In this example, all activities involved in the GCR are private and belong to separate partners. According to the process models shown in Figs. 3 and 4, each partner can separately derive the corresponding assertion based on Theorem 3 and involving the corresponding activity in the GCR.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 3 (Rightwards Chaining Transitivity)."
+        },
+        {
+            "text": "_ _ \u290f In this example, partners will first engage in a setup phase, in which they agree on the interaction activities that satisfy all derived assertions following the assertions' templates of Theorem 3. For example, will start by identifying relations in its process of type _ \u290f _ _ \u210e , where _ must be a message exchange with that is the partner being responsible for the following antecedence occurrence _ . In this example, and have only one interaction that satisfies the derived assertion (1); however, it is also possible to identify several alternatives. The combination of the four derived assertions reproduce the behavior of the original GCR when all assertions are true.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 3 (Rightwards Chaining Transitivity)."
+        },
+        {
+            "text": "The following theorem represents a generalization of Theorem 3 with antecedences' occurrences and consequences' occurrences. Note that the previous example also illustrates Theorem 4 with = 2 and = 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 3 (Rightwards Chaining Transitivity)."
+        },
+        {
+            "text": "should occur afterwards such that \u2200 < , < +1 holds. Let , where 1<k<n+m-1 be interactions such that:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 4 (Generic Rightwards Chaining Transitivity)."
+        },
+        {
+            "text": "(1) (5): This formula transitively ensures that whenever + \u22121 is executed, there is a least one execution in ascending order of all . + \u22121 becomes the link between all antecedence patterns and consequence patterns. Therefore, the conjunction of formulas (1) to (5) ensures that whenever an instance containing an ordered execution of should lead to an ordered execution of execution of . Note that this conjunction represents a stronger constraint than the original GCR. However, as these formulas are deducted directly from the actual processes, they do not add new constraints.",
+            "cite_spans": [
+                {
+                    "start": 261,
+                    "end": 264,
+                    "text": "(5)",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proof 4 (Generic Rightwards Chaining Transitivity)."
+        },
+        {
+            "text": "(1)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 5 (Between Pattern 1). Let , and be three activities. \u290f \u290f : if and occur and occurs after , then must occur in between."
+        },
+        {
+            "text": "Then: Whenever (1) \u2227 (2) \u2227 (3) evaluates to true, \u290f \u290f is true as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 5 (Between Pattern 1). Let , and be three activities. \u290f \u290f : if and occur and occurs after , then must occur in between."
+        },
+        {
+            "text": "(",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 5 (Between Pattern 1)."
+        },
+        {
+            "text": "\u2022 Example (7):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 5 (Between Pattern 1)."
+        },
+        {
+            "text": ". Again, in this example, we consider the worst case scenario where each activity referred to by the GCR belongs to a different process partner. In this example, has one single alternative as it only has two interaction activities with _ and respectively, which follow the assertion template (1) of Theorem 5; i.e., each execution of _ must be followed (not necessarily immediately) by _ _ ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 5 (Between Pattern 1)."
+        },
+        {
+            "text": "which, in turn, should not be preceded by any _ _ execution. Similarly, _ and should identify assertions that follow rule templates (2) and (3) respectively. Note that the Between Pattern \u290f \u290f can be also checked using chaining transitivity \u290f \u290f . However, this adds a stronger assumption on and that should follow whenever it occurs. For example, this holds in the running example (cf. Fig. 3) , as _ transitively implies _ , which, in turn, transitively implies _ .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 385,
+                    "end": 392,
+                    "text": "Fig. 3)",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Proof 5 (Between Pattern 1)."
+        },
+        {
+            "text": "Let , and be three activities. \u290f \u290f : if and occur and occurs after , then shall occur in between.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Proof 6 (Between Pattern 2).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Using (1):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Using (2), if happens before 4 then 3 should not happen in between:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Using (3), if 3 < , then there should be 4 in between:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Using (4) , if there exist 2 and 5 such that 2 < 5 , then there should be in between: ",
+            "cite_spans": [
+                {
+                    "start": 6,
+                    "end": 9,
+                    "text": "(4)",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "In order to illustrate Theorem 6, we apply the following adaptations to the running example (cf. Figs. 1 -4) : \u2022 Example (8):",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 97,
+                    "end": 108,
+                    "text": "Figs. 1 -4)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Similar to the previous examples, the partners start by locally identifying relations that satisfy the derived assertions templates of Theorem 6, then apply a matching mechanism to check whether the additional interactions used for the derived assertions intersect and jointly fulfill the templates. It is noteworthy that the number of additional interaction activities required for the derived assertions is superior to the number required in Theorem 5. Despite that, Theorem 6 provides more relaxed assumptions compared to Theorem 5 as it does not restrict activity from occurring before activity . Theorem 6 still prevents from happening between 1 and 3 . The following assertions are the decomposition results of Example (8):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Note that all previous theorems consider loops and multiple occurrences of each of the activities composing the global compliance rule GCR. Indeed, in a process model that includes loops or multiple instance patterns, an activity may be executed multiple times at different points in time in the context of one single process instance. As such, each derived assertion including such repetitive activity should be satisfied for all its occurrences. Although this issue has been addressed in all previous theorems (see proofs), it resulted in additional decomposition complexity not required for loop-free processes. Therefore, we propose a simpler decomposition method for the \"between\" pattern, which may be applied solely to loop-free processes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 6 (Between Pattern 2)."
+        },
+        {
+            "text": "Let , and be three activities. \u290f \u290f : if and occur and occurs after , then shall occur in between.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 7 (Between Pattern (without loops))."
+        },
+        {
+            "text": "Then: If the conjunction of formulas (1) \u2227 (2) \u2227 (3) evaluates to true, \u290f \u290f is true as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 7 (Between Pattern (without loops))."
+        },
+        {
+            "text": "(",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 7 (Between Pattern (without loops))."
+        },
+        {
+            "text": "As there are no loops over , and corresponding messages, then 2 can occur only once within one process instance. Consequently, 2 = \u2032 2 :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 7 (Between Pattern (without loops))."
+        },
+        {
+            "text": "We use the same GCR as in previous theorem illustration (including the adaptations to Fig. ??) . As the tasks involved in the GCR are not contained in any loop, Theorem 7 may be applied. The following assertions are the decomposition results:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 86,
+                    "end": 94,
+                    "text": "Fig. ??)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Proof 7 (Between Pattern (without loops))."
+        },
+        {
+            "text": "Let and be two activities or interactions such as : if occurs then should occur (before or after,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 8 (Requires transitivity)."
+        },
+        {
+            "text": "be three activities or interactions such that :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 8 (Requires transitivity)."
+        },
+        {
+            "text": "If (1) \u2227 (2) evaluates to true, then \u290f \u2228 \u290f evaluates to true.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 8 (Requires transitivity)."
+        },
+        {
+            "text": "(",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 8 (Requires transitivity)."
+        },
+        {
+            "text": "Note that this theorem also considers loops and multi-instance patterns. The illustration of Theorem 8 is similar to the rightwards and leftwards transitivity examples.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof 8 (Requires transitivity)."
+        },
+        {
+            "text": "At design time, checking a GCR that solely refers to interactions and/or public activities can be achieved by applying contemporary compliance checking techniques (cf. (29) ) either on the choreography model or the public process models of the involved partners. By contrast, if a GCR refers to private activities of different partners, it becomes impossible to check its correctness as partners must not view the private process model parts of the other partners and, therefore, cannot identify the dependencies between the private activities involved in the GCR. To cope with this issue, we suggest decomposing the GCR into a set of assertions of which each can be checked locally by the corresponding partner. The decomposed rules then reproduce the behavior of the original GCR. Decomposition in compliance checking has been exploited by (60) , but only at the process model level in order to achieve performance gains for the compliance checks. The article at hand proposes to decompose the GCR to distribute the compliance checks to the partners for maintaining the confidentiality of their private tasks. This section focuses on the decomposition algorithms and explains the steps to derive assertions by applying the theorems introduced in Section 3. Figure 10 provides a high-level description of the steps required by partners involved in a GCR to identify a valid decomposition. Algorithm 1 provides a more detailed view on how this can be achieved in practice with a particular focus on compliance rules that include one antecedence pattern. Given a GCR, the decomposition process starts by selecting a leader among the partners involved in the GCR. The leader will be responsible for identifying the pattern corresponding to the GCR (e.g., rightward chaining pattern or between pattern). This is trivial and can be accomplished with a simple exact graph matching algorithm (e.g., comparing node types and connectors). Once the pattern is identified, several decomposition theorems may be applicable. For example, in the case of the between pattern, Theorems 5, 6, and possibly 7 (if the processes are loop free) may be applied. The leader will then select and apply a theorem, derive the assertion templates accordingly, and send each of them to the corresponding partner-this step can be easily automated. An assertion template, in turn, is a derived assertion output from the theorem, where the actual interactions (i.e., message exchanges) have not yet been defined. For example, for , _ _ _ \u210e \u290f (where M shall be an activity interacting with _ ) is a derived assertion template of the global compliance rule _ _ _ \u210e \u290f _ \u210e , as has not been defined yet.",
+            "cite_spans": [
+                {
+                    "start": 168,
+                    "end": 172,
+                    "text": "(29)",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 842,
+                    "end": 846,
+                    "text": "(60)",
+                    "ref_id": "BIBREF60"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1259,
+                    "end": 1268,
+                    "text": "Figure 10",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Algorithm for Decomposing Global Compliance Rules"
+        },
+        {
+            "text": "Next, each partner will try to identify an assertion template instance that conforms with the derived assertion templatean instance of an assertion template corresponds to a template with actual activities. _ _ is a valid option in this example as it interacts with _ fulfilling the template constraint (i.e., the template instance corresponds to _ _ _ \u210e \u290f _ _ ). This can be automated by having each partner responsible for an assertion template iterating over the message exchanges in its private process model. Depending on the assertion template structure, one or several message exchanges may be selected for constructing an assertion instance candidate. The latter must conform with the assertion template. Moreover, it needs to be ensured that the process in question is compliable with it. Existing design-time compliance checking techniques can be employed in this regard (3; 4; 35; 6). Several assertion instance candidates can be identified for the same partner, which may increase the probability of finding a collective solution among all partners. Afterwards, partners either collectively enter a negotiation phase and exchange their assertion instance candidates, or rely on the leader to collect all proposals and run a matching algorithm that selects assertion candidates, which replicate the templates derived by the decomposition. Indeed, two assertion templates may require that they use the same message exchange. Therefore, the matching algorithm will select the assertion instance candidates of different partners that have the same message exchange in common (using function or to ensure that the mapping is correct). While having the leader collecting the assertion proposals and doing the matching can be more efficient and reduce the communication overhead between partners, conducting the negotiation in a distributed manner reduces trust assumptions. Note that it is possible to run the entire process in a distributed manner, without need for a leader. In this case, all partners will have to run the matching algorithms for identifying the GCR pattern. Moreover, they have to agree on the decomposition theorem to be applied (e.g., using a majority vote) and collectively execute the matching of assertion instances. If a matching solution is found, each partner will use the selected assertion instance for future run-time checking. Unless a solution is found, the next applicable theorem will be explored in the same way. If no solution could be found after trying all applicable decomposition theorems, synchronization messages become necessary for enabling distributed run-time checking of the GCRs. At run-time, no additional communication with other partners is needed for checking the GCR, unless a violation occurs. Similar to assertion and local compliance rules monitoring, each partner is responsible for complying with the derived assertions. This can be enforced using post-auditing processes by the respective legal entities, e.g., external audits conducted by data protection officers on hospitals participating in collaborative study on COVID-19 vaccines' efficiency. Indeed, in the healthcare sector, new methods exist, where it is possible to conduct a research study using federated machine learning 6 . In this setting, the ML application is conducted locally within each healthcare data provider infrastructure (e,g., hospitals or bio banks), and the resulting output models are aggregated instead. This prevents data of different participants from being merged in a central repository, and thus be subject to different and complex regulatory issues. These locally executed processes, nevertheless, also need to comply with data protection rules, where for example, the data used for the aggregated model must have patient consents beforehand. Therefore, external audits are necessary, at each site, to check whether each federated model used for the aggregation is indeed compliant with the GDPR requirements for data consents. Note that this also prevents collecting all participants' consents in one central repository for the purpose of compliance checks on the aggregated model. Algorithm 1 realizes GCR decomposition as set out in Definition 2. It assumes that each node of the GCR is assigned to one partner being responsible for it. Further on, we assume the input GCR to be consistent and satisfiable (for dealing with unsatisfiable and inconsistent rules we refer interested readers to (11) ). In the following, we first explain Algorithm 1 step by step and then illustrate the entire algorithm along Example 1 (see below). Starting from the node (cf. Def. 2), Algorithm 1 walks outwards through all other nodes of the GCR. Thereby, the visited parts are copied and become assertions. Wherever the algorithm walks over a connector between two nodes and , which are assigned to different partners ( ) and ( ), the GCR is split at this position as this dependency cannot be evaluated by a single partner. Next, the algorithm tries to replicate the connector where the GCR was split through (transitive) message exchanges between both affected partners by applying the transitive relationships from Section 2. Therefore, sets \u2022, \u2022 , and \u0398 are calculated. Depending on the pattern of (cf. Def. 2), \u2022 and \u2022 contain the messages succeeding or preceding and , respectively. Note that these calculations have to be accomplished in a decentralized manner by ( ) and ( ) themselves as and may be private tasks. Next, \u0398 combines those messages of \u2022 and \u2022 that can be combined.",
+            "cite_spans": [
+                {
+                    "start": 3250,
+                    "end": 3251,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 4448,
+                    "end": 4452,
+                    "text": "(11)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Verifying Compliance in Process Choreographies"
+        },
+        {
+            "text": "\u2022 Global compliance rule = ( , , , , )",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: GCR decomposition DECOMPOSE(gcr)"
+        },
+        {
+            "text": "\u2022 Choreography model , and \ue239 as the set of all partners' message nodes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: GCR decomposition DECOMPOSE(gcr)"
+        },
+        {
+            "text": "\u2022 We assume that also returns the partner private model of a node .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: GCR decomposition DECOMPOSE(gcr)"
+        },
+        {
+            "text": "select the only \u2208 with If is a node (i.e., must follow ), \u0398 contains message tuples ( 1 , 2 ) that ensure that is always followed by 1 , 1 by 2 (unless 1 = 2 ), and 2 by . Any pair ( 1 , 2 ) \u2208 \u0398 can then be used to complement the created assertions, i.e., 1 becomes a placeholder for within the assertion of ( ), whereas 2 replaces for ( ). Regarding nodes (i.e., must not follow ), all pairs of messages ( 1 , 2 ) \u2208 \u0398 ensure that is preceded by 1 in any case, and 1 is preceded by 2 (unless 1 = 2 ), whereas never follows 2 . Finally, for nodes an occurrence of after allows ignoring the rule. Hence, nodes result in pairs ( 1 , 2 ) such that 1 may only occur after and 2 may only occur after 1 (unless 1 = 2 ). However, there should be at least one case in which 2 is followed by (i.e., is not always preceded by 2 ). Finally, all assertions of the same partner, which depend on the same message, are merged to reduce the number of assertions. Remaining assertions without consequences are removed as they result from the processing of nodes, but have not been merged in the previous step. Remember that ignoring nodes is allowed as this makes rules even more strict. Fig. 11 ) from the running example that we introduced in Section 1 (cf. Figs. 1 -4) . Let For the same GCR, it is possible to infer several decomposition alternatives, depending on which interactions are used to find a transitive control flow relationship between the nodes of the GCR. It is also possible that no direct link can be identified between two partners' GCR nodes (i.e., there is no interaction between these two partners). As such, interactions with intermediary partners can be used to find an indirect link (i.e., transitive interactions). As aforementioned, if no transitivity is identified between the GCR nodes of two partners (even not through intermediary partners), it becomes necessary to exchange additional execution data between the partners involved in the GCR, by, for example, adding sync messages. Sync messages are a specific type of messages communicated between partners to inform about the state of a given task (e.g., terminated, started, not executed). Although sync messages are not preferred as they expose private data about the exact execution time of a private task, they become necessary when the GCR cannot be decomposed into assertions, i.e., no transitive relations can be identified. In the following, we discuss the complexity of the GCR decomposition in Algorithm 1. Results on checking regulatory compliance in general have been provided in (59) . The first and second loops iterate over the nodes of the compliance rule. If we consider that two nodes can only have one flow connector, the number of required operations will be \u22121 2 , otherwise ( \u2212 1). In both cases complexity corresponds to ( 2 ). The first statement is (1), whereas the statement calculates \u2022, \u2022 and each with a worst case complexity of ( 2 ). The second inner loop has the same complexity as the first inner loop. The third nested inner loop iterates over partners and compare assertions within the same partner with a number of operations equal to \u00d7 \u22121 2 , which gives a complexity of ( 3 ). Finally, the last inner loop has a complexity of ( ). Obviously, the overall worst case complexity of the algorithm is polynomial ( 4 ); i.e., outer loop combined with the third nested inner loop.",
+            "cite_spans": [
+                {
+                    "start": 1256,
+                    "end": 1259,
+                    "text": "Let",
+                    "ref_id": null
+                },
+                {
+                    "start": 2559,
+                    "end": 2563,
+                    "text": "(59)",
+                    "ref_id": "BIBREF59"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1170,
+                    "end": 1177,
+                    "text": "Fig. 11",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1242,
+                    "end": 1253,
+                    "text": "Figs. 1 -4)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Algorithm 1: GCR decomposition DECOMPOSE(gcr)"
+        },
+        {
+            "text": "The GCR decomposition algorithms from Section 4 are based on the theorems we have presented and proven in Section 3. Although these theorems support most control flow (i.e., behavior) compliance patterns known from literature (56; 19) , they cannot cover every possible scenario. There may be two reasons for this: (i) either the structure of a GCR is not covered by Theorems 1-8 or (ii) none of the proposed decompositions is applicable. In both cases, it might not only become necessary to find a novel decomposition of a GCR, but also to verify the latter, i.e., to prove the correctness of the decomposition. One approach to accomplish this would be to apply the eCRG semantics and to formally prove correctness (cf. Section 3). However, this is far from being trivial. Therefore, we introduce Algorithm 2 that enables the automated verification of GCR decompositions based on eCRG model checking. The main idea of Algorithm 2 is to interpret a GCR decomposition as declarative process model and to verify whether it solely allows for execution traces that comply with the original GCR. Thus, techniques that are known from the verification of declarative process models (50; 52) can be applied: First, all assertions 1 , \u2026 , of the decomposition are translated into finite state automatons \ue22d( 1 ), \u2026 , \ue22d( ). Their intersection (\u22c2 1\u2264 \u2264 \ue22d( ) ) corresponds to an automaton that only accepts traces that comply with every assertion. In turn, \u00ac\ue22d( ) denotes the automaton that accepts solely traces violating the original GCR. If the intersection of these two automatons is empty, the decomposition is correct as it only allows for traces that do not violate the original GCR and, thus, comply with it.",
+            "cite_spans": [
+                {
+                    "start": 226,
+                    "end": 234,
+                    "text": "(56; 19)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Verifying GCR Decomposition"
+        },
+        {
+            "text": "For any choreography y, whose partners ensure 1 , \u2026 , , we can now directly conclude:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Verifying GCR Decomposition"
+        },
+        {
+            "text": "i.e., complies with",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Verifying GCR Decomposition"
+        },
+        {
+            "text": "The presented approach is implemented as part of the C 3 Pro framework 7 , which deals with change and compliance in process choreographies (21) . The framework provides sophisticated functions for defining, propagating and negotiating changes in the context of process choreographies. Furthermore, it comprises a modeling component as one of its core components for editing and changing public and private process models as well as process choreography models. This component further enables the visualisation of change propagations. In the context of the present work, the threelayer architecture of the framework (21) (i.e., process modeling, change, and execution) was extended with additional components for dealing with process compliance. In detail, these new components include (i) an eCRG modelling tool, (ii) an automated generator of compliant choreographies, (iii) a model checker, and (iv) a GCR decomposition tool. Figure 12 depicts the main components of the C 3 Pro framework. The compliance (CME) and process modeling (PME) environments allow defining and editing compliable process choreography models (39; 35) and decomposing global compliance rules. Compliability was introduced as \"a semantic correctness criterion to be considered when designing interaction models. It ensures that interaction models do not conflict with the set of imposed global compliance rules\" (39) . At design time, it is ensured that the created choreography models are compliant with the defined compliance rules. Using both PME and CME, it becomes possible to parameterize and automatically generate compliable choreographies, which then can be used for testing and simulation purposes. A user, therefore, can specify the number and patterns of the GCRs as well as the parameters of the process and choreography models (e.g., number of private and public tasks, number of partners and interactions, or number and types of the control flow patterns that shall be covered by the processes) (6) . Although the generated models represent synthetic processes without real-world semantics (i.e., these models do not reflect actual use cases such as a manufacturing collaborative process), they may serve as a support for simulation and research work evaluation, e.g., model executions can result in distributed logs of synthetic data, which are useful for evaluating the efficiency of specific mining techniques. In the context of this work, this tool can be used to test the feasibility and applicability of the decomposition process on more complex choreographies and corresponding GCRs. Currently, the automated generator tool only supports four basic compliance patterns. However, other GCR patterns can be directly inferred from the models and be used for testing. The tool is integrated in the C 3 Pro framework and can be tested. A data set of automatically generated models and the corresponding GCRs are made available in the same repository. 7 Finally, the change editor allows defining and editing changes of process models and compliance rules, respectively. The Compliance Management Service represents the main extension to C3Pro related to this work, and handles the defined compliance rules and implements the theorems as well as the GCR decomposition algorithm (cf. Section 4). As process execution engine, the Cloud Process Execution Engine 8 is utilized. Most functions of the C 3 Pro framework are provided as a RESTful service, which enables unified access from any client being able to communicate via HTTP. Finally, the Compliance Management Service serves as a pluggable middleware that may be used to integrate other process execution engines. For testing the framework, we edited BPMN 2.0 choreography and collaboration models using Signavio 9 and exported them to the C 3 Pro framework as XML files. Examples are extended with GCRs, which are then decomposed into derived assertions using Algorithm 1. To this endeavor, mainly the CME, PME and the compliance management service were used.",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 144,
+                    "text": "(21)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1388,
+                    "end": 1392,
+                    "text": "(39)",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1986,
+                    "end": 1989,
+                    "text": "(6)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 929,
+                    "end": 938,
+                    "text": "Figure 12",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Implementation"
+        },
+        {
+            "text": "In addition, the C 3 Pro framework was extended with a novel eCRG model checker that was published on github 10 . Its command line interface enables the specification and verification of both global and local compliance rules (GCR and LCR) as well as process models and choreographies. In particular, the eCRG model checker supports the verification of \u2022 GCR decompositions, i.e., it allows verifying whether GCRs can be concluded from a given decomposition,",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 111,
+                    "text": "10",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "\u2022 local compliance, i.e., it allows verifying whether a single process model complies with a given compliance rule (CR), and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "\u2022 global compliance, i.e., it allows verifying whether a process choreography complies with a given GCR.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Moreover, the eCRG checker enables the automated decomposition of tree-structured GCRs with a single antecedence.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "In order to verify GCR decompositions and the various kinds of compliance respectively, the eCRG model checker translates global and local complicance rules as well as process models and choreographies into automaton, which are then combined and intersected. Depending on whether the resulting automaton is empty or not, the verification has Figure 12 : C3Pro Prototype Architecture been successful or a counter example trace has been produced. The eCRG model checker has been written in Java 8 on top of the dk.brics.automaton framework 11 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 342,
+                    "end": 351,
+                    "text": "Figure 12",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Implementation"
+        },
+        {
+            "text": "This section demonstrates and discusses how the presented decomposition algorithm can be applied in real-world settings. Here, a GCR may be imposed on process choreographies by external sources, e.g., considering regulatory documents such as the GDPR or standards such as ISO norms (63) . A GCR may also reflect internal compliance rules expressing, for example, implicit dependencies between the partners that are crucial for (re-)scheduling the process activities for one partner or across multiple partners in the choreography. The visibility of activities and compliance rules in real-world settings depends on the contractual situation and the roles of the partners in the choreography. In supply chains in automotive domain, for example, an Original Equipment Manufacturer (OEM) might demand insights into certain specifics of the private processes of its suppliers and the connected (internal) compliance rules.",
+            "cite_spans": [
+                {
+                    "start": 282,
+                    "end": 286,
+                    "text": "(63)",
+                    "ref_id": "BIBREF63"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Applicability"
+        },
+        {
+            "text": "In the supply chain example presented in the Section 1, GCR 3 (cf. Fig. 2 ) reflects an externally imposed GCR on safety in manufacturing and logistics processes. GCR 1, in turn, might reflect an internal quality assurance rule that is solely verified by the Manufacturer, but is also made visible to the other partners in order to, e.g., create trust. The real-world use case from manufacturing depicted in Fig. 13 demonstrates how the decomposition algorithms can be employed to lift implicit (data) connections to explicitly modeled assertions. The use case covers a process choreography between Partner 1 (i.e., a car manufacturer), Partner 2 (doing injection molding), and Partner 3 (i.e., the electro plater that coats parts in a correct color scheme). The choreography is designed and implemented using the CPEE (Cloud Process Execution Engine) 12 . Figure 13 shows the public activities of all partners, e.g., activity place order for Partner 1 and private activities, e.g., activity wait for order completion for Partner 1. The public activities send or receive messages, e.g., activity place order sends a message received by activity receive order. Note that the scenario abstracts from the details of the public and private activities, which are modelled as sub-processes activities, except for the electroplating task where the corresponding sub-process is depicted. The sub-process describes the measuring of the quality of the bath and the glossiness; both measures are then forwarded to the partner. Depending on the measures bath maintenance is conducted (alternative default branch). All sub-processes are of different complexity, i.e., they might contain decisions and loops, as well. The complex activity wait for order completion, in particular, comprises a set of sub-activities and is signifying the scheduling between the activities of the different partners.",
+            "cite_spans": [
+                {
+                    "start": 852,
+                    "end": 854,
+                    "text": "12",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 67,
+                    "end": 73,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 408,
+                    "end": 415,
+                    "text": "Fig. 13",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 857,
+                    "end": 866,
+                    "text": "Figure 13",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Use Cases"
+        },
+        {
+            "text": "During the design of the choreography the partners specified implicit connections, i.e., dependencies between (private) activities that are not covered by message exchanges and express mostly data dependencies. For example, activity wait for order completion (private, Partner 1) implicitly depends on the the data produced by activities prepare for manufacturing, manufacturing of parts, and quality control (all private, Partner 2). Partner 2 has to react to an order. This depends on assumptions how fast the stock drops for Partner 1. This manifests as follows: If activity place order (Partner 1) occurs, then activity resource planning Partner 2 has been done before (i.e., resource planning data received) and activity resource planning (Partner 2) was Verifying Compliance in Process Choreographies based on activities put parts to stock and deliver until stock is low (Partner 1). Understanding this as a compliance task, we can say that when the above activity information matches, the compliant ordering can be ensured.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Use Cases"
+        },
+        {
+            "text": "The question is how such implicit connections can be checked without revealing information on the private activities.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Use Cases"
+        },
+        {
+            "text": "Here, the presented decomposition algorithm can help. The idea is to express the implicit connections by GCR and verify them based on assertions. Take, for example, the implicit connection between private activities place order (Partner 1) and resource planning (Partner 2). We can formulate this implicit connection as GCR 1 \u2236 place order \u290f resource planning Using Algorithm 1, 1 can be decomposed into the following assertions:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Use Cases"
+        },
+        {
+            "text": "Note that doing so, the implicit connection is lifted up to an explicit one by sending message 1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Use Cases"
+        },
+        {
+            "text": "(ii) Consider now the more complex GCR covering the overall quality control that involves all three partners.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Use Cases"
+        },
+        {
+            "text": "Partner 1 has to do the final inspection, Partner 2 has to ensure the quality of the injection molded parts (no cracks, no holes), and Partner 3 has to ensure the quality. It is assumed that data for checking quality individually has been delivered whenever an order is finished. In this case, activity wait for order completion by Partner 1 yields all information about the quality of the injection molded parts and the electroplating process, whereas during activity check electro-plated parts by Partner 1 all additional information about the molding process is available. Overall, if activity check electro-plated parts (Partner 1) occurs, then it has to be checked whether or not activities electro-plate parts and quality control by Partner 3 were executed. Before that, for activity wait for order completion, activities prepare for manufacturing (e.g. machine calibration data, material information), manufacturing of parts, and quality control by Partner 2 were executed. If all of the above information has been received, the manufacturing process was compliant, i.e., all required steps seem to have taken place.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Use Cases"
+        },
+        {
+            "text": "In the introduction, the following research question was stated:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "In the following, we discuss how far the article at hand has addressed RQ and which open questions still remain. For this purpose, we sketch the end-to-end application of the decomposition algorithm along the following steps:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "1. Check whether the GCR can be verified at choreography level, i.e., solely refering to interactions. 2. Check whether the GCR can be verified at the public process of one partner. 3. Check whether the GCR can be verified on the public processes of at least two partners: partners have to check for the absence/presence of GCR-related activities and activity orders based on choreography and interactions if possible. Otherwise, verification has to be postponed to the runtime by additionally synchronizing activities OR compliance has to be verified in an ex post way based on logs if available. 4. Otherwise: The GCR refers to the private processes of one or several partners and a decomposition has to be applied.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "As private activities and their dependencies are not visible to all collaborators, parts of the decomposition algorithm are executed locally by all partners involved in this GCR in order to identify possible transitive relations between their corresponding private activities and possible public activities, or interactions that replicate the connector where the GCR was split. This results in multiple derived assertion alternatives, which are then aggregated to alternatives from other partners in order to find a combination that recreates the original rule as described in Section 4 (cf. Example 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "Once the GCR is decomposed and the corresponding assertions are derived, each partner locally checks its derived assertions at runtime.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "Overall, RQ has been addressed in breaking down the problem of GCR verification on distributed processes into the steps outlined above. Moreover, a sophisticated decomposition algorithm for GCR that refers to private activities of one or multiple partners has been provided. This enables distributed compliance verification for the supply chain and manufacturing use cases discussed in Section 7.1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RQ: How to verify GCRs in a decentralized setting of a process choreography where no central coordinator with complete knowledge on the private and public tasks of all partners exists?"
+        },
+        {
+            "text": "This paper focuses on structural compliance, i.e., a GCR solely refers to control flow patterns. Compliance patterns that deal with, for example, data and resources (cf. (61)) are future work and will add substantially to the complexity of the approach. Moreover, we have applied our approach to a use case from the manufacturing domain. However, additional studies in other domains, such as healthcare and logistics, become necessary to evaluate the generalizability and broad applicability of the approach. In addition, the presence of XOR branches in the processes (where sending of messages on these branches is optional) does not affect the correctness of the decomposition as long as the processes are compliable with the original GCR (39) . As aforementioned, we assume the soundness of the different process models (i.e., consistency and compatibility) and their compliability to the original GCR. This means that original GCRs are correctly specified, and the decomposition enables their checking in a distributed way. In this case, transitivity ensures correct decomposition of GCR even at the presence of XOR branches. If no transitive relations are identified, sync messages are required. Further on, in the end-to-end approach outlined above, Step 3 still offers the challenge on how to check GCR on public processes of multiple partners.",
+            "cite_spans": [
+                {
+                    "start": 741,
+                    "end": 745,
+                    "text": "(39)",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Limitations and open questions:"
+        },
+        {
+            "text": "The work presented in this article can be positioned at the interface between process choreographies and business process compliance. Section 8.1 summarizes basic works from these two research fields, whereas Section 8.2 discusses approaches that address issues at the interface between them.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Section 8.1.1 gives backgrounds on process choreography research, whereas Section 8.1.2 summarizes basic works dealing with business process compliance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Basic Research Fields"
+        },
+        {
+            "text": "Process choreography research has mainly dealt with the modeling of process choreographies and the verification of correctness properties. For this purpose, specific choreography modeling languages like Let's dance, Interaction Petri nets, and BPMN choreography diagrams are proposed, which support the modeling of collaborative process behavior. A particular focus of existing works has been put on correctness properties of choreography models (e.g., realizability), which have been intensively studied in literature (17; 16)-for an overview we refer interested readers to (62).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Process Choreography"
+        },
+        {
+            "text": "Business process compliance, in turn, has been investigated for more than a decade and several surveys exist (e.g., (4; 24)). Contemporary approaches have focused on compliance rule languages, including visual notations (3; 40; 38), logic-based formalisms (45; 43) , and Event Calculus (49) . Moreover, several approaches enable compliance checking at both build-and run-time (e.g., (4; 44; 40)) or cover different process perspectives of compliance rule checking such as behavior, data, time, and resources (58; 40). Finally, characteristic patterns for business process compliance are proposed by (19) . A formal approach that verifies local process behavior (i.e., WS-BPEL process models) against legal constraints, specified in terms of the Compliance Request Language, is proposed by (19) . This approach and similar works focus on local compliance rules, which can be checked for a given (partner) process model. By contrast, we consider verifying global compliance rules (GCR) in a process choreography based on their correct and lossless decomposition into assertions that can be checked locally by each concerned partner. Another related field deals with checking compliance of a (local) process model against its refinement or implementa-",
+            "cite_spans": [
+                {
+                    "start": 256,
+                    "end": 264,
+                    "text": "(45; 43)",
+                    "ref_id": null
+                },
+                {
+                    "start": 286,
+                    "end": 290,
+                    "text": "(49)",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 599,
+                    "end": 603,
+                    "text": "(19)",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 789,
+                    "end": 793,
+                    "text": "(19)",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Business Process Compliance"
+        },
+        {
+            "text": "tion. An approach that enables checking compliance of a (local) process model against its refinement is presented in (53) . More specifically, this approach deals with the automated verification of lower-level against higher-level UML activity charts. Behavioural containment is established to ensure that a lower-level chart constitutes a valid refinement of the higher-level one. Similarly, (18) presents an approach for enforcing compliance of hierarchical business processes with visually specified security constraints. An approach that enables checking compliance of a (local) process model against its implementation is presented in (8) , which derives the specification of a web application from a (local) process model followed by the verification of web execution logs against derived LTL formulae. Although the problem addressed by these approaches is different from the one considered in our paper, the techniques could be of interest for global compliance checking in choreographies as well.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "(53)",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 393,
+                    "end": 397,
+                    "text": "(18)",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 640,
+                    "end": 643,
+                    "text": "(8)",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Business Process Compliance"
+        },
+        {
+            "text": "There exist several approaches that address issues at the interface between process choreography and process compliance. Section 8.2.1 discusses centralized and distributed approaches for checking compliance in multi-party processes (i.e., process choreographies). In turn, approaches that map global contracts (i.e., sets of global compliance rules) to compliable process choreographies are presented in Section 8.2.2. The conformance between process choreography and local partner processes are considered in Section 8.2.3. Finally, issues related to business process compliance in the context of dynamically evolving business partner networks are discussed in Section 8.2.4.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Interface between Process Choreography and Process Compliance"
+        },
+        {
+            "text": "Compliance checking mechanisms assuming a trusted party are proposed by (27) . In (26) the same authors present a service-oriented approach that relies on a central integration platform in order to enable cross-organizational service interactions, while at the same time meeting global compliance rules. As opposed to our work, this approach relies on a central component (i.e., the integration platform) to ensure that global compliance rules can be checked. (33) advocates compliance checking in a distributed process (i.e., process choreography) as crucial, but it cannot be assessed in how far the approach deals with the restricted visibility and availability of process information as we do. In prior work, we have introduced the criterion of compliability (39) that captures the ability of a choreography to comply with a given set of compliance rules at all and how to check it (35) . The approach presented in (37) enables checking the effects of changes on the compliance in process choreographies based on dependency graphs between global and local compliance rules as well as assertions. Finally, (22) provides an overview on the challenges, related approaches, and possible solutions at the interplay of compliance, change, and choreographies. Distributed approaches that rely on IoT technology are proposed by (51; 48) . The approach suggested by (51) considers the flow of physical objects between the parties of a multi-party process. In particular, this approach exploits the sensing capabilities of smart devices to improve process compliance checking. For this purpose, commitments define mutual contractual relationships between parties in a declarative way and drive the configuration of smart devices, which check their satisfaction and, in case of misalignment, inform the concerned parties timely. This multi-party process compliance monitoring approach is conceptually enhanced by (48) through IoT-enabled artifacts. This approach proposes a decentralized solution switching from control-to artifact-based monitoring, where physical objects can monitor their own conditions as well as the process activities in which they participate, i.e., compliance monitoring is distributed among the physical artifacts interacting with the global process. To instruct these smart objects, BPMN process models are translated into a set of artifact-centric process models, rendered in Extended-Guard-Stage-Milestone (E-GSM) notation. In particular, this work shows that artifact-based modeling approaches have a high potential in respect to multi-party process management involving physical objects, which has not been the focus of our work. Finally, (46) discusses legal, organizational, human-centered, technical and economic challenges to be tackled in the field of business process compliance when enacting the (cross-organizational) business processes on the Ethereum blockchain. For example, at the implementation level, the immutability of illegal content or the error-proneness and zero-defect tolerance of smart contracts raise challenging issues in this context. Although this work does not deal with a concrete compliance verification approach, it indicates directions for future research on process compliance when using blockchain infrastructures for enacting multi-party business processes.",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 76,
+                    "text": "(27)",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 460,
+                    "end": 464,
+                    "text": "(33)",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 886,
+                    "end": 890,
+                    "text": "(35)",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1109,
+                    "end": 1113,
+                    "text": "(22)",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1324,
+                    "end": 1332,
+                    "text": "(51; 48)",
+                    "ref_id": null
+                },
+                {
+                    "start": 1906,
+                    "end": 1910,
+                    "text": "(48)",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Compliance Checking in a Process Choreography -Centralized vs. Distributed Approaches"
+        },
+        {
+            "text": "Contract languages allow specifying obligations, permissions and prohibitions in business contracts, which govern the interactions between business partners. (28) provides means to model corresponding contract constraints. An early approach that extends choreographies with such contract constraints is provided by (5) . This approach transforms the contract constraints into expressions of a choreography language, i.e., contract terms are translated into choreography expressions that govern the global process (i.e., choreography) to ensure compliance. In particular, it is shown how cross-organizational business processes can be monitored and enforced according to business contract specifications through the transformation of the contract definition to constraints on (global) process behavior. However, this approach is less powerful than ours as it tightly couples compliance constraints with choreography models, which aggravates the evolution of both choreography model and contract constraints. Besides, this approach does not consider local compliance checking (i.e., locally checking assertions derived from the decomposition of global compliance rules), which limits its applicability at the presence of more complex compliance requirements. (31) advocates Dynamic Condition Response (DCR) Graphs for decomposing global contracts into local processes. More precisely, (31) shows how a timed DCR Graph can be used to describe the global contract for a timed multiparty process (i.e., choreography), which can then be distributed as a network of communicating timed DCR Graphs (i.e., local processes) describing the local contract for each party. As opposed to our work, this approach relies on a declarative process modeling approach with a focus on discrete time deadlines.",
+            "cite_spans": [
+                {
+                    "start": 315,
+                    "end": 318,
+                    "text": "(5)",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1257,
+                    "end": 1261,
+                    "text": "(31)",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 1383,
+                    "end": 1387,
+                    "text": "(31)",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Mapping Global Contracts to Process Choreographies"
+        },
+        {
+            "text": "Several proposals have been made to ensure conformance between choreography (i.e., the global process) and the local processes of the involved business partners. In (1), conformance checking of the event logs of local processes against a given choreography model is addressed. As such an event log is not available at design time, (43) relies on a graph transformation tool-GROOVE (GRaphs for Object-Oriented VErification)-to automatically verify that a local process of a partner involved in a choreography complies with the globally specified behavior of that choreography. LTL semantics of the choreography model is employed and token semantics of the local process model, which is expressed in terms of a BPMN collaboration diagram, is used to verify conformance. (9) relates the theory of contracts with the notion of choreography conformance, i.e., it is checked whether an aggregation of services correctly behaves according to a high level specification of their possible conversations. For this purpose, a method based on the composition of choreography projection and contract refinement is presented that allows verifying that a service with a given contract can correctly play a specific role within a choreography. Finally, (14) presents an approach for ensuring conformance between a set of BPMN collaboration diagrams (i.e., local process models) and a BPMN choreography diagram (i.e., choreography model).",
+            "cite_spans": [
+                {
+                    "start": 768,
+                    "end": 771,
+                    "text": "(9)",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1237,
+                    "end": 1241,
+                    "text": "(14)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conformance between Process Choreography and Local Partner Processes"
+        },
+        {
+            "text": "As opposed to these approaches, our decomposition-based method verifies the compliance of a choreography model with global compliance rules and regulations that cover multiple process perspectives. However, conformance between the choreography and the participating partner processes can be considered as a prerequisite of our approach. (64) assumes that the partners in a business networks try to provide wrong information and, hence, introduce the notion of accountability. Compliance requirements also need to be met in dynamic business networks (12; 13) . In such a network, the partners may join and leave the collaboration dynamically and tasks over which compliance rules may be specified then have to be distributed or delegated to new partners or be backsourced by network participants in order to avoid compliance issues. In (12; 13), a conceptual model for aligning the compliance requirements in a business network with the monitoring requirements they induce on the network participants, particularly when the network changes or evolves, is presented. Various techniques (e.g., task delegation and in-house backsourcing) for ensuring the consistency between the monitoring and compliance requirements as well as metrics for evaluating the status of a collaboration in respect to compliance monitorability are discussed. Obviously, this approach lacks a process perspective, but is complementary to our work with a focus on business network changes and their effects on compliance requirements.",
+            "cite_spans": [
+                {
+                    "start": 337,
+                    "end": 341,
+                    "text": "(64)",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 549,
+                    "end": 557,
+                    "text": "(12; 13)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conformance between Process Choreography and Local Partner Processes"
+        },
+        {
+            "text": "The interplay between interoperability and business process compliance poses a tremendous challenge on companies.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "In this problem space, the work at hand addresses the question on how to verify global compliance rules (GCR), i.e., rules that span multiple partners in a multi-party process (i.e., process choreography), in a decentralized manner where certain tasks of one partner process might not be visible to the other partners due to confidentiality reasons. The presented approach focuses on the decomposition of a GCR such that the decomposed parts, i.e., assertions, can be checked by the partners locally. Consequently, compliance verification is shifted from a global to a decentralized manner. The presented decomposition approach addresses research question RQ, which we introduced in Section 1. In particular, the presented decomposition algorithm exploits transitivity properties of the GCR for finding the correct decompositions. The correctness is formally proven. Moreover, the complexity of the decomposition algorithm is formally analyzed and also illustrated based on specific scenarios. The feasibility of the decomposition algorithm is shown",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Reflections on a decade of interorganizational workflow research",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weske",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bubenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Krogstie",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Pastor",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pernici",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Rolland",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Seminal Contributions to Information Systems Engineering: 25 Years of CAiSE",
+            "volume": "",
+            "issn": "",
+            "pages": "307--313",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "From public views to private views -Correctness-by-Design for services",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Lohmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Massuthe",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Stahl",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wolf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "WS-FM'08",
+            "volume": "",
+            "issn": "",
+            "pages": "139--153",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Visually specifying compliance rules and explaining their violations for business processes",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Awad",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weidlich",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weske",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of Visual Languages & Computing",
+            "volume": "22",
+            "issn": "1",
+            "pages": "30--55",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Generalizability and applicability of model-based business process compliance-checking approaches -a state-of-the-art analysis and research roadmap",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Becker",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Delfmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Eggert",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schwittay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Bus Res",
+            "volume": "5",
+            "issn": "2",
+            "pages": "221--247",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Extending choreography with business contract constraints",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Berry",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Milosevic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Int'l Journal on Cooperative Information Systems",
+            "volume": "14",
+            "issn": "2-3",
+            "pages": "131--179",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Generation and transformation of compliant process collaboration models to BPMN",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Bischoff",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Advanced Information Systems Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "462--478",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Event-based failure prediction in distributed business processes",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Borkowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nardelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schulte",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Inf. Syst",
+            "volume": "81",
+            "issn": "",
+            "pages": "220--235",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "The role of visual tools in a web application design and verification framework: A visual notation for ltl formulae",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Brambilla",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Deutsch",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Sui",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Vianu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Web Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "557--568",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Foundational aspects of contract compliance and choreography conformance",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bravetti",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zavattaro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The Rise and Rise of the Declarative Datacentre",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Detecting flight trajectory anomalies and predicting diversions in freight transportation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Ciccio",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Van Der Aa",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Cabanillas",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mendling",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Prescher",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Decis. Support Syst",
+            "volume": "88",
+            "issn": "",
+            "pages": "1--17",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Resolving inconsistencies and redundancies in declarative process models",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Ciccio",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Maggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mendling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Inf. Syst",
+            "volume": "64",
+            "issn": "",
+            "pages": "425--446",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Aligning monitoring and compliance requirements in evolving business networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Comuzzi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "On the Move to Meaningful Internet Systems: OTM 2014 Conferences",
+            "volume": "",
+            "issn": "",
+            "pages": "166--183",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Alignment of process compliance and monitoring requirements in dynamic business collaborations",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Comuzzi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Enterprise Information Systems",
+            "volume": "11",
+            "issn": "6",
+            "pages": "884--908",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Collaboration vs. choreography conformance in bpmn 2.0: From theory to practice",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Corradini",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Morichetta",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Polini",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Re",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Tiezzi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE 22nd International Enterprise Distributed Object Computing Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "95--104",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Behavioral consistency for B2B process integration",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Decker",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weske",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "CAiSE'07",
+            "volume": "",
+            "issn": "",
+            "pages": "81--95",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Interaction-centric modeling of process choreographies",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Decker",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weske",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Informatiion Systems",
+            "volume": "36",
+            "issn": "2",
+            "pages": "292--312",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Local enforceability in interaction petri nets",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Decker",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weske",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "5th Int Conference on Business Process Management",
+            "volume": "",
+            "issn": "",
+            "pages": "305--319",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Enforcing compliance of hierarchical business process with visual security constraints",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Int J Syst Assur Eng Manag",
+            "volume": "95",
+            "issn": "1",
+            "pages": "703--715",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Formalizing and appling compliance patterns for business process compliance",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Elgammal",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Turetken",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Van Den Heuvel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Papazoglou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Software and Systems Modeling",
+            "volume": "15",
+            "issn": "1",
+            "pages": "119--146",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Classification and formalization of instance-spanning constraints in processdriven applications",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gall",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mangler",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Indiono",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "BPM. pp",
+            "volume": "",
+            "issn": "",
+            "pages": "348--364",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Verifying Compliance in Process Choreographies",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Dealing with change in process choreographies: Design and implementation of propagation algorithms",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Indiono",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Inf Sys",
+            "volume": "49",
+            "issn": "",
+            "pages": "1--24",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Change and compliance in collaborative processes",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "SCC. pp",
+            "volume": "",
+            "issn": "",
+            "pages": "162--169",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Decomposition-based verification of global compliance in process choreographies",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "24th IEEE International Enterprise Distributed Object Computing Conference",
+            "volume": "2020",
+            "issn": "",
+            "pages": "77--86",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "State-of-the-art of business process compliance approaches",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fellmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zasada",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Designing compliant business processes with obligations and permissions",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Goedertier",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Vanthienen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "BPM'06 Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "5--14",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Towards a compliance-aware inter-organizational service integration platform",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gonz\u00e1lez",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ruggia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "On the Move to Meaningful Internet Systems: OTM 2014 Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "8--17",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "A comprehensive approach to compliance management in inter-organizational service integration platforms",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gonz\u00e1lez",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ruggia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ICSOFT. pp",
+            "volume": "",
+            "issn": "",
+            "pages": "722--730",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "On legal contracts, imperative and declarative smart contracts, and blockchain systems",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Governatori",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Idelberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Milosevic",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Riveret",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Sartor",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Artif. Intell. Law",
+            "volume": "26",
+            "issn": "4",
+            "pages": "377--409",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Are we done with business process compliance: state of the art and challenges ahead",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hashmi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Governatori",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lam",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Wynn",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Knowl. Inf. Syst",
+            "volume": "57",
+            "issn": "1",
+            "pages": "79--133",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Normative requirements for regulatory compliance: An abstract formal framework",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hashmi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Governatori",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Wynn",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Information Systems Frontiers",
+            "volume": "18",
+            "issn": "3",
+            "pages": "429--455",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Contracts for cross-organizational workflows as timed dynamic condition response graphs",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Hildebrandt",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Mukkamala",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Slaats",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Zanitti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "J. Log. Algebraic Methods Program",
+            "volume": "82",
+            "issn": "5-7",
+            "pages": "164--185",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "The need for compliance verification in collaborative business processes",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kasse",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "De Vrieze",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "PRO-VE",
+            "volume": "",
+            "issn": "",
+            "pages": "217--229",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Verifying for compliance to data constraints in collaborative business processes",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kasse",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "De Vrieze",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "PRO-VE",
+            "volume": "",
+            "issn": "",
+            "pages": "259--270",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Towards compliance of cross-organizational processes and their changes",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mangler",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "BPM Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "649--661",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Ensuring compliance of distributed and collaborative workflows",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pryss",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CollaborateCom'13",
+            "volume": "",
+            "issn": "",
+            "pages": "133--142",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Enabling Multi-Perspective Business Process Compliance",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Detecting the effects of changes on the compliance of cross-organizational business processes",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ER'15",
+            "volume": "",
+            "issn": "",
+            "pages": "94--107",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "A visual language for modeling multiple perspectives of business process compliance rules",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Software and Systems Modeling",
+            "volume": "16",
+            "issn": "3",
+            "pages": "715--736",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "On enabling compliance of cross-organizational business processes",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fdhila",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "146--154",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "A framework for visually monitoring business process compliance",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Inf. Syst",
+            "volume": "64",
+            "issn": "",
+            "pages": "381--409",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "On the formal semantics of the extended compliance rule graph",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ly",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Visual modeling of business process compliance rules with the support of multiple perspectives",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Knuplesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reichert",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ly",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "ER'13",
+            "volume": "",
+            "issn": "",
+            "pages": "106--120",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Towards compliance verification between global and local process models",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kwantes",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Van Gorp",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kleijn",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rensink",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Graph Transformation",
+            "volume": "",
+            "issn": "",
+            "pages": "221--236",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Compliance monitoring in business processes: Functionalities, application, and tool-support",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ly",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Maggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Inf. Syst",
+            "volume": "54",
+            "issn": "",
+            "pages": "209--234",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Monitoring business constraints with linear temporal logic: an approach based on colored automata",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Maggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Westergaard",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "BPM",
+            "volume": "",
+            "issn": "",
+            "pages": "132--147",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Business process compliance and blockchain: How does the ethereum blockchain address challenges of business process compliance?",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Meironke",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Seyffarth",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Damarowsky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Human Practice. Digital Ecologies. Our Future. 14. Internationale Tagung Wirtschaftsinformatik",
+            "volume": "",
+            "issn": "",
+            "pages": "1880--1891",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Blockchains for business process management -challenges and opportunities",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mendling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ACM Trans. Management Inf. Syst",
+            "volume": "9",
+            "issn": "1",
+            "pages": "1--4",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Multi-party business process compliance monitoring through iot-enabled artifacts",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Meroni",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Baresi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Plebani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Inf. Syst",
+            "volume": "73",
+            "issn": "",
+            "pages": "61--78",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Monitoring business constraints with the event calculus",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Maggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chesani",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mello",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Trans on Intelligent Sys and Tech",
+            "volume": "5",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Declarative specification and verification of service choreographiess",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pesic",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Aalst",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chesani",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mello",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Storari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "ACM Trans on the Web",
+            "volume": "4",
+            "issn": "1",
+            "pages": "1--62",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Iot-based compliance checking of multi-party business processes modeled with commitments",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Plebani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "6th European Conference on Service-Oriented and Cloud Computing(ESOCC)",
+            "volume": "",
+            "issn": "",
+            "pages": "179--195",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Abductive logic programming as an effective technology for the static verification of declarative business processes",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montali",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Torroni",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chesani",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mello",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Alberti",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Lamma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Fundam. Informaticae",
+            "volume": "102",
+            "issn": "3-4",
+            "pages": "325--361",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Automated mapping of uml activity diagrams to formal specifications for supporting containment checking. Verifying Compliance in",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Muram",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Tran",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Zdun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Process Choreographies In: 11th Int Workshop on Formal Engineering Approaches to Software Components and Architectures",
+            "volume": "",
+            "issn": "",
+            "pages": "93--107",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Verification and compliance in collaborative processes",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Oyekola",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Boosting Collaborative Networks 4.0 -21st IFIP WG 5.5 Working Conference on Virtual Enterprises, PRO-VE 2020",
+            "volume": "",
+            "issn": "",
+            "pages": "213--223",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "DECLARE: full support for loosely-structured processes",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pesic",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Schonenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "287--300",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Where did i misbehave? Diagnostic information in compliance checking",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Ramezani",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Fahland",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "BPM'12",
+            "volume": "",
+            "issn": "",
+            "pages": "262--278",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Patterns for a log-based strengthening of declarative compliance models",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "M M"
+                    ],
+                    "last": "Schunselaar",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Maggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Sidorova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Integrated Formal Methods",
+            "volume": "",
+            "issn": "",
+            "pages": "327--342",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Diagnostic information for compliance checking of temporal compliance requirements",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Taghiabadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Fahland",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Van Dongen",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M P"
+                    ],
+                    "last": "Van Der Aalst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advanced Information Systems Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "304--320",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Checking regulatory compliance: Will we live to see it? In: Business Process Management",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Tosatto",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Governatori",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Van Beest",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "119--138",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Efficient full compliance checking of concurrent components for business process models",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Tosatto",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Governatori",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Van Beest",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Olivieri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "FLAP",
+            "volume": "6",
+            "issn": "5",
+            "pages": "963--998",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Collection and elicitation of business process compliance patterns with focus on data aspects",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Voglhofer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Bus. Inf. Syst. Eng",
+            "volume": "62",
+            "issn": "4",
+            "pages": "361--377",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s12599-019-00594-3"
+                ]
+            }
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Business Process Management -Concepts, Languages, Architectures, Third Edition",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weske",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Discovering instance and process spanning constraints from process execution logs",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Winter",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Stertz",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinderle-Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Inf. Syst",
+            "volume": "89",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.is.2019.101484"
+                ]
+            }
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "Accountability-based compliance control of collaborative business processes in cloud systems",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Security, Privacy and Trust in Cloud Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "345--374",
+            "other_ids": {}
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "On enabling GDPR compliance in business processes through data-driven solutions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hassani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "SN Comput. Sci",
+            "volume": "1",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "The Middleman forwards the order of the intermediate to the Supplier and sends an order for a special transport to the Special Carrier. The Special Carrier requests the details on the transport from the Supplier and the Supplier provides them to the Special Carrier, followed by sending the waybill for the intermediate. The Special Carrier sends a notice on the arrival of the intermediate to the Manufacturer, which then delivers the product to the Bulk Buyer.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Choreography model for a supply chain -running example with five process partners Imagine now that the partners and the choreography are subject to the Global Compliance Rules (GCR) depicted inFig. 2, which stem from legal regulations and standards such as GDPR or ISO 27001: C1 After Production a Final test must be performed. C2 Pack Intermediate is required before Transport Intermediate. C3 Each Transport intermediate requires Permission of authority. Further on, the transporter must pass a Safety Check.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Global Compliance Rules imposed on supply chain choreography",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Public processes (collaboration model) -running example with five process partners cooperating in a supply chain (adapted from(22))",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Private processes of partners Special Carrier and Middleman, omitting message exchanges (adapted from(22))checking GCR C3.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Assertions by partners Middleman and Special Carrier",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Method Overview First Author et al.: Preprint submitted to Elsevier Verifying Compliance in Process Choreographies",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Examples 1-3",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Decomposition Process",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "Decomposition process of GCR 3 Example 1. Let us apply Algorithm 1 to GCR 3 (cf.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "the responsibilities be (Safety Check) = Special Carrier, (Get permission of authority) = Middleman, and (Transport intermediate) = Special Carrier. After assigning responsibilities, Algorithm 1 starts with node Transport intermediate and creates a new assertion for the Special Carrier who is responsible for this activity. Then the Safety check is discovered and added to the assertion, since it belongs to the same partner. In turn, another partner (i.e., Middleman) is responsible for activity Get permission of authority. Hence, the algorithm cuts the respective connector and creates a new assertion for the respective partner. Next, Special Carrier and Middleman determine \u2022 and \u2022 with \u2022 = {Waybill, T. Details, Req. Details, Order ST} and \u2022 = {Order ST} to calculate those message pairs \u0398 = {(Waybill, Order ST), \u2026 , (Order ST, Order ST)} that can be used to transitively replicate the connector where the GCR was split. Finally, the algorithm places the selected messages into both assertions in such a way that the correctness of the original rule is preserved through the (leftwards) transitivity of eCRGs. Note that the Special Carrier could use message Waybill instead as (Waybill, Order ST) \u2208 \u0398 holds.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "Verification of Decompositions (Assertions 1 , \u2026 , , GCR ) 1 Let \ue22d be a function that translates an eCRG into a corresponding finite-state automaton 2 \ue239 \u2190 \u22c2 1\u2264 \u2264 \ue22d( ) 3 \ue23e \u2190 \ue239 \u2229 \u00ac\ue22d( ) 4 if \ue23e = arbitrary trace through \ue23e as counter example.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF14": {
+            "text": "Manufacturing Use CaseThese implicit connections refer to two main \"functions\" of the manufacturing setting, i.e., (i) resource planning and (ii) quality control. (i) Proper resource planning is part of the contract between the partners. There are implicit rules regarding how fast",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF2": {
+            "text": "Verifying Compliance in Process Choreographies",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "This work is jointly supported by (i) the competence center SBA Research (SBA-K1) funded within the framework of COMET Competence Centers for Excellent Technologies by BMVIT, BMDW, and the federal state of Vienna, managed by the FFG, (ii) The FFG ICT of the Future project 874019 dIdentity & dApps, (iii) the \"Austrian Competence Center for Digital Production\" (CDP) under contract number 85418, and (iv) the European Union's Horizon 2020 research and innovation programme under grant agreement No 826078 (FeatureCloud). We thank Juergen Mangler for his input on the manufacturing use case.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgment"
+        },
+        {
+            "text": "based on a prototypical implementation, including a model checker for ensuring decomposition correctness. The applicability of the approach is demonstrated through a use case from the manufacturing domain. Future work targets at two directions, (1) GCR language and (2) applications. First, we want to extend the decomposition based on the eCRG formalism, as used in this work, to arbitrary GCR and adapt the decomposition to other compliance rule languages such as Declare (55), PENELOPE (25) , or BPMN-Q (3). Second, further applications of the approach include healthcare as interoperability and compliance are \"strategic imperatives\" in this domain. Overall, the presented approach provides a fundamental brick in enabling process collaborations between different partners by infringing neither their privacy nor any regulations.",
+            "cite_spans": [
+                {
+                    "start": 489,
+                    "end": 493,
+                    "text": "(25)",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Verifying Compliance in Process Choreographies"
+        }
+    ]
+}

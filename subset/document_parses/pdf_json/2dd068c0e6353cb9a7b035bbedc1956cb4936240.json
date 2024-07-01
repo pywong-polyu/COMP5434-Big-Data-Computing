@@ -1,0 +1,3329 @@
+{
+    "paper_id": "2dd068c0e6353cb9a7b035bbedc1956cb4936240",
+    "metadata": {
+        "title": "Fast and scalable likelihood maximization for Exponential Random Graph Models with local constraints",
+        "authors": [
+            {
+                "first": "Nicol\u00f2",
+                "middle": [],
+                "last": "Vallarano",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Matteo",
+                "middle": [],
+                "last": "Bruno",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Emiliano",
+                "middle": [],
+                "last": "Marchese",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Giuseppe",
+                "middle": [],
+                "last": "Trapani",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Fabio",
+                "middle": [],
+                "last": "Saracco",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Giulio",
+                "middle": [],
+                "last": "Cimini",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Tor Vergata' University of Rome",
+                    "location": {
+                        "postCode": "00133",
+                        "settlement": "Rome",
+                        "country": "Italy"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Mario",
+                "middle": [],
+                "last": "Zanon",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Tiziano",
+                "middle": [],
+                "last": "Squartini",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Exponential Random Graph Models (ERGMs) have gained increasing popularity over the years. Rooted into statistical physics, the ERGMs framework has been successfully employed for reconstructing networks, detecting statistically significant patterns in graphs, counting networked configurations with given properties. From a technical point of view, the ERGMs workflow is defined by two subsequent optimization steps: the first one concerns the maximization of Shannon entropy and leads to identify the functional form of the ensemble probability distribution that is maximally non-committal with respect to the missing information; the second one concerns the maximization of the likelihood function induced by this probability distribution and leads to its numerical determination. This second step translates into the resolution of a system of O(N ) nonlinear, coupled equations (with N being the total number of nodes of the network under analysis), a problem that is affected by three main issues, i.e. accuracy, speed and scalability. The present paper aims at addressing these problems by comparing the performance of three algorithms (i.e. Newton's method, a quasi-Newton method and a recently-proposed fixed-point recipe) in solving several ERGMs, defined by binary and weighted constraints in both a directed and an undirected fashion. While Newton's method performs best for relatively little networks, the fixed-point recipe is to be preferred when large configurations are considered, as it ensures convergence to the solution within seconds for networks with hundreds of thousands of nodes (e.g. the Internet, Bitcoin). We attach to the paper a Python code implementing the three aforementioned algorithms on all the ERGMs considered in the present work.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Over the last 20 years, network theory has emerged as a successful framework to address problems of scientific and societal relevance [1] : examples of processes that are affected by the structural details of the underlying network are provided by the spreading of infectious diseases [2] [3] [4] , opinion dynamics [5] , the propagation of losses during financial crises [6] , etc.",
+            "cite_spans": [
+                {
+                    "start": 134,
+                    "end": 137,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 285,
+                    "end": 288,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 289,
+                    "end": 292,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 293,
+                    "end": 296,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 316,
+                    "end": 319,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 372,
+                    "end": 375,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Within such a context, two needs have emerged quite naturally [7] : 1) detecting the topological properties of a real network that can be deemed as statistically significant -typically those higher-order properties (e.g. the assortativity, the clustering coefficient, etc.) that may be explained by local features of the nodes such as the degrees, 2) inferring the relevant details of a given network structure in case only partial information is available. Both goals can be achieved by constructing a framework for defining benchmarks, i.e. synthetic configurations retaining only some of the properties of the original system -the so-called constraints -and, otherwise, being maximally random.",
+            "cite_spans": [
+                {
+                    "start": 62,
+                    "end": 65,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Two different kinds of approaches have been proposed so far, i.e. the microcanonical and the canonical ones. Microcanonical approaches [8] [9] [10] [11] [12] [13] [14] artificially gener-ate many randomized variants of the observed network by enforcing the constraints in a 'hard' fashion, i.e. by creating configurations on each of which the constrained properties are identical to the empirical ones. On the other hand, canonical approaches [15] [16] [17] [18] [19] enforce constraints in a 'soft' fashion, by creating a set of configurations over which the constrained properties are on average identical to the empirical ones. Softening the requirement of matching the constraints has a clear advantage: allowing the mathematical expression for the probability of a generic configuration, G, to be obtained analytically, as a function of the enforced constraints.",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 138,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 139,
+                    "end": 142,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 143,
+                    "end": 147,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 148,
+                    "end": 152,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 153,
+                    "end": 157,
+                    "text": "[12]",
+                    "ref_id": null
+                },
+                {
+                    "start": 158,
+                    "end": 162,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 163,
+                    "end": 167,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 448,
+                    "end": 452,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 453,
+                    "end": 457,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 458,
+                    "end": 462,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 463,
+                    "end": 467,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In this second case, a pivotal role is played by the formalism of the Exponential Random Graph Models (ERGMs) [20] whose popularity has steadily increased over the years. The ERGMs mathematical framework dates back to Gibbs' (re)formulation of statistical mechanics and is based upon the variational principle known as maximum entropy, stating that the probability distribution that is maximally non-committal with respect to the missing information is the one maximizing the Shannon entropy [21] . This allows self-consistent inference to be made, by assuming maximal ignorance about the unknown degrees of freedom of the system.",
+            "cite_spans": [
+                {
+                    "start": 110,
+                    "end": 114,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 492,
+                    "end": 496,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In the context of network theory, the ERGMs frame-arXiv:2101.12625v4 [physics.data-an] 22 Jul 2021 work has found a natural application to the resolution of the two aforementioned problems, i.e. 1) that of defining null models of the original network, in order to assess the significance of empirical patterns -against the hypothesis that the network structure is solely determined by the constraints themselves and 2) that of deriving the most probable configurations that are compatible with the available details about a specific network.",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 89,
+                    "text": "22",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In both cases, after the functional form of the probability distribution has been identified, via the maximum entropy principle, one also needs to numerically determine it: to this aim, the likelihood maximization principle can be invoked, stating to maximize the probability of observing the actual configuration. This prescription typically translates into the resolution of a system of O(N ) non-linear, coupled equations -with N representing the number of nodes of the network under analysis.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Problems like these are usually affected by the issues of accuracy, speed and scalability: the present paper aims at addressing them at once, by comparing the performance of three algorithms, i.e. Newton's method, a quasi-Newton method and a recently-proposed fixedpoint recipe [22, 23] , to solve a variety of ERGMs, defined by binary and weighted constraints in both a directed and an undirected fashion.",
+            "cite_spans": [
+                {
+                    "start": 278,
+                    "end": 282,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 283,
+                    "end": 286,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We would like to stress that, while the theoretical architecture of ERGMs is well established, an exhaustive study of the computational cost required for their numerical optimization, alongside with a comparison among the most popular algorithms designed for the task, is still missing. Our work aims at filling precisely this gap. Additionally, we provide a Python code implementing the three aforementioned recipes on all the ERGMs considered in the present work.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Canonical approaches aim at obtaining the mathematical expression for the probability of a generic configuration, G, as a function of the observed constraints: ERGMs realize this by maximizing the Shannon entropy [15, 16] .",
+            "cite_spans": [
+                {
+                    "start": 213,
+                    "end": 217,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 218,
+                    "end": 221,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "GENERAL THEORY"
+        },
+        {
+            "text": "Generally speaking, the problem to be solved in order to find the functional form of the probability distribution to be employed as a benchmark reads arg max where Shannon entropy reads S[P ] = \u2212 G P (G) ln P (G) (2) and C(G) is the vector of constraints representing the information defining the benchmark itself (notice that C 0 = C 0 = 1 sums up the normalization condition). The solution to the problem above can be found by maximizing the Lagrangian function",
+            "cite_spans": [
+                {
+                    "start": 213,
+                    "end": 216,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The Maximum Entropy Principle"
+        },
+        {
+            "text": "with respect to P (G). As a result one obtains",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Maximum Entropy Principle"
+        },
+        {
+            "text": "with H(G, \u03b8) = \u03b8 \u00b7 C(G) = M i=1 \u03b8 i C i (G) representing the Hamiltonian, i.e. the function summing up the proper, imposed constraints and Z( \u03b8) = G P (G) = G e \u2212H(G, \u03b8) representing the partition function, ensuring that P (G) is properly normalized. Constraints play a pivotal role, either representing the information to filter, in order to assess the significance of certain quantities, or the only available one, in order to reconstruct the inaccessible details of a given configuration.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Maximum Entropy Principle"
+        },
+        {
+            "text": "The formalism above is perfectly general; however, it can be instantiated to study an empirical network configuration, say G * . In this case, the Lagrange multipliers 'acting' as unknown parameters in eq. (4) can be numerically estimated by maximizing the associated likelihood function [15, 24] . The latter is defined as",
+            "cite_spans": [
+                {
+                    "start": 288,
+                    "end": 292,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 293,
+                    "end": 296,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The Maximum Likelihood Principle"
+        },
+        {
+            "text": "and must be maximized with respect to the vector \u03b8.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Maximum Likelihood Principle"
+        },
+        {
+            "text": "Remarkably, whenever the probability distribution is exponential (as the one deriving from the Shannon entropy maximization), the likelihood maximization problem arg max",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Maximum Likelihood Principle"
+        },
+        {
+            "text": "is characterized by first-order necessary conditions for optimality reading",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Maximum Likelihood Principle"
+        },
+        {
+            "text": "Probability distribution (numerical) (analytical)",
+            "cite_spans": [
+                {
+                    "start": 25,
+                    "end": 36,
+                    "text": "(numerical)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Parameters estimation"
+        },
+        {
+            "text": "FIG. 1. Graphical visualization of how the MEP and the MLP work: while the MEP allows the functional form of a probability distribution to be determined analytically, the MLP provides the recipe to numerically determine the parameters defining it.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters estimation"
+        },
+        {
+            "text": "and leading to the system of equations",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters estimation"
+        },
+        {
+            "text": "to be solved. These conditions, however, are sufficient to characterize a maximum only if L ( \u03b8) is concave. This is indeed the case, as we prove by noticing that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters estimation"
+        },
+        {
+            "text": "i.e. that the Hessian matrix, H, of our likelihood function is 'minus' the covariance matrix of the constraints, hence negative semidefinite by definition. The fourth passage is an example of the well-known fluctuation-response relation [20] . A graphical representation of how the two principles work is shown in fig. 1 .",
+            "cite_spans": [
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 314,
+                    "end": 320,
+                    "text": "fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Parameters estimation"
+        },
+        {
+            "text": "The Maximum Entropy Principle (MEP) and the Maximum Likelihood Principle (MLP) encode two different prescriptions aiming, respectively, at determining the functional form of a probability distribution and its numerical value. In optimization theory, the problem (1) is known as primal problem: upon noticing that the Shannon entropy is concave, while the imposed constraints are linear in P (G), one concludes that the primal problem is convex (it is easy to see this, by rewriting it as a minimization problem for \u2212S[P ]).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Combining the MEP and the MLP principles"
+        },
+        {
+            "text": "As convexity implies strong duality, we can, equivalently, consider an alternative version of the problem to optimize, know as dual problem. In order to define it, let us consider the Lagrangian function",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Combining the MEP and the MLP principles"
+        },
+        {
+            "text": "where, now, the generic expectation of the i-th constraint, C i , has been replaced by the corresponding empirical value, C i (G * ). As the dual function is given by 2 . System diagram illustrating the models discussed in the present paper and implemented in the 'NEMTROPY' package, attached to it: it represents a sort of guide to individuate the best model for analysing the system at hand. Our package handles both monopartite and bipartite networks; while the latter ones have been considered only in their binary, undirected fashion, the former ones can be modeled either in a binary or a weighted fashion, allowing for both undirected and directed links.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 167,
+                    "end": 168,
+                    "text": "2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Combining the MEP and the MLP principles"
+        },
+        {
+            "text": "arg max \u03b8 arg min P \u2212L(P ( \u03b8), \u03b8) (12) which is a convex problem by construction; this is readily seen by substituting eq. (4) into eq. (10), operation that leads to the expression",
+            "cite_spans": [
+                {
+                    "start": 34,
+                    "end": 38,
+                    "text": "(12)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Combining the MEP and the MLP principles"
+        },
+        {
+            "text": "i.e. the likelihood function introduced in eq. (5). In other words, eq. (12) combines the MEP and the MLP into a unique optimization step whose score function becomes the Lagrangian function defined in eq. (10).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Combining the MEP and the MLP principles"
+        },
+        {
+            "text": "In general, the optimization problem defined in eq. (12) cannot be solved analytically, whence the need to resort to numerical methods. For an exhaustive review on numerical methods for optimization we refer the interested reader to [25, 26] : in the following, we present only the concepts that are of some relevance for us. The problem",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "[25,",
+                    "ref_id": null
+                },
+                {
+                    "start": 238,
+                    "end": 241,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "is a Nonlinear Programming Problem (NLP). In order to solve it numerically, we will adopt a Sequential Quadratic Programming (SQP) approach. Starting from an initial guess \u03b8 (0) , SQP solves eq. (14) by iteratively updating the vector of Lagrange multipliers",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "according to the rule ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "The stepsize \u03b1 \u2208 (0, 1] is selected to ensure that L ( \u03b8 (n+1) ) > L ( \u03b8 (n) ) via a backtracking, line search procedure: starting from \u03b1 = 1, if the Armijo condition",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "is violated, we set \u03b1 \u2190 \u03b2\u03b1 (\u03b3 \u2208 (0, 0.5] and \u03b2 \u2208 (0, 1) are the parameters of the algorithm). On the other hand, the term H (n) can be selected according to a variety of methods. In the present contribution we focus on the following three ones.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "Newton's method. One speaks of Newton's method in case H (n) is chosen to be",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "where \u2207 2 L ( \u03b8) is the Hessian matrix of the likelihood function and the term \u2206H (n) is typically selected as small as possible in order to avoid slowing convergence and to ensure that H (n) is negative definite (i.e. \u2207 2 L ( \u03b8 (n) ) + \u2206H (n) \u227a 0). This choice of H (n) is also referred to as 'exact Hessian'.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "Quasi-Newton methods. Any Hessian approximation which is negative definite (i.e. satisfying H (n) \u227a 0) yields an ascent direction and guarantees convergence. Although one may choose to consider the simplest prescription H (n) = \u2212I, which yields the 'steepest ascent' algorithm, here we have opted for the following recipe, i.e. the purely diagonal version of Newton's method: H",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "Fixed-point iteration on modified KKT conditions. In addition to the (classes of) algorithms above, we will also consider an iterative recipe which is constructed as a fixed-point iteration on a modified version of the Karush-Kuhn-Tucker (KKT) conditions, i.e. F( \u03b8) = 0 or, analogously, \u03b8 = G( \u03b8); the iterate can, then, be made explicit by rewriting the latter as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "The condition above will be made explicit, for each network model, in the corresponding subsection. We also observe that this choice yields a non-standard SQP method as H (n) is typically not symmetric, for our models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "A note on convergence. Provided that the Hessian approximation H (n) is negative definite, the direction \u2206 \u03b8 is an ascent one; as such, it is guaranteed to yield an improvement of the objective function, for a step size \u03b1 that is sufficiently small. The role of the backtracking line search is that of finding a step size \u03b1 that yields such an improvement, while making sufficient progress towards the solution. As discussed in [25] , Newton's method has local quadratic convergence, while the quasi-Newton method and the fixed-point iteration algorithm have local linear convergence.",
+            "cite_spans": [
+                {
+                    "start": 428,
+                    "end": 432,
+                    "text": "[25]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Optimization algorithms for non-linear problems"
+        },
+        {
+            "text": "Let us now apply the algorithms described in the previous section to a number of specific cases of interest. The taxonomy of the models considered in the present paper is shown in fig. 2 while the constraints defining each model are illustrated in fig. 3 . UBCM: binary undirected graphs with given degree sequence Let us start by considering binary, undirected networks (BUNs). The simplest, non-trivial set of constraints is represented by the degrees of nodes: the degree of node i, i.e. k i (A) = N j( =i)=1 a ij , counts the number of its neighbours and coincides with the total number of 1s along the i-th row (or, equivalently, along the i-th column) of the adjacency matrix A \u2261 {a ij } N i,j=1 . The benchmark defined by this set of constraints is known as Undirected Binary Configuration Model (UBCM) and its Hamiltonian reads",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 180,
+                    "end": 186,
+                    "text": "fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 248,
+                    "end": 254,
+                    "text": "fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "entropy maximization [15, 16] leads to the factorized graph probability",
+            "cite_spans": [
+                {
+                    "start": 21,
+                    "end": 25,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 26,
+                    "end": 29,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "In this case, the canonical ensemble of BUNs is the set of networks with the same number of nodes, N , of the observed graph and a number of (undirected) links varying from zero to the maximum value N 2 . The argument of the problem (14) for the specific network A * becomes",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "ln 1 + e \u2212\u03b8i\u2212\u03b8j (24) whose first-order optimality conditions read",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Resolution of the UBCM. Newton's and the quasi-Newton method can be easily implemented via the recipe defined in eq. (18) (see Appendix A for the definition of the UBCM Hessian).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The explicit definition of the fixed-point recipe, instead, requires a preliminary observation, i.e. that the system of equations embodying the UBCM first-order optimality conditions can be re-written as follows",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "i.e. as a set of consistency equations. The observation that the term e \u2212\u03b8i appears on both sides of the equation corresponding to the i-th constraint suggests an iterative recipe to solve such a system, i.e.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "originally proposed in [22] and further refined in [23] .",
+            "cite_spans": [
+                {
+                    "start": 23,
+                    "end": 27,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 51,
+                    "end": 55,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "lows the probability coefficients defining the UBCM to be numerically determined.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "As any other iterative recipe, the one proposed above needs to be initialized as well. To this aim, we have tested three different sets of initial values: the first one is defined by the position \u03b8",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": ", \u2200 i -usually, a good approximation of the solution of the system of equations in (25) , in the 'sparse case' (i.e. whenever p UBCM ij e \u2212\u03b8i\u2212\u03b8j [27] ; the second one is a variant of the position above, reading \u03b8 Reducing the dimensionality of the problem. The problem defining the UBCM can be further simplified by noticing that nodes with the same degree, say k, can be assigned the same value of the multiplier \u03b8 [24] -a result resting upon the observation that any value k i (A * ) must match the sum of monotonic, increasing functions. This translates into the possibility of rewriting L UBCM ( \u03b8) in a 'reduced' fashion, as",
+            "cite_spans": [
+                {
+                    "start": 83,
+                    "end": 87,
+                    "text": "(25)",
+                    "ref_id": null
+                },
+                {
+                    "start": 145,
+                    "end": 149,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "where the sums run over the distinct values of the degrees and f (k) counts the number of nodes whose degree is k. Rewriting the problem with respect to the set {\u03b8 k } k leads one to recover simplified versions of the three algorithms considered here: Newton's and the quasi-Newton methods can, now, be solved via a 'reduced' version of eq. (18) (since both the dimension of the gradient and the order of the Hessian matrix of the likelihood function are, now, less than N ), while the iterative recipe defined in (26) can be rewritten in terms of the 'non-degenerate' degrees, as",
+            "cite_spans": [
+                {
+                    "start": 514,
+                    "end": 518,
+                    "text": "(26)",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "where, at the denominator, the self-contribution (i.e. the probability that a node links to itself) has been explicitly excluded.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Performance testing. The performance of the three algorithms, considered in the present paper, to solve the reduced version of eqs. (25) , has been tested on a bunch of real-world networks. The latter ones span a wide variety of systems, including natural, financial and technological ones. In particular, we have considered the synaptic network of the worm C. Elegans [28] , the network of the largest US airports [29] , the protein-protein interaction network of the bacterium H. Pylori [30] , Internet at the level of Autonomous Systems [31] and eight daily snapshots of the so-called Bitcoin Lightning Network [32] , chosen throughout its entire history. Before commenting on the results of our numerical exercises, let us, first, describe how the latter ones have been carried out.",
+            "cite_spans": [
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "(25)",
+                    "ref_id": null
+                },
+                {
+                    "start": 369,
+                    "end": 373,
+                    "text": "[28]",
+                    "ref_id": null
+                },
+                {
+                    "start": 415,
+                    "end": 419,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 489,
+                    "end": 493,
+                    "text": "[30]",
+                    "ref_id": null
+                },
+                {
+                    "start": 540,
+                    "end": 544,
+                    "text": "[31]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 614,
+                    "end": 618,
+                    "text": "[32]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The accuracy of each algorithm in reproducing the constraints defining the UBCM has been quantified via the ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "is the empirical value of the i-th constraint, C i ). Naturally, in the UBCM case, C i = k i , \u2200 i and the aforementioned error score becomes",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "(the acronym standing for Maximum Absolute Degree Error). Equivalently, it is the infinite norm of the difference between the vector of the empirical values of the constraints and that of their expected values. For each algorithm, we have considered three different stopping criteria: the first one puts a condition on the Euclidean norm of the gradient of the likelihood function, i.e.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "the second one puts a condition on the Euclidean norm of the vector of differences between the values of the parameters at subsequent iterations, i.e.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "the third one concerns the maximum number of iterations: after 1000 steps, any of the three algorithms stops.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The results about the performance of our three algorithms are reported in Table I . Overall, all recipes perform very satisfactorily, being accurate, fast and scalable; moreover, all algorithms stop either because the condition on the norm of the likelihood is satisfied or because the condition on the norm of the vector of parameters is satisfied.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 74,
+                    "end": 81,
+                    "text": "Table I",
+                    "ref_id": null
+                }
+            ],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "For what concerns accuracy, the largest maximum error per method spans an interval (across all configurations) that amounts at 10 \u221210 MADE reduced Newton 10 \u22126 , 10 \u22126 \u2264 MADE reduced Quasi-Newton \u2264 10 \u22125 and 10 \u22128 MADE reduced fixed-point 10 \u22126 . By looking at each specific network, it is evident that the two most accurate methods are systematically Newton's and the fixed-point ones.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "For what concerns speed, the amount of time required by each method to achieve convergence spans an interval (across all configurations) that is 0.005 \u2264 T reduced Newton \u2264 0.01, 0.014 \u2264 T reduced Quasi-Newton \u2264 0.15 and 0.002 \u2264 T reduced fixed-point \u2264 0.015 (time is measured in seconds). The fastest method is the fixed-point one, although Newton's method approximately requires the same amount of time, when compared to it on each specific configuration. Differences in the speed of convergence of any method, caused by the choice of a particular set of initial conditions, are indeed observable: the prescription reading \u03b8 Let us now comment on the scalability of our algorithms. What we learn from our exercise is that scalability is not related to the network size in a simple way: the factors seemingly playing a major role are the ones affecting the reducibility of the original system of equations, i.e. the ones 'deciding' the number of different equations that actually need to be solved.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "While reducibility can be easily quantified a posteriori, e.g. by calculating the coefficient of reduction, c r , defined as the ratio between the number of equations that survive to reduction and the number of equations defining the original problem (hence, the smaller the better), providing an exhaustive list of the aforementioned factors a priori is much more difficult.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "In the case of the UBCM, c r is defined as the number of different degrees divided by the total number of nodes; one may, thus, argue that reducibility is affected by the heterogeneity of the degree distribution; upon considering that the latter can be quantified by computing the coefficient of variation (defined as c v = s/m, where s and m are, respectively, the standard deviation and the mean of the degree distribution of the network at hand), one may derive a simple rule of thumb: a larger coefficient of variation (pointing out a larger heterogeneity of the degree distribution) leads to a larger coefficient of reduction and a larger amount of time for convergence will be required. Notice that even if the degree distribution is narrow, outliers (e.g. hubs) may still play a role, forcing the corresponding parameters to assume either very large or very small values -hence, slowing down the entire convergence process.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "In this sense, scalability is the result of a (non-trivial) interplay between size and reducibility. Let us take a look at Table I : Internet is the most reducible network of our basket, although being the largest in size, while the neural network of C. Elegans is one of the least reducible networks of our basket, although being the second smallest one; as a consequence, the actual number of equations defining the UBCM on C. Elegans is 30 while the actual number of equations defining the UBCM on Internet is 100 -whence the larger amount of time to solve the latter. Remarkably, the time required by our recipes to ensure that the largest system of equations converges to the solution ranges from thousandths to tenths of seconds.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 123,
+                    "end": 130,
+                    "text": "Table I",
+                    "ref_id": null
+                }
+            ],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "As a last comment, we would like to stress that, unlike several popular approximations as the Chung-Lu one [27] , the generic coefficient p UBCM ij always represents a proper probability, in turn implying that eq. (23) also provides us with a recipe to sample the canonical ensemble of BUNs, under the UBCM. Notice that the factorization of the graph probability P UBCM (A| \u03b8) greatly simplifies the entire procedure, allowing a single graph to be sampled by implementing the Bernoulli trial",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "for each (undirected) pair of nodes, in either a sequential or a parallel fashion. The sampling process, whose computational complexity amounts at O(N 2 ), can be repeated to generate as many configurations as desired.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The pseudo-code for explicitly sampling the UBCM ensemble is summed up by Algorithm 1. We explicitly acknowledge the existence of the algorithm proposed in [33] for sampling binary, undirected networks from the Chung-Lu model (i.e. the 'sparse case' approximation of the UBCM), a recipe that is applicable whenever the condition p CL ij = kikj 2L < 1, \u2200 i < j is verified. As explicitly acknowledged by the authors of [33] , however, it does not hold in several cases of interest: an example of paramount importance is provided by sparse networks whose degree distribution is scale-free. In such cases, k max \u223c N 1 \u03b3\u22121 : hence, the hubs establish",
+            "cite_spans": [
+                {
+                    "start": 156,
+                    "end": 160,
+                    "text": "[33]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 418,
+                    "end": 422,
+                    "text": "[33]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "that becomes larger than 1 when 2 < \u03b3 \u2264 3 and diverges for \u03b3 \u2192 2, thus leading to a strong violation of the requirement above. Let us now move to consider binary, directed networks (BDNs). In this case, the simplest, non-trivial set of constraints is represented by the in-degrees and the out-degrees of nodes, where k in i (A) = N j( =i)=1 a ji counts the number of nodes 'pointing' to node i and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "a ij counts the number of nodes i 'points' to. The benchmark defined by this set of constraints is known as Directed Binary Configuration Model (DBCM) whose Hamiltonian reads (34) as in the undirected case, entropy maximization [15, 16] leads to a factorized probability distribution, i.e.",
+            "cite_spans": [
+                {
+                    "start": 175,
+                    "end": 179,
+                    "text": "(34)",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 228,
+                    "end": 232,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 233,
+                    "end": 236,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The canonical ensemble of BDNs is, now, the set of networks with the same number of nodes, N , of the observed graph and a number of (directed) links varying from zero to the maximum value N (N \u2212 1). The argument of the problem (14) for the specific network A * becomes",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "whose first-order optimality conditions read",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Resolution of the DBCM. Newton's and the quasi-Newton method can be easily implemented via the recipe defined in eq. (18) (see Appendix A for the definition of the DBCM Hessian).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The fixed-point recipe for solving the system of equations embodying the DBCM first-order optimality conditions can, instead, be re-written in the usual iterative fashion as follows",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Analogously to the undirected case, the initialization of this recipe has been implemented in three different ways. The first one reads \u03b1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": ". . N and represents a good approximation to the solution of the system of equations defining the DBCM in the 'sparse case' (i.e. whenever p DBCM ij e \u2212\u03b1i\u2212\u03b2j ); the second one is a variant of the position above, reading \u03b1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": ". . N ; the third one, instead, prescribes to randomly draw the value of each parameter from a uniform distribution defined on the unit interval, i.e. \u03b1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": ", \u2200 i = j allows the probability coefficients defining the DBCM to be numerically determined.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Reducing the dimensionality of the problem. As for the UBCM, we can define a 'reduced' version of the DBCM likelihood, accounting only for the distinct (pairs of) values of the degrees. By defining k out \u2261 k and k in \u2261 h, in order to simplify the formalism, the reduced DBCM recipe reads",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "the implementation of the algorithms considered here must be modified in a way that is analogous to the one already described for the UBCM. In particular, the fixedpoint recipe for the DBCM can be re-written by assigning to the nodes with the same out-and in-degrees (k, h) the same pair of values (\u03b1, \u03b2), i.e. as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "where the sums, now, run over the distinct values of the out-and in-degrees, n(k, h) is the number of nodes whose out-degree is k and whose in-degree is h and, as usual, the last term at the denominator excludes the self-contribution (i.e. the probability that a node links to itself).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Performance testing. As for the UBCM, the performance of the three algorithms in solving the reduced version of eqs. (37) and (38) has been tested on a bunch of real-world networks. The latter ones span economic, financial and social networks. In particular, we have considered the World Trade Web (WTW) during the decade 1992-2002 [34] , a pair of snapshots of the Bitcoin User Network at the weekly time scale (the first day of those weeks being 13-02-12 and 27-04-15, respectively) [35] and of the corresponding largest weakly connected component (whose size is, respectively, 65% and 90% of the full network size) and a snapshot of the semantic network concerning the Twitter discussion about the Covid-19 pandemics (more precisely: it is the network of re-tweets of the (online) Italian debate about Covid-19, collected in the period 21 st February -20 th April 2020) [36] . Before commenting on the results of our numerical exercises, let us, first, describe how the latter ones have been carried out.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "(37)",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 126,
+                    "end": 130,
+                    "text": "(38)",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 332,
+                    "end": 336,
+                    "text": "[34]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 485,
+                    "end": 489,
+                    "text": "[35]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 873,
+                    "end": 877,
+                    "text": "[36]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The accuracy of each algorithm in reproducing the constraints defining the DBCM has been quantified via the maximum absolute error metrics that, in this case, reads",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "and accounts for the presence of two different degrees per node. As for the UBCM, it is the infinite norm of the difference between the vector of the empirical values of the constraints and that of their expected values.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The three different 'stop criteria' we have considered match the ones adopted for analysing the undirected case and consist in a condition on the Euclidean norm of the gradient of the likelihood function, i.e. ||\u2207L ( \u03b8)|| 2 \u2264 10 \u22128 , in a condition on the Euclidean norm of the vector of differences between the values of the parameters at subsequent iterations, i.e. ||\u2206 \u03b8|| 2 \u2264 10 \u22128 , and in a condition on the maximum number of iterations: after 10000 steps, any of the three algorithms stops.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The results about the performance of our three algorithms are reported in Table II . Overall, all recipes perform very satisfactorily, being accurate, fast and scalable; however, while Newton's and the quasi-Newton methods stop because the condition on the norm of the likelihood is satisfied, the fixed-point recipe is always found to satisfy the limit condition on the number of steps (i.e. it runs for 10000 steps and, then, stops).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 74,
+                    "end": 82,
+                    "text": "Table II",
+                    "ref_id": null
+                }
+            ],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Let us start by commenting the results concerning the WTW. For what concerns accuracy, the largest maximum error per method spans an interval, across all configurations, that amounts at MADE reduced For what concerns speed, the amount of time required by each method to achieve convergence spans an interval (across all configurations) that is 0.5 \u2264 T reduced Newton \u2264 13, 0.21 \u2264 T reduced Quasi-Newton \u2264 0.33 and 2.5 \u2264 T reduced fixed-point \u2264 4.4 (time is measured in seconds). The fastest method is the quasi-Newton one, followed by Newton's method and the fixed-point recipe. The latter is the slowest method since it always reaches the limit of 10000 steps while the other two competing ones stop after few iterations. Appreciable differences in the speed of convergence of any method, caused by the choice of a particular set of initial conditions, are not observed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The observations above hold true when the WTW is considered. The picture changes when very large networks, as Bitcoin and Twitter, are considered. First, let us notice that Bitcoin and Twitter 'behave' as the undirected version of Internet considered to solve the UBCM, i.e. they are very redundant, hosting many nodes with the same out-and in-degrees (in fact, the coefficient of reduction, c r , is, now, defined as the number of differ- ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "week-2 297338 554643 6 \u00b7 10 \u22126 2 \u00b7 10 \u22123 9 \u00b7 10 \u22129 12 7.4 \u00b7 10 \u22125 7 8 \u00b7 10 \u22126 0.65 BTC week-2 338334 571551 5 \u00b7 10 \u22126 1.9 \u00b7 10 \u22123 1.5 \u00b7 10 \u22124 16 9.5 \u00b7 10 \u22124 2. ent 'out-degree -in-degree' pairs divided by twice the number of nodes). To provide a specific example, out of the original 676688 equations defining the DBCM for one of the two Bitcoin snapshots considered here, only 339 equations survive the reduction; by converse, the WTW can be reduced to a much smaller extent (to be more specific, out of the original 324 equations defining the DBCM for the WTW in 1997, only 291 equations survive the reduction). Interestingly, a good proxy of the reducibility of the directed configurations considered here is provided by their connectance (i.e. the denser the network, the less reducible it is).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "On the one hand, this feature, common to the very large networks considered here, is what guarantees their resolution in a reasonable amount of time; on the other one, it seems not to be enough to let Newton's and the quasi-Newton method be as fast as in the undirected case. For our binary, directed networks, in fact, the fastest (and, for some configurations, the most accurate) method becomes the fixed-point one. In order to understand this result we need to consider that both Newton's and the quasi-Newton method require (some proxy of) the Hessian matrix of the DBCM to update the value of the parameters: since the order of the latter is O(N 2 ) for Newton's method and O(N ) for the quasi-Newton one, its calculation can be (very) time demanding -beside requiring a lot of memory for the step-wise update of the corresponding Hessian matrix. However, while this is compensated by a larger accuracy in the case of Newton's method, this is no longer true when the quasi-Newton recipe is considered -the reason maybe lying in the poorer approximation provided by the diagonal of the Hessian matrix in case of systems like these.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "As a last comment, we would like to stress that, as in the undirected case, the generic coefficient p DBCM ij represents a proper probability, in turn implying that eq. (35) also provides us with a recipe to sample the canonical ensemble of BDNs, under the DBCM. Notice that the factorization of the graph probability P DBCM (A| \u03b8) greatly simplifies the entire procedure, allowing a single graph to be sampled by implementing the Bernoulli trial",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "for each (directed) pair of nodes, in either a sequential or a parallel fashion. The sampling process, whose computational complexity amounts at O(N 2 ), can be repeated to generate as many configurations as desired.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The pseudo-code for explicitly sampling the DBCM ensemble is summed up by Algorithm 2. [37] . These networks are defined by two distinct layers (say, and \u22a5) and obey the rule that links can exist only between (and not within) layers: for this reason, they can be compactly described via a biadjacency matrix B \u2261 {b i\u03b1 } i,\u03b1 whose generic entry b i\u03b1 is 1 if node i belonging to layer \u22a5 is linked to node \u03b1 belonging to layer and 0 otherwise. The constraints defining the BiCM are represented by the degree sequences {k i } i\u2208\u22a5 and {d \u03b1 } \u03b1\u2208 where k i = \u03b1\u2208 b i\u03b1 counts the neighbors of node i (belonging to layer ) and d \u03b1 = i\u2208\u22a5 b i\u03b1 counts the neighbors of node \u03b1 (belonging to layer \u22a5).",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 91,
+                    "text": "[37]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Analogously to the DBCM case,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The canonical ensemble of BiBUNs includes all networks with, say, N nodes on one layer, M nodes on the other layer and a number of links (connecting nodes of different layers) ranging from zero to the maximum value N \u00b7 M .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The BiCM likelihood function reads",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "whose first-order optimality conditions read",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Resolution of the BiCM. As for the DBCM case, Newton's and the quasi-Newton methods can be implemented by adapting the recipe defined in eq. (18) to the bipartite case (see Appendix A for the definition of the BiCM Hessian).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "As for the DBCM, the fixed-point recipe for the BiCM can be re-written in the usual iterative fashion as follows",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "and the initialization is similar as well: in fact, we can employ the value of the solution of the BiCM in the sparse case, i.e. \u03b3 , \u2200 \u03b1 \u2208 (only this set of initial conditions has been employed to analyse the bipartite case).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Reducing the dimensionality of the problem. Exactly as for the DBCM case, the presence of nodes with the same degree, on the same layer, leads to the appearance of identical equations in the system above; hence, the computation of the solutions can be sped up by writing",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "where f (k) is the number of nodes, belonging to layer \u22a5, whose degree is k and g(d) is the number of nodes, belonging to layer , whose degree is d. Performance testing. The performance of the three algorithms in solving eqs. (49) has been tested on 16 snapshot of the bipartite, binary, undirected version of the WTW, gathering the country-product export relationships across the years 1995-2010 [37] . Before commenting on the results of our numerical exercises, let us, first, describe how the latter ones have been carried out.",
+            "cite_spans": [
+                {
+                    "start": 397,
+                    "end": 401,
+                    "text": "[37]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The accuracy of each algorithm in reproducing the constraints defining the BiCM has been quantified via the maximum absolute error metrics that, now, reads",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "to account for the degrees of nodes on both layers. The three different 'stop criteria' match the ones adopted for analysing the UBCM and the DBCM and consist in a condition on the Euclidean norm of the gradient of the likelihood function, i.e. ||\u2207L ( \u03b8)|| 2 \u2264 10 \u221210 , in a condition on the Euclidean norm of the vector of differences between the values of the parameters at subsequent iterations, i.e. ||\u2206 \u03b8|| 2 \u2264 10 \u221210 , and a condition on the maximum number of iterations: after 1000 steps, any of the three algorithms stops.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The results about the performance of our three algorithms are reported in Table III For what concerns speed, the amount of time required by each method to achieve convergence spans an interval (across all configurations) that is T reduced Newton 0.0023 (on average), T reduced Quasi-Newton 0.016 (on average) and T reduced fixed-point 0.018 (on average) (time is measured in seconds). The fastest method is Newton's one and is followed by the quasi-Newton and the fixed-point recipes. The gain in terms of speed due to the reducibility (now quantified by the ratio between the number of different pairs of degrees divided by the total number of nodes) of the system of equations defining the BiCM is also evident: while solving the original problem would have required handling a system of 10 3 equations, the reduced one is defined by just 10 2 distinct equations. Overall, a solution is always found within thousandths or hundredths of seconds.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 74,
+                    "end": 83,
+                    "text": "Table III",
+                    "ref_id": null
+                }
+            ],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "As for the DBCM case, the ensemble of BiBUNs can be sampled by implementing a Bernoulli trial b i\u03b1 \u223c Ber[p i\u03b1 ] for any two nodes (belonging to different layers) in either a sequential or a parallel fashion. The computational complexity of the sampling process amounts at O(N \u00b7 M ) and can be repeated to generate as many configurations as desired. The pseudo-code for explicitly sampling the BiCM ensemble is summed up by Algorithm 3. So far, we have considered purely binary models. Let us now focus on a class of 'mixed' null models for weighted networks, defined by constraining both binary and weighted quantities. Purely weighted models such as the Undirected and the Directed Weighted Configuration Model have not been considered since, as it has been proven elsewhere [38] , they perform quite poorly when employed to reconstruct networks. Let us start by the simplest model, i.e. the one constraining the degrees and the strengths in an undirected fashion. While ",
+            "cite_spans": [
+                {
+                    "start": 776,
+                    "end": 780,
+                    "text": "[38]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "it induces a probability distribution which is halfway between a Bernoulli and a geometric one [39] , i.e.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[39]",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "with",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "for any two nodes i and j such that i < j and p UECM",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Notice that the functional form above is obtained upon requiring that the weights only assume (non-negative) integer values (i.e. w ij \u2208 [0, +\u221e), \u2200 i < j): hence, the canonical ensemble is now constituted by the weighted configurations with N nodes and a number of (undirected) links ranging between zero and the maximum value N 2 . The argument of the problem (14) for the specific network W * now becomes",
+            "cite_spans": [
+                {
+                    "start": 361,
+                    "end": 365,
+                    "text": "(14)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "whose first-order optimality conditions read",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "Resolution of the UECM. Newton's and the quasi-Newton methods can be easily implemented via the recipe defined in eq. (18) (see Appendix A for the definition of the UECM Hessian).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "As for the purely binary models, the fixed-point recipe for solving the UECM first-order optimality conditions transforms the following set of consistency equations",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "(with i = 1 . . . N ) into the usual iterative fashion, by considering the parameters at the left hand side and at the right hand side, respectively at the n-th and at the (n \u2212 1)-th iteration. It is important to remark that a 3 \u00b7 10 \u22126 2.9 \u00b7 10 \u221210 0.6 2.5 \u00b7 10 \u22124 3 \u00b7 10 \u22121 6.7 \u00b7 10 \u22125 28 WTW 96 187 10002 0.3 1.4 \u00b7 10 \u22125 1 \u00b7 10 \u221210 1.1 \u00b7 10 \u221210 0.7 1.7 \u00b7 10 \u22125 2 \u00b7 10 \u22121 3 \u00b7 10 \u22125 28 WTW 97 187 10251 0.3 1.1 \u00b7 10 \u22125 4 \u00b7 10 \u221210 6.7 \u00b7 10 \u221210 0.7 4.4 \u00b7 10 \u22125 8 \u00b7 10 \u22122 1.6 \u00b7 10 \u22124 28 WTW 98 187 10254 0.3 1 \u00b7 10 \u22125 3 \u00b7 10 \u221210 4 \u00b7 10 \u221210 0.6 1.7 \u00b7 10 \u22124 8 \u00b7 10 \u22122 5.3 \u00b7 10 \u22125 28 WTW 99 187 10252 0.3 4.7 \u00b7 10 \u221210 1 \u00b7 10 \u221210 8 \u00b7 10 \u221210 0.7 1.6 \u00b7 10 \u22124 7 \u00b7 10 \u22122 6.2 \u00b7 10 \u22125 28 WTW 00 187 10252 0.3 5 \u00b7 10 \u221210 2 \u00b7 10 \u221210 2.4 \u00b7 10 \u221210 0.7 1.5 \u00b7 10 \u22124 9 \u00b7 10 \u22122 5.4 \u00b7 10 \u22125 29 reduced version of the iterative recipe above can indeed be written, by assigning the same pair of values (\u03b1, \u03b2) to the nodes with the same pair of values (k, s): however, the larger heterogeneity of the strengths causes this event to happen more rarely than for purely binary models such as the UBCM and the DBCM. As for the purely binary cases, three different sets of initial conditions have been considered, whose definition follows from the simplest conceivable generalization of the purely binary cases. In particular, the first set of values reads \u03b1 Performance testing. The performance of the three algorithms to solve the system of equations defining the UECM has been tested on a bunch of real-world networks. In particular, we have considered the WTW during the decade 1990-2000 [41] . Since the weights defining the configurations of the WTW are real numbers, we have rounded them to the nearest integer value, before running the UECM. Before commenting on the results of our numerical exercises, let us, first, describe how the latter ones have been carried out.",
+            "cite_spans": [
+                {
+                    "start": 1563,
+                    "end": 1567,
+                    "text": "[41]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "The accuracy of each algorithm in reproducing the constraints defining the UECM has been now quantified via the maximum relative error metrics, defined, in a perfectly general fashion, as max i",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "is the empirical value of the i-th constraint, C i ). In the UECM case, we can define two variants of the aforementioned error, i.e.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPLICATIONS"
+        },
+        {
+            "text": "(the acronyms standing for Maximum Relative Degree Error and Maximum Relative Strength Error). The reason driving this choice lies in the evidence that, in absolute terms, strengths are affected by a larger numerical error than degrees: this, however, doesn't necessarily mean that a given algorithm performs poorly, as the magnitude of an error must be always compared with the numerical value of the quantity it refers to -whence the choice of considering relative scores. The three different 'stop criteria' we have considered for each algorithm match the ones adopted for analysing the binary cases, consisting in a condition on the Euclidean norm of the gradient of the likelihood function, i.e. ||\u2207L ( \u03b8)|| 2 \u2264 10 \u22128 , and in a condition on the Euclidean norm of the vector of differences between the values of the parameters at subsequent iterations, i.e. ||\u2206 \u03b8|| 2 \u2264 10 \u22128 . The third condition concerns the maximum number of iterations: after 10000 steps, any of the three algorithms stops.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The results about the performance of our three algorithms are reported in Table IV . Overall, two out of three algorithms (i.e. Newton's and the quasi-Newton methods) perform very satisfactorily, being accurate, fast and scalable; the third one (i.e. the fixed-point recipe), instead, performs very poorly. Moreover, while Newton's method stops because the condition on the norm of the likelihood is satisfied, both the quasi-Newton and the fixed-point algorithms are always found to satisfy the limit condition on the number of steps (i.e. they run for 10000 steps and, then, stop).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 74,
+                    "end": 82,
+                    "text": "Table IV",
+                    "ref_id": null
+                }
+            ],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "For what concerns accuracy, the largest maximum error made by Newton's method (across all configurations) amounts at 10 \u221210 MRDE Newton 10 \u22125 and MRSE Newton 10 \u221210 ; on the other hand, the largest maximum error made by the quasi-Newton method (across all configurations) amounts at 10 \u22125 MRDE Quasi-Newton 10 \u22121 and 10 \u22125 \u2264 MRSE Quasi-Newton \u2264 10 \u22124 . For what concerns speed, Newton's method employs tenths of seconds to achieve convergence on each configuration while the quasi-Newton one always requires tens of seconds (specifically, almost thirty seconds for each considered configuration). The results above indicate that the fastest and two most accurate method is systematically Newton's one, suggesting that the 'complexity' of the model is such that the information encoded into the Hessian matrix cannot be ignored without consequences on the quality of the solution. The fixed-point algorithm, instead, stops after seconds but is affected by errors whose order of systematically magnitude amounts at MRDE fixed-point 10 2 and 1 MRSE fixed-point 10 2 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "We also explicitly notice that the MADE basically coincides with the MRDE for all considered configurations, meaning that the largest error, made by the algorithms considered here to solve the UECM, affects the nodes with the lowest degree (i.e. equal to one). On the other hand, strengths are affected by a larger absolute error (i.e. the MASE, defined as MASE = max i {|s * i \u2212 s i |} N i=1 ) than the degrees: if we calculate the MRSE, however, we realize that the largest errors affect very large strengths -hence being perfectly acceptable. For example, let us consider the WTW in 1993: the MASE amounts at 0.1 but, as the MRSE reveals, it affects a strength of the order of 10 3 . Lastly, differences in the speed of convergence of the two methods discussed in this section, caused by the choice of a particular set of initial conditions, are observable: the 'uniform' prescription outperforms the other ones.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Finally, let us comment on the algorithm to sample the UECM ensemble and that can be compactly achieved by implementing a two-step procedure. Let us look back at the formal expression for the pair-specific probability distribution characterizing the UECM: it induces coefficients reading",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "in turn suggesting that, for a specific pair of vertices i, j (with i < j), the appearance of the first link is ruled by a Bernoulli distribution with probability p UECM ij while the remaining (w \u2212 1) ones can be drawn from a geometric distribution whose parameter reads e \u2212\u03b2i\u2212\u03b2j ; in other words, the weight (w \u2212 1) is drawn conditionally on the presence of a connection between the two considered nodes. The computational complexity of the sampling process is, again, O(N 2 ). The pseudo-code for explicitly sampling the DBCM ensemble is summed up by Algorithm 4. Notice that the way our sampling procedure is written requires the support of the geometric distribution to coincide with the positive integers. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "where the generic out-degree and in-degree are, respectively, defined as k out i (A) = ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "in turn, inducing the directed counterpart of the UECM distribution, i.e.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "(62) for any two nodes i and j such that i = j and p DECM",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "As for the undirected case, weights are required to assume only (non-negative) integer values (i.e. w ij \u2208 [0, +\u221e), \u2200 i = j): hence, the canonical ensemble is constituted by the weighted configurations with N nodes and a number of (directed) links ranging between zero and the maximum value N (N \u2212 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The argument of the problem (14) for the specific network W * becomes",
+            "cite_spans": [
+                {
+                    "start": 28,
+                    "end": 32,
+                    "text": "(14)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "where z ij = 1 + e \u2212\u03b1i\u2212\u03b2j e \u2212\u03b3 i \u2212\u03b4 j 1\u2212e \u2212\u03b3 i \u2212\u03b4 j , \u2200 i = j and whose first-order optimality conditions read",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Resolution of the DECM. Newton's and the quasi-Newton methods can be easily implemented via the recipe defined in eq. (18) (see Appendix A for the definition of the DECM Hessian).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "As for the UECM, the fixed-point recipe for solving the DECM first-order optimality conditions transforms the following set of consistency equations",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "(65) (with i = 1 . . . N ) into the usual iterative fashion, by considering the parameters at the left hand side and at the right hand side, respectively at the n-th and at the (n \u2212 1)-th iteration. The reduced version of such a recipe would assign the same set of values (\u03b1, \u03b2, \u03b3, \u03b4) to the nodes for which the quantities (k out , k in , s out , s in ) have the same value: however, the larger heterogeneity of the strengths causes the DECM to be much less reducible than the purely binary models we have considered in the present contribution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The three different sets of initial conditions that have been considered generalize the UECM ones: in particular, the first set of values reads \u03b1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": ". . N ; the second set of initial conditions can be obtained by simply replacing L with N ; the third recipe, as usual, prescribes to randomly draw the value of each parameter from the uniform distribution defined on the unit interval.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Performance testing. The performance of the three algorithms to solve the system of equations defining the DECM has been tested on a bunch of real-world networks. In particular, we have considered the Electronic Italian Interbank Market (e-MID) during the decade 2000-2010 [42] . Since e-MID weights are real numbers, we have rounded them to the nearest integer value, before running the DECM. Before commenting on the results of our numerical exercises, let us, first, describe how the latter ones have been carried out.",
+            "cite_spans": [
+                {
+                    "start": 273,
+                    "end": 277,
+                    "text": "[42]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The accuracy of each algorithm in reproducing the constraints defining the DECM has been quantified via the maximum relative error metrics, now reading",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "(the acronyms standing for for Maximum Relative Degree",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Error and Maximum Relative Strength Error) where we have defined k out \u2261 k, k in \u2261 h, s out \u2261 s and s in \u2261 t in order to simplify the formalism.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The three different 'stop criteria' we have adopted are the same ones we have considered for both the binary and the undirected, 'mixed' model, i.e. the condition on the Euclidean norm of the gradient of the likelihood function, i.e. ||\u2207L ( \u03b8)|| 2 \u2264 10 \u22128 ), the condition on the Euclidean norm of the vector of differences between the values of the parameters at subsequent iterations (i.e. ||\u2206 \u03b8|| 2 \u2264 10 \u22128 ) and the condition on the maximum number of iterations (i.e. after 10000 steps, any of the three algorithms stops).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The results about the performance of our three algorithms are reported in Table V . Overall, Newton's method performs very satisfactorily, being accurate, fast and scalable; the quasi-Newton method is accurate as well although (in some cases, much) slower. The fixedpoint recipe, instead, performs very poorly, as for the undirected case. Moreover, while Newton's method stops because the condition on the norm of the likelihood is satisfied, both the quasi-Newton and the fixed-point algorithms are always found to satisfy the limit condition on the number of steps (i.e. they run for 10000 steps and, then, stop).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 74,
+                    "end": 81,
+                    "text": "Table V",
+                    "ref_id": null
+                }
+            ],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "For what concerns accuracy, the largest maximum error made by Newton's method (across all configurations) amounts at 10 \u221214 MRDE Newton 10 \u22127 and 10 \u221212 MRSE Newton 10 \u22125 ; on the other hand, the largest maximum error made by the quasi-Newton method (across all configurations) amounts at 10 \u22128 MRDE Quasi-Newton 10 \u22127 and 10 \u22124 MRSE Quasi-Newton 10 \u22123 . For what concerns speed, Newton's method employs tens of seconds to achieve convergence on each configuration; the time required by the quasi-Newton method is of the same order of magnitude, although it is systematically larger than the time required by Newton's one. Overall, these results indicate that the fastest and two most accurate method is Newton's one. As in the undirected case, the fixed-point algorithm, instead, stops after seconds but is affected by errors whose order of systematically magnitude amounts at 10 MRDE fixed-point 10 2 and 1 MRSE fixed-point 10 2 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "As for the UECM, the MADE basically coincides with the MRDE, for all considered configurations, while strengths are affected by a larger absolute error than the degrees: still, upon calculating the MRSE, we realize that the largest errors affect very large strengths -hence being perfectly acceptable.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Lastly, differences in the speed of convergence of the two methods discussed in this section, caused by the choice of a particular set of initial conditions, are observable: the 'uniform' prescription outperforms the other ones.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Finally, let us comment on the algorithm to sample the DECM ensemble: as for the UECM, it can be compactly achieved by implementing the directed counterpart of the two-step procedure described above. Given a specific pair of vertices i, j (with i = j), the first link can be drawn by sampling a Bernoulli distribution with probability p DECM ij while the remaining (w \u2212 1) ones can be drawn from a geometric distribution whose parameter reads e \u2212\u03b3i\u2212\u03b4j . The computational complexity of the sampling process is, again, O(N 2 ) and the pseudo-code for explicitly sampling the DECM ensemble is summed up by Algorithm 5. Notice that the way our sampling procedure is written requires the support of the geometric distribution to coincide with the positive integers. The need of considering network models defined in a two-step fashion arises from a number of considerations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "First, the amount of information concerning binary and weighted quantities is often asymmetric: as it has been pointed out in [43] , information concerning a given network structure ranges from the knowledge of just a single, aggregated piece of information (e.g. the link density) to that of entire subgraphs. Indeed, models exist that take as input any binary, either probabilistic or deterministic, network model (i.e. any P (A)) while placing link weights optimally, conditionally on the input configurations [19, 43] .",
+            "cite_spans": [
+                {
+                    "start": 126,
+                    "end": 130,
+                    "text": "[43]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 513,
+                    "end": 517,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 518,
+                    "end": 521,
+                    "text": "43]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Second, recipes like the UECM and the DECM are, generally speaking, difficult to solve; as we have already observed, only Newton's method performs in a satisfactory way, both for what concerns accuracy and speed: hence, easier-to-solve recipes are welcome.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "In what follows, we will consider the conditional reconstruction method (hereby, CReM) induced by the Hamiltonian",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "in case of undirected networks, it induces a conditional probability distribution reading",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "where, for consistency, q ij (w ij = 0|a ij = 0) = 1 and q ij (w ij = 0|a ij = 1) = 0. The meaning of these relationships is the following: given any two nodes i and j, the absence of a link, i.e. a ij = 0, admits the only possibility w ij = 0; on the other hand, the presence of a link, i.e. a ij = 1, rules out the possibility that a null weight among the same vertices is observed. In general, the functional form of q ij (w ij |a ij = 1) depends on the domain of the weights. In all cases considered in [19, 43] , weights are assumed to be continuous; since the continuous distribution that maximizes Shannon entropy while constrained to reproduce first-order moments is the exponential one, the following functional form",
+            "cite_spans": [
+                {
+                    "start": 507,
+                    "end": 511,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 512,
+                    "end": 515,
+                    "text": "43]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "(for any undirected pair of nodes) remains naturally induced. As shown in [43] , the problem (14) has to be slightly generalized; still, its argument for the specific network W * becomes 4 \u00b7 10 \u22128 10 \u22129 10 \u22124 0.08 6 \u00b7 10 \u22128 10 \u22124 10 \u22126 5 2 \u00b7 10 \u22129 10 \u22122 10 \u22121 0.01 BLN2 2 \u00b7 10 \u22128 10 \u22128 10 \u22125 3.2 9 \u00b7 10 \u22128 10 \u22124 10 \u22121 100 1 \u00b7 10 \u22129 10 \u22122 10 \u22121 0.73 BLN3 1 \u00b7 10 \u22128 10 \u22129 10 \u22124 14 1 \u00b7 10 \u22127 10 \u22124 10 \u22122 388 1 \u00b7 10 \u22129 10 \u22127 10 \u22126 11 BLN4 2 \u00b7 10 \u22128 10 \u22129 10 \u22124 71 5 \u00b7 10 \u22128 10 \u22122 3 1538 9 \u00b7 10 \u221210 20 6 \u00b7 10 \u22121 1.3 BLN5 2 \u00b7 10 \u22129 10 \u22129 10 \u22124 200 4 \u00b7 10 \u22127 10 \u22121 6 3633 6 \u00b7 10 \u221210 10 \u22127 10 \u22128 5.7 BLN6 2 \u00b7 10 \u22129 10 \u22129 10 \u22124 382 3 \u00b7 10 \u22128 10 \u22122 3 5980 6 \u00b7 10 \u221210 10 \u2212 where the quantity f ij = A P (A)a ij represents the expected value of a ij over the ensemble of binary configurations defining the binary model taken as input (i.e. the marginal probability of an edge existing between nodes i and j). It follows that the CReM first-order optimality conditions read",
+            "cite_spans": [
+                {
+                    "start": 74,
+                    "end": 78,
+                    "text": "[43]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Resolution of the CReM. Newton's and the quasi-Newton method can still be implemented via the recipe defined in eq. (18) (see Appendix A for the definition of the CReM Hessian).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "As for the UECM and the DECM, the fixed-point recipe for solving the system of equations embodying the CReM transforms the set of consistency equations",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "into an iterative recipe of the usual form, i.e. by considering the parameters at the left hand side and at the right hand side, respectively at the n-th and at the (n \u2212 1)-th iteration. Although a reduced recipe can, in principle, be defined, an analogous observation to the one concerning the UECM and the DECM holds: the mathematical nature of the strengths (now, real numbers) increases their heterogeneity, in turn causing the CReM algorithm to be reducible even less than the 'mixed' models defined by discrete weights. The initialization of the iterative recipe for solving the CReM has been implemented in the usual threefold way.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The first set of initial values reads \u03b8 ; the third one, instead, prescribes to randomly draw the value of each parameter from the uniform distribution defined on the unit interval, i.e. \u03b8",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "When considering directed networks, the conditional probability distribution defining the CReM reads",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "for any two nodes i and j such that i = j; the set of equations (73) can be generalized as follows",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "and analogously for the sets of values initializing them.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Rescaling the CReM algorithm. Although the equations defining the CReM algorithm cannot be effectively reduced, they can be opportunely rescaled. To this aim, let us consider directed configurations and the system 3 \u00b7 10 \u22127 2 \u00b7 10 \u221210 0.9 5 \u00b7 10 \u22127 2 \u00b7 10 \u22126 0.9 4 \u00b7 10 \u221214 8 \u00b7 10 \u22125 0.09 e-MID 01 185 8951 3 \u00b7 10 \u221215 1 \u00b7 10 \u221210 0.9 7 \u00b7 10 \u221210 5 \u00b7 10 \u22126 1 7 \u00b7 10 \u22129 1 \u00b7 10 \u22124 0.12 e-MID 02 177 7252 6 \u00b7 10 \u22129 2 \u00b7 10 \u221213 0.7 3 \u00b7 10 \u22128 5 \u00b7 10 \u22126 1 8 \u00b7 10 \u22126 3 \u00b7 10 \u22121 0.08 e-MID 03 179 6814 1 \u00b7 10 \u221212 2 \u00b7 10 \u221210 0.8 3 \u00b7 10 \u22129 3 \u00b7 10 \u22123 0.7 4 \u00b7 10 \u221215 8 \u00b7 10 \u22124 0.1 e-MID 04 180 6136 9 \u00b7 10 \u221210 2 \u00b7 10 \u22127 0.9 5 \u00b7 10 \u221215 8 \u00b7 10 \u22125 0.8 5 \u00b7 10 \u22129 6 \u00b7 10 \u22124 0.13 e-MID 05 176 6203 3 \u00b7 10 \u221210 5 \u00b7 10 \u22129 0.7 2 \u00b7 10 \u221214 2 \u00b7 10 \u22123 0.7 5 \u00b7 10 \u22129 1 \u00b7 10 \u22123 0.2 e-MID 06 177 6132 1 \u00b7 10 \u221210 7 \u00b7 10 \u221212 0.7 2 \u00b7 10 \u221213 3 \u00b7 10 \u22123 0.8 8 \u00b7 10 \u221211 5 \u00b7 10 \u22121 0.14 e-MID 07 178 6330 3 \u00b7 10 \u22126 3 \u00b7 10 \u221213 1 1 \u00b7 10 \u22127 8 \u00b7 10 \u22126 1.2 7 \u00b7 10 \u221212 7 \u00b7 10 \u22121 0.14 e-MID 08 173 4767 3 \u00b7 10 \u221210 8 \u00b7 10 \u221213 0.8 1 \u00b7 10 \u22129 1 \u00b7 10 \u22123 0.7 3 \u00b7 10 \u22129 8 \u00b7 10 \u22121 0.07 e-MID 09 156 2961 4 \u00b7 10 \u221211 3 \u00b7 10 \u221212 0.6 1 \u00b7 10 \u22127 9 \u00b7 10 \u22125 0.7 8 \u00b7 10 \u221210 2 \u00b7 10 \u22123 0.11 e-MID 10 135 2743 2 \u00b7 10 \u221211 2 \u00b7 10 \u22129 0.7 7 \u00b7 10 \u221213 5 \u00b7 10 \u22125 0.5 5 \u00b7 10 \u22129 2 \u00b7 10 \u22121 0.05 where the sufficient statistics has been divided by an opportunely defined factor (in this case, \u03ba) and the symbols \u03b1 i (\u03ba), \u03b1 j (\u03ba), \u03b2 i (\u03ba) and \u03b2 j (\u03ba) stress that the solution we are searching for is a function of the parameter \u03ba itself.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "In fact, a solution of the system above reads",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "as it can be proven upon substituting it back into eqs. (76) and noticing that {\u03b1 * i } N i=1 and {\u03b2 * i } N i=1 are solutions of the system of equations defined in (76). As our likelihood maximization problem admits a unique, global maximum, the prescription above allows us to easily identify it. Rescaling will be tested in order to find out if our algorithms are enhanced by it under some respect (e.g. accuracy or speed).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Performance testing. Before commenting on the performance of the three algorithms in solving the system of equations defining the CReM, let us stress once more that the formulas presented so far are perfectly general, working for any binary recipe one may want to employ. In what follows, we will test the CReM by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "To test the effectiveness of our algorithms in solving the CReM on undirected networks we have considered the synaptic network of the worm C. Elegans [28] and the eight daily snapshots of the Bitcoin Lightning Network [32] ; the directed version of the CReM has, instead, been solved on the Electronic Italian Interbank Market (e-MID) during the decade 2000-2010 [42] . Before commenting on the results of our numerical exercises, let us, first, describe how the latter ones have been carried out.",
+            "cite_spans": [
+                {
+                    "start": 150,
+                    "end": 154,
+                    "text": "[28]",
+                    "ref_id": null
+                },
+                {
+                    "start": 218,
+                    "end": 222,
+                    "text": "[32]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 363,
+                    "end": 367,
+                    "text": "[42]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "As for the discrete 'mixed' models, the accuracy of each algorithm in reproducing the constraints defining the CReM has been quantified via the Maximum Relative Degree Error and the Maximum Relative Strength Error metrics, whose definition is provided by eqs. (57), (58) and (66), (67) for the undirected and the directed case, respectively. Analogously, the three 'stop criteria' for each algorithm are the same ones that we have adopted for the other models (and consist in a condition on the Euclidean norm of the gradient of the likelihood function, i.e. ||\u2207L ( \u03b8)|| 2 \u2264 10 \u22128 , a condition on the Euclidean norm of the vector of differences between the values of the parameters at subsequent iterations, i.e. ||\u2206 \u03b8|| 2 \u2264 10 \u22128 , and a condition on the maximum number of iterations, i.e. 10000 steps).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The results about the performance of our three algorithms are reported in Table VI and in Table VII . Let us start by commenting the results reported in Table VI and concerning undirected networks. Generally speaking, Newton's method is the most accurate one (its largest maximum errors span intervals, across all configurations, that amount at 10 \u221211 MRDE Newton 10 \u22128 and 10 \u22125 MRSE Newton 10 \u22124 ) although it scales very badly with the size of the network on which it is tested (the amount of time, measured in seconds, required by it to achieve convergence spans an interval, across all configurations, that amounts at 0.08 \u2264 T reduced Newton \u2264 1188). The quasi-Newton method, on the other hand, is very accurate on the degrees (as already observed in the UBCM case) but not so accurate in reproducing the weighted constraints (its largest maximum errors span intervals, across all configurations, that amount at MRDE Quasi-Newton 10 \u22127 and 10 \u22126 MRSE Quasi-Newton 6). Moreover, it scales even worse than Newton's method with the size of the network on which it is tested (the amount of time, measured in seconds, required by it to achieve convergence spans an interval, across all configurations, that amounts at 5 \u2264 T Quasi-Newton \u2264 15888). The performance of the fixed-point recipe is, somehow, intermediate between that of Newton's and the quasi-Newton method. For what concerns accuracy, it is more accurate in reproducing the binary constraints than in reproducing the weighted ones (its largest maximum errors span intervals, across all configurations, that amount at MRDE fixed-point 10 \u22129 and 10 \u22128 MRSE fixed-point 10 \u22121 ) although it outperforms Newton's method, sometimes. For what concerns scalability, the fixed-point method is the less sensitive one to the growing size of the considered configurations: hence, it is also the fastest one (the amount of time, measured in seconds, required by it to achieve convergence spans an interval, across all configurations, that amounts at 0.01 \u2264 T fixed-point \u2264 550).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 74,
+                    "end": 99,
+                    "text": "Table VI and in Table VII",
+                    "ref_id": "TABREF12"
+                }
+            ],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Moreover, while Newton's and the fixed-point method stop because the condition on the norm of the likelihood is satisfied, the quasi-Newton method is often found to satisfy the limit condition on the number of steps (i.e. it runs for 10000 steps and, then, stops).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Interestingly, the fact that the CReM cannot be reduced (at least not to a comparable extent with the one characterizing purely binary models) reveals a dependence on the network size of Newton's and the quasi-Newton algorithms. The reason may lie in the evidence that both Newton's and the quasi-Newton method require (some proxy of) the Hessian matrix of the system of equations defining the CReM to update the value of the parameters: as already observed, the order of the latter -which is O(N 2 ) for Newton's method and O(N ) for the quasi-Newton one -can make its calculation (very) time demanding.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Let us now move to comment on the performance of our algorithms when applied to solve the directed version of the CReM (see Table VII ). Overall, all methods perform much better than in the undirected case, stopping because the condition on the norm of the likelihood is satisfied.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 124,
+                    "end": 133,
+                    "text": "Table VII",
+                    "ref_id": "TABREF12"
+                }
+            ],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "In fact, all of them are very accurate in reproducing the purely binary constraints, their largest maximum errors spanning intervals, across all configurations, that amount at 10 \u221212 MRDE Newton 10 \u22126 , 10 \u221214 MRDE Quasi-Newton 10 \u22126 and 10 \u221215 MRDE fixed-point 10 \u22128 ; for what concerns the weighted constraints, instead, the two most accurate methods are Newton's and the quasi-Newton one, their largest maximum errors spanning intervals, across all configurations, that amount at 10 \u221213 MRSE Newton 10 \u22127 and 10 \u22126 MRSE Quasi-Newton 10 \u22123 (the fixedpoint method performs worse than them, since 10 \u22123 MRSE fixed-point 10 \u22121 ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "For what concerns speed, the amount of time, measured in seconds, required by Newton's, the quasi-Newton and the fixed-point algorithms to achieve convergence spans an interval, across all configurations, that amounts at 0.6 \u2264 T reduced Newton \u2264 1, 0.5 \u2264 T reduced Quasi-Newton \u2264 1.2 and 0.05 \u2264 T reduced fixed-point \u2264 0.2, respectively. Hence, all methods are also very fast -the fixed-point being systematically the fastest one.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "As already stressed above, the fact that the e-MID number of nodes remains approximately constant throughout the considered time interval masks the strong dependence of the performance of Newton's and the quasi-Newton method on the network size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Lastly, while rescaling the system of equations defining the CReM improves neither the accuracy nor the speed of any of the three algorithms considered here, differences in their speed of convergence, caused by the choice of a particular set of initial conditions, are observable: the 'uniform' prescription outperforms the other ones (for both the undirected and the directed version of the CReM).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "As usual, let us comment on the algorithm to sample the CReM ensemble -for the sake of simplicity, on the undirected cae. As for the UECM it can be compactly achieved by implementing a two-step procedure, the only difference lying in the functional form of the distribution from which weights are sampled. Given a specific pair of vertices i, j (with i < j), the first link can be drawn from a Bernoulli distribution with probability p UBCM ij while the remaining (w \u22121) ones can be drawn from an exponential distribution whose parameter reads \u03b8 i + \u03b8 j . The computational complexity of the sampling process is, again, O(N 2 ) and the pseudo-code for explicitly sampling the CReM ensemble is summed up by Algorithm 6. The exercises carried out so far have highlighted a number of (stylized) facts concerning the performance of the three algorithms tested: in what follows, we will briefly sum them up.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Newton's method. Overall, Newton's method is very accurate -often, the most accurate one -in reproducing both the binary and the weighted constraints; moreover, it represent the only viable alternative when the most complicated models are considered (i.e. the UECM and the DECM, respectively defined by a system of 2N and 4N coupled, non-linear equations). However, the time required to run Newton's method on a given model seems to be quite dependent on the network size, especially whenever the corresponding system of equations cannot be reduced -see the case of the undirected CReM, run on the Bitcoin Lightning Network. Since one of the reasons affecting the bad scaling of Newton's method with the network size is the evaluation of the Hessian matrix defining a given model, this algorithm has to be preferred for largely reducible networks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Quasi-Newton method. For all the networks considered here, the quasi-Newton method we have implemented is nothing else than the diagonal version of the traditional Newton's method. Even if this choice greatly reduces the number of entries of the Hessian matrix which are needed (i.e. just N elements for the undirected version of the CReM, 2N elements for the UECM and the directed version of the CReM and 4N elements for the DECM) dimensionality may still represent an issue to achieve fast convergence. Moreover, since the diagonal approximation of the Hessian matrix is not necessarily always a good one, the quasi-Newton method may require more time than Newton's one to achieve the same level of accuracy in reproducing the constraints. However, when such an approximation is a good one, the 'regime' in which the quasi-Newton method outperforms the competitors seems to be the one of small, non-reducible networks (e.g. see the results concerning the DBCM run on the WTW) -althogh, in cases like these, Newton's method may still be a strong competitor.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Fixed-point method. From a purely theoretical point of view, the fixed-point recipe is the fastest one, since the time required to evaluate the generic n-th step is (only) due to the evaluation of the model-specific map at the (n \u2212 1)-th iteration. Strictly speaking, however, this holds true for a single step: if the number of steps required for convergence is large, in fact, the total amount of time required by the fixed-point method can be large as well. Overall, however, this algorithm has to be preferred for large, non-reducible networks: this is the case of the (undirected version of the) CReM, run on the 8-th snapshot of the Bitcoin Lightning Network (i.e. day 17-07-19) and requiring a little more than one minute to achieve an accuracy of MRDE fixed-point 10 \u221210 and MRSE fixed-point 10 \u22121 ; naturally, the method is not as accurate as New-ton's one, for which MRDE Newton 10 \u221212 and MRSE Newton 10 \u22126 but is much faster as Newton's algorithm requires 1188 seconds to converge.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The 'NEMTROPY' Python package. As an additional result, we release a comprehensive package, coded in Python, that implements the three aforementioned algorithms on all the ERGMs considered in the present work. Its name is 'NEMTROPY', an acronym standing for 'Network Entropy Maximization: a Toolbox Running On Python', and is freely downloadable at the following URL: https://pypi.org/project/NEMtropy/.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Alternative techniques to improve accuracy and speed have been tested as well, as the one of coupling two of the algorithms considered above. In particular, we have tried to solve the (undirected version of the) CReM by running the fixed-point algorithm and using the solution of the latter as input for the quasi-Newton method. The results are reported in Table VIII : as they clearly show, the coupled algorithm is indeed more accurate that the single methods composing it and much faster than the quasi-Newton one (for some snapshots, more accurate and even faster than Newton's method). Techniques like these are, in general, useful to individuate better initial conditions than the completely random ones: a first run of the fastest method may be, in fact, useful to direct the most accurate algorithm towards the (best) solution. This is indeed the case, upon considering that the quasi-Newton method, now, stops because the condition ||\u2207L ( \u03b8)|| 2 \u2264 10 \u22128 is satisfied -and not for having reached the limit of 10000 steps.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 357,
+                    "end": 367,
+                    "text": "Table VIII",
+                    "ref_id": "TABREF12"
+                }
+            ],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "We would like to end the discussion about the results presented in this contribution by explicitly mentioning a circumstance that is frequently met when studying economic and financial networks. When considering systems like these, the information about the number of neighbours of each node is typically not accessible: as a consequence, the models constraining both binary and weighted information cannot be employed as they have presented in this contribution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "Alternatives exist and rest upon the existence of some kind of relationship between binary and weighted constraints. In the case of undirected networks, such a relationship is usually written as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "and establishes that the Lagrange multipliers controlling for the degrees are linearly proportional to the strengths. If this is the case (or a valid reason exists for this to be the case), the expression for the probability that any two nodes are connected becomes 19 4.9 \u00b7 10 \u221210 1.3 \u00b7 10 \u22123 3.5 \u00b7 10 \u22123 3350 TABLE VIII. Performance of the algorithm coupling fixed-point and quasi-Newton to solve the system of equations defining the (undirected version of the) CReM, on a set of real-world WUNs. The algorithm stops because the condition ||\u2207L ( \u03b8)||2 \u2264 10 \u22128 is satisfied. As the results reveal, it is more accurate that the single methods composing it and much faster than the quasi-Newton one -for some snapshots, more accurate and even faster than Newton's method. Only the results corresponding to the best choice of initial conditions are reported.",
+            "cite_spans": [
+                {
+                    "start": 266,
+                    "end": 268,
+                    "text": "19",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "the acronym standing for degree-corrected Gravity Model [44] . The (only) unknown parameter z must be numerically estimated by employing some kind of topological information; this is usually represented by (a proxy of) the network link density, used to instantiate the (only) likelihood condition",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 60,
+                    "text": "[44]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "zs i s j 1 + zs i s j ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "(81) once the equation above has been solved, the set of coefficients {p dcGM ij } N i,j=1 can be either employed 1) to, first, estimate the degrees and, then, solve the UECM [45] or 2) within the CReM framework, via the identification f ij \u2261 p dcGM ij , to estimate the parameters controlling for the weighted constraints.",
+            "cite_spans": [
+                {
+                    "start": 175,
+                    "end": 179,
+                    "text": "[45]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MRDE = max"
+        },
+        {
+            "text": "The definition and correct implementation of null models is a crucial issue in network analysis: the present contribution focuses on (a subset of) the ones constituting the so-called ERG framework -a choice driven by the evidence that they are the most commonly employed ones for tasks as different as network reconstruction, pattern detection, graph enumeration. The optimization of the likelihood function associated to them is, however, still problematic since it involves the resolution of large systems of coupled, non-linear equations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "Here, we have implemented and compared three algorithms for numerical optimization, with the aim of finding the one performing best (i.e. being both accurate and fast) for each model. What emerges from our results is that there is no a unique method which is both accurate and fast for all models on all configurations: under this respect, performance is just a trade-off between accuracy and speed. However, some general conclusions can still be drawn.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "Newton's method is the one requiring the largest amount of information per step (in fact, the entire Hessian matrix has to be evaluated at each iteration): hence, it is the most accurate one but, for the same reason, often the one characterized by the slowest performance. A major drawback of Newton's method is that of scaling very badly with the network size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "At the opposite extreme lies the fixed-point algorithm, theoretically the fastest one but, often, among the least accurate ones (at least, for what concerns the weighted constraints); the performance if the quasi-Newton method often lies in-between the performances of the two methods above, by achieving an accuracy that is larger than the one achieved by the fixed-point algorithm, requiring less time that the one needed by Newton's method.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "Overall, while Newton's method seems to perform best on either relatively small or greatly reducible networks, the fixed-point method must be preferred for large, non-reducible configurations. Deviations from this (over simplified) picture are, however, clearly visible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "Future work concerns the application of the aforementioned three numerical recipes to the models that have not found place here. For what concerns the set of purely binary constraints, the ones defining the Reciprocal Binary Configuration Model (RBCM) [15] deserve to be mentioned.",
+            "cite_spans": [
+                {
+                    "start": 252,
+                    "end": 256,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "For what concerns the 'mixed' constraints, instead, the CReM framework is versatile enough to accommodate a quite large number of variants. In the present work, we have 'limited' ourselves to combine the UBCM and the DBCM with (conditional) distributions of continuous weights: a first, obvious, generalization is that of considering the discrete versions of such models, defined by the positions In all methods we will considered in the present work, the variable \u03b8 i appears in the optimality conditions only through negative exponential functions: it is therefore tempting to perform the change of variable x i \u2261 e \u2212\u03b8i . Although this is often performed in the literature, one cannot guarantee that the new optimization problem remains convex: in fact, simple examples can be provided for which convexity is lost. This has several consequences, e.g. 1) convergence to the global maximum is no longer guaranteed (since the existence of a global maximum is no longer guaranteed as well), 2) extra-care is needed to guarantee that the Hessian matrix H employed in our algorithms is negative definite. While problem 2) introduces additional complexity only for Newton's method, problem 1) is more serious from a theoretical point of view.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "Let us now address problem 1) in more detail. First, it is possible to prove that any stationary point for L ( x) satisfies the optimality conditions for L ( \u03b8) as well. In fact, the application of the 'chain rule' leads to recover the set of relationships",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "(104) notice that requiring \u2207 \u03b8i L ( \u03b8) = 0 leads to require that either \u2207 xi L ( x) = 0 or x i = 0. As the second eventuality precisely identifies isolated nodes (i.e. the nodes for which the constraint C i (G * ), controlled by the multiplier \u03b8 i , is 0), one can get rid of it by explicitly removing the corresponding addenda from the likelihood function.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "For what concerns convexity, let us explicitly calculate the Hessian matrix for the set of variables {x i } M i=1 . In formulas,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "according to the 'chain rule' for second-order derivatives. More compactly,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "where I is the identity matrix, the generic entry of the matrix e \u0398 reads e \u0398 ij \u2261 e \u03b8i+\u03b8j , \u2200 i, j and the symbol '\u2022' indicates the Hadamard (i.e. element-wise) product of matrices. In general, the expression above defines an indefinite matrix, i.e. a neither positive nor negative (semi)definite one. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "for the sake of illustration, let us discuss it for the UBCM case. In this particular case, the set of equations above can be rewritten as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "(108) Since all components of the map G are continuous on R N , the map itself is continuous on R N . Hence, a fixed point exists. Let us now consider its Jacobian matrix and check the magnitude of its elements. In the UBCM case, one finds that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "Let us notice that 1) each element of the Jacobian matrix is a continuous function R N \u2192 R and that 2) the following relationships hold",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        },
+        {
+            "text": "unfortunately, however, when multivariate functions are considered, the set of conditions above is not enough to ensure convergence to the fixed point for any choice of the initial value of the parameters. What is needed to be checked is the condition ||J G ( \u03b8)|| < 1, with J indicating the Jacobian of the map (i.e. the matrix of the first, partial derivatives above) and ||.|| any natural matrix norm: the validity of such a condition has been numerically verified case by case.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Networks: an introduction",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "E J"
+                    ],
+                    "last": "Newman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "The role of the airline transportation network in the prediction and predictability of global epidemics",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Colizza",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Barrat",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Barthelemy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vespignani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "103",
+            "issn": "7",
+            "pages": "2015--2020",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Dynamical processes on complex networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Barrat",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Barthlemy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vespignani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Epidemic processes in complex networks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pastor-Satorras",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Castellano",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Van Mieghem",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vespignani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Rev. Mod. Phys",
+            "volume": "87",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Statistical physics of social dynamics",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Castellano",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Fortunato",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Loreto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Rev. Mod. Phys",
+            "volume": "81",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Earlywarning signals of topological collapse in interbank networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Van Lelyveld",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Sci. Rep",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "The statistical physics of realworld networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cimini",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Saracco",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gabrielli",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Caldarelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nat. Rev. Phys",
+            "volume": "1",
+            "issn": "1",
+            "pages": "58--71",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Specificity and stability in topology of protein networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Maslov",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Sneppen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "296",
+            "issn": "",
+            "pages": "910--913",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Constrained Markovian dynamics of random graphs",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "C C"
+                    ],
+                    "last": "Coolen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Martino",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Annibale",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "J. Stat. Phys",
+            "volume": "136",
+            "issn": "",
+            "pages": "1035--1067",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Unbiased degree-preserving randomization of directed binary networks",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Roberts",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "C C"
+                    ],
+                    "last": "Coolen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Phys. Rev. E",
+            "volume": "85",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Generating uniformly distributed random networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Artzy-Randrup",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Stone",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Phys. Rev. E",
+            "volume": "72",
+            "issn": "5",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Constructing and sampling directed graphs with given degree sequences",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Del Genio",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Bassler",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Toroczkai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "New J. Phys",
+            "volume": "14",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "A sequential importance sampling algorithm for generating random graphs with prescribed degrees",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Blitzstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Diaconis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Internet Mathematics",
+            "volume": "6",
+            "issn": "4",
+            "pages": "489--522",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Analytical maximumlikelihood method to detect patterns in real networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "New. J. Phys",
+            "volume": "13",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Statistical mechanics of networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "E J"
+                    ],
+                    "last": "Newman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Phys. Rev. E",
+            "volume": "70",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "The entropy of randomized network ensembles",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Bianconi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Europhys. Lett",
+            "volume": "81",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Fluctuationdissipation relations in complex networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fronczak",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fronczak",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Holyst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Phys. Rev. E",
+            "volume": "73",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Grand canonical ensemble of weighted networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gabrielli",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mastrandrea",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Caldarelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cimini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Phys. Rev. E",
+            "volume": "99",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Exponential random graph models in Encyclopedia of Social Network Analysis and Mining",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fronczak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Information theory and statistical mechanics",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Jaynes",
+                    "suffix": ""
+                }
+            ],
+            "year": 1957,
+            "venue": "Phys. Rev",
+            "volume": "106",
+            "issn": "4",
+            "pages": "620--630",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "A maximum entropy approach to separating noise from signal in bimodal affiliation networks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Dianati",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1607.01735"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Bitcoin Transaction Networks: an overview of recent results",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Vallarano",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tessone",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2005.00114"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Maximum likelihood: Extracting unbiased information from complex networks",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Loffredo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Phys. Rev. E",
+            "volume": "78",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Convex Optimization",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Boyd",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Vandenberghe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Connected components in random graphs with given expected degree sequences",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chung",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Ann. Combinatorics",
+            "volume": "6",
+            "issn": "",
+            "pages": "125--145",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Reaction-diffusion processes and metapopulation models in heterogeneous networks",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Colizza",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pastor-Satorras",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vespignani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Nat. Phys",
+            "volume": "3",
+            "issn": "",
+            "pages": "276--282",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Detecting rich-club ordering in complex networks",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Colizza",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Flammini",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Serrano",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vespignani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Nat. Phys",
+            "volume": "2",
+            "issn": "",
+            "pages": "110--115",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Lightning Network: a second path towards centralisation of the Bitcoin economy",
+            "authors": [
+                {
+                    "first": "J.-H",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Primicerio",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Decker",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Tessone",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "New J. Phys",
+            "volume": "22",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Efficient generation of networks with given expected degrees",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Miller",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hagberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "LNCS",
+            "volume": "6732",
+            "issn": "",
+            "pages": "115--126",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Randomizing world trade. I. A binary network analysis",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Fagiolo",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Phys. Rev. E",
+            "volume": "84",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "The evolving liaisons between the transaction networks of Bitcoin and its price dynamics",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bovet",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Campajola",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Mottes",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Restocchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Vallarano",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Tessone",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1907.03577"
+                ]
+            }
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Flow of online misinformation during the peak of the COVID-19 pandemic in Italy",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Caldarelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "De Nicola",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Petrocchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pratelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Saracco",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2010.01913"
+                ]
+            }
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Randomizing bipartite networks: the case of the World Trade Web",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Saracco",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "Di"
+                    ],
+                    "last": "Clemente",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gabrielli",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Sci. Rep",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Intensive and extensive biases in economic networks: reconstructing world trade",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mastrandrea",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Fagiolo",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "New J. Phys",
+            "volume": "16",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Generalized bose-fermi statistics and structural correlations in weighted networks",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Loffredo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Phys. Rev. Lett",
+            "volume": "102",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Reconstructing the world trade multiplex: the role of intensive and extensive biases",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mastrandrea",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Fagiolo",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Phys. Rev. E",
+            "volume": "90",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Expanded trade and GDP data",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Gleditsch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "J. Conflict Resol",
+            "volume": "46",
+            "issn": "",
+            "pages": "712--736",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "A network analysis of the Italian overnight money market",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Iori",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "De Masi",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vasile Precup",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Gabbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Caldarelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "J. Econ. Dyn. Control",
+            "volume": "32",
+            "issn": "1",
+            "pages": "259--278",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "A faster horse on a safer trail: generalized inference for the efficient reconstruction of weighted networks",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Parisi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "New J. Phys",
+            "volume": "22",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Estimating topological properties of weighted networks from limited information",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cimini",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gabrielli",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Phys. Rev. E",
+            "volume": "92",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Systemic risk analysis on reconstructed economic and financial networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cimini",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Squartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gabrielli",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garlaschelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Sci. Rep",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(G)C i (G) = C i , i = 0 . . . M (1b)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "\u2212 ln ki(A * ) \u221a N, \u2200 i; the third one, instead, prescribes to randomly draw the value of each parameter from a uniform distribution with support on the unit interval, i.e. \u03b8",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "U (0, 1), \u2200 i.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "\u2200 i outperforms the other ones.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "binary directed graphs with given in-degree and out-degree sequences",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "2 . By looking at each specific network, it is evident that the most accurate method is systematically the quasi-Newton one.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": ". Performance of Newton's, quasi-Newton and the fixed-point algorithm to solve the reduced system of equations defining the DBCM, on a set of real-world BDNs (of which basic statistics as the total number of nodes, N , the total number of links, L, and the connectance, c = L/N (N \u2212 1), are provided). For what concerns the World Trade Web, both Newton's and the quasi-Newton methods stop because the condition ||\u2207L ( \u03b8)||2 \u2264 10 \u22128 is satisfied; the fixed-point recipe, instead, always reaches the limit of 10000 steps. The fastest and most accurate method is systematically the quasi-Newton one. The picture changes when very large networks, as Bitcoin and Twitter, are considered: in these cases, the fastest and most accurate method is the fixed-point one. Only the results corresponding to the best choice of initial conditions are reported.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "\u2212 ln d\u03b1(B * ) \u221a L",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "III. Performance of Newton's, quasi-Newton and the fixed-point algorithm to solve the reduced system of equations defining the BiCM, on a set of real-world BiUNs (of which basic statistics as the total number of nodes, N , the total number of links, L, and the connectance, c = L/(N \u00b7 M ), are provided). All algorithms stop because the condition ||\u2207L ( \u03b8)||2 \u2264 10 \u221210 is satisfied. For what concerns both accuracy and speed, the best performing method is Newton's one, followed by the quasi-Newton and the fixed-point recipes. Only the results corresponding to the best choice of initial conditions are reported.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": ". Overall, all recipes are accurate, fast and scalable; all methods stop because the condition on the norm of the likelihood is satisfied.For what concerns accuracy, the largest maximum error per method spans an interval (across all configurations) that amounts at MADE 4 . By looking at each specific network, it is evident that the most accurate method is systematically Newton's one.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "=i)=1 a ij counts the number of neighbors of node i, s i (W) = N j( =i)=1 w ij defines the weighted equivalent of the degree of node i, i.e. its strength. For consistency, the binary adjacency matrix can be defined via the Heaviside step function, \u0398[.], as A \u2261 \u0398[W] a position indicating that a ij = 1 if w ij > 0, \u2200 i < j and zero otherwise. This particular model is known as Undirected Enhanced Configuration Model (UECM) [38-40] and its Hamiltonian reads",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "IV. Performance of Newton's and the quasi-Newton method to solve the reduced system of equations defining the UECM, on a set of real-world WUNs (of which basic statistics as the total number of nodes, N , the total number of links, L, and the connectance, c = 2L/N (N \u2212 1), are provided). While Newton's method stops because the condition ||\u2207L ( \u03b8)||2 \u2264 10 \u22128 is satisfied, the quasi-Newton one always reaches the limit of 10000 steps. The results on accuracy and speed clearly indicate that Newton's method outperforms the quasi-Newton one. Only the results corresponding to the best choice of initial conditions are reported. The results of the fixed-point recipe are not shown.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "i = 1 . . . N ; the second set is a variant of the first, reading \u03b1 \u2212 ln si(W * ) \u221a N, i = 1 . . . N ; the third recipe, instead, prescribes to randomly draw the value of each parameter from the uniform distribution defined on the unit interval, i.e.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF14": {
+            "text": "Sampling the UECM ensemble 1: for m = 1 . . . weighted directed graphs with given strengths and degrees Let us now extend the 'mixed' model introduced in the previous section to the case of directed networks. Constraints are, now, represented by four sequences of values, i.e. {k out i",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF15": {
+            "text": ")=1 a ij and k in i (A) = N j( =i)=1 a ji and analogously for the generic out-strength and instrength, reading s out i (W) = N j( =i)=1 w ij and s in i (W) = N j( =i)=1 w ji . Consistency requires that A \u2261 \u0398[W] as for the UECM case. This model is known as Directed Enhanced Configuration Model (DECM) and its Hamiltonian reads",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF16": {
+            "text": ". Performance of Newton's and the quasi-Newton method to solve the reduced system of equations defining the DECM, on a set of real-world WDNs (of which basic statistics as the total number of nodes, N , the total number of links, L, and the connectance, c = L/N (N \u22121), are provided). While Newton's method stops because the condition ||\u2207L ( \u03b8)||2 \u2264 10 \u22128 is satisfied, the quasi-Newton one always reaches the limit of 10000 steps. The results on accuracy and speed clearly indicate that Newton's method outperforms the quasi-Newton one. Only the results corresponding to the best choice of initial conditions are reported. The results of the fixed-point recipe are not shown.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF17": {
+            "text": "step models for undirected and directed networks",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF18": {
+            "text": ". Performance of Newton's, quasi-Newton and the fixed-point algorithm to solve the system of equations defining the (undirected version of the) CReM, on a set of real-world WUNs. While Newton's and the fixed-point method stop because the condition ||\u2207L ( \u03b8)||2 \u2264 10 \u22128 is satisfied, the quasi-Newton one often reaches the limit of 10000 steps. The results on accuracy and speed indicate that Newton's and the fixed-point method compete, outperforming the quasi-Newton one. Only the results corresponding to the best choice of initial conditions are reported.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF19": {
+            "text": "\u2212 ln si(W * ) \u221a 2W , i = 1 . . . N ; the second one is a variant of the position above, reading \u03b8 (0) i = \u2212 ln si(W * ) \u221a N",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF21": {
+            "text": "\u03b3 i + \u03b4 j + e \u2212\u03b1i\u2212\u03b2j .(85)AUTHORS CONTRIBUTIONS FS, GC, MZ, TS developed the methods and designed the research. NV, MB, EM, GT performed the analysis (NV: DBCM, DECM, RBCM; MB: BiCM; EM: UBCM, UECM, CReM; GT: preliminary version of the BiCM). FS, GC, MZ, TS wrote the manuscript. All authors reviewed and approved the manuscript.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF22": {
+            "text": "G i ( \u03b8 (n\u22121) ), i = 1 . . . N ;",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "constraints { ki out ,ki in , si out ,si in }",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "FIG.3. Graphical visualization of the constraints defining the ERGMs considered in this work. Notice that while the enhanced models (i.e. UECM and DECM) constrain binary and weighted quantities in a joint fashion, the conditional models (i.e. the CReM ones) allow for a 'separate' specification of them.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Algorithm 2 Sampling the DBCM ensemble 1: for m = 1 . . . |E| do for i = 1 . . . N do for j = 1 . . . N and j = i do So far, we have considered monopartite networks. However, the algorithm we have described for solving the DBCM can be adapted, with little effort, to solve a null model designed for bipartite, binary, undirected networks (BiBUNs), i.e. the so-called Bipartite Configuration Model (BiCM)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF8": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF12": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF14": {
+            "text": "Two-step models for undirected and directed networksThe Hessian matrix for the undirected two-step model considered here is an N \u00d7 N symmetric table readingCov[s i , s j ] =where f ij is given. In the directed case, instead, the Hessian matrix for the two-step model considered here is a 2N \u00d7 2N symmetric table that can be further subdivided into four N \u00d7 N blocks whose entries read and f ij is given.APPENDIX B: A NOTE ON THE CHANGE OF VARIABLES",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "As we showed in the main text, the Hessian matrix of our likelihood function is 'minus' the covariance matrix of the constraints, i.e. DBCM: binary directed graphs with given in-degree and out-degree sequences The Hessian matrix for the DBCM is a 2N \u00d7 2N symmetric table that can be further subdivided into four N \u00d7 N blocks whose entries readNotice that the Hessian matrix of the BiCM mimicks the DBCM one, the only difference being that the probability coefficients are now indexed by i and \u03b1: for example, in the BiCM case, one has that CovThe Hessian matrix for the UECM is a 2N \u00d7 2N symmetric table that can be further subdivided into four blocks (each of which with dimensions N \u00d7 N ). In order to save space, the expressions indexed by the single subscript i will be assumed as being valid \u2200 i, while the ones indexed by a double subscript i, j will be assumed as being valid \u2200 i = j. The entries of the diagonal blocks readandOn the other hand, the entries of the off-diagonal blocks read",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "APPENDIX A: COMPUTING THE HESSIAN MATRIX"
+        },
+        {
+            "text": "The Hessian matrix for the DECM is a 4N \u00d7 4N symmetric table that can be further subdivided into four blocks (each of which with dimensions N \u00d7N ). As for the UECM, in order to save space, the expressions indexed by the single subscript i will be assumed as being valid \u2200 i, while the ones indexed by a double subscript i, j will be assumed as being valid \u2200 i = j. The entries of the diagonal blocks readandandandOn the other hand, the entries of the off-diagonal blocks readandandand ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DECM: weighted directed graphs with given strengths and degrees"
+        }
+    ]
+}

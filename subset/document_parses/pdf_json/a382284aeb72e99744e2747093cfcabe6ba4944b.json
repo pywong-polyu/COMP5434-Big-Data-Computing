@@ -1,0 +1,2549 @@
+{
+    "paper_id": "a382284aeb72e99744e2747093cfcabe6ba4944b",
+    "metadata": {
+        "title": "Fed-GLMM: A Privacy-Preserving and Computation-Efficient Federated Algorithm for Generalized Linear Mixed Models to Analyze Correlated Electronic Health Records Data",
+        "authors": [
+            {
+                "first": "Zhiyu",
+                "middle": [],
+                "last": "Yan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Massachusetts General Hospital",
+                    "location": {
+                        "settlement": "Boston",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Kori",
+                "middle": [
+                    "S"
+                ],
+                "last": "Zachrison",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Massachusetts General Hospital",
+                    "location": {
+                        "settlement": "Boston",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Lee",
+                "middle": [
+                    "H"
+                ],
+                "last": "Schwamm",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Massachusetts General Hospital",
+                    "location": {
+                        "settlement": "Boston",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Juan",
+                "middle": [
+                    "J"
+                ],
+                "last": "Estrada",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Massachusetts General Hospital",
+                    "location": {
+                        "settlement": "Boston",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Rui",
+                "middle": [],
+                "last": "Duan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Harvard T. H. Chan School of Public Health",
+                    "location": {
+                        "settlement": "Boston",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Large collaborative research networks provide opportunities to jointly analyze multicenter electronic health record (EHR) data, which can improve the sample size, diversity of the study population, and generalizability of the results. However, there are challenges to analyzing multicenter EHR data including privacy protection, large-scale computation, heterogeneity across sites, and correlated observations. In this paper, we propose a federated algorithm for generalized linear mixed models (Fed-GLMM), which can flexibly model multicenter longitudinal or correlated data while accounting for site-level heterogeneity. Fed-GLMM can be applied to both federated and centralized research networks to enable privacy-preserving data integration and improve computational efficiency. By communicating only a limited amount of summary statistics, Fed-GLMM can achieve nearly identical results as the gold-standard method where the GLMM is directly fitted on the pooled dataset. We demonstrate the performance of Fed-GLMM in both numerical experiments and an application to longitudinal EHR data from multiple healthcare facilities.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Electronic health records (EHR) data are valuable for generating real-world evidence in biomedical and epidemiological research [1] . With the increasing availability of EHR data among healthcare facilities [2] , integrating these data from multiple institutions has great potential for improving statistical power and generalizability of results [3] . Such integration is also particularly valuable -and often necessary -for studying rare conditions and underrepresented subpopulations [4] . As a consequence, an increasing number of large clinical research networks have been built domestically and internationally to facilitate multicenter EHR-based studies. For example, the Patient-Centered Outcomes Research Institute has launched PCORnet to support a national research collaborative that empowers large-scale comparative effectiveness research [5] . More recently, large collaborative consortia dedicated to investigating clinical and epidemiological questions about COVID-19 have also been formed [6, 7] , as timely observational studies based on large integrated EHR data have been increasingly critical for clinical and health policy decision-making in various areas such as treatment evaluation, diagnostic support and healthcare resource prioritization [8] [9] [10] .",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 131,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 207,
+                    "end": 210,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 347,
+                    "end": 350,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 487,
+                    "end": 490,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 851,
+                    "end": 854,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1005,
+                    "end": 1008,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1009,
+                    "end": 1011,
+                    "text": "7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1265,
+                    "end": 1268,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1269,
+                    "end": 1272,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1273,
+                    "end": 1277,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Despite the importance of multicenter EHR-based studies, challenges exist in terms of how to effectively and efficiently compile and analyze multiple large-scale EHR datasets [11] . To overcome data sharing constraints due to privacy regulations and computational constraints, several data-sharing models are commonly used among multicenter research networks. Depending on whether the individual-level data are shared, a research network can be categorized them into either a federated or centralized network. A federated network keeps patient-level data within each institution, and only allows summary-level statistics to be shared across institutions. Some federated research networks allow automated queries, analysis and sharing summary statistics through application programming interfaces and cloud computing, which saves human labor from cross-institutional communication but may require additional safeguard of data breaches [12, 13] . Other federated networks rely on manually transferring summary statistics, which has less requirement on the infrastructure, and is considered more reliable for privacy protection. Thus, this practice is widely adopted among international research networks [6, 14, 15] . In federated networks, federated algorithms are needed to conduct joint analyses across multiple datasets without sharing patient-level data. In contrast, centralized networks managed to directly pool deidentified patient-level data across intuitions and store them in centralized data warehouses [16, 17] . When all data are pooled together, fitting a model to a pooled dataset (referred to as the pooled analysis hereafter) is feasible but may be subject to challenges from computational complexity and memory bottlenecks due to the large size of the pooled dataset. Therefore, in a centralized network, distributed algorithms are also needed to overcome computational challenges [18, 19] .",
+            "cite_spans": [
+                {
+                    "start": 175,
+                    "end": 179,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 934,
+                    "end": 938,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 939,
+                    "end": 942,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1202,
+                    "end": 1205,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1206,
+                    "end": 1209,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1210,
+                    "end": 1213,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1513,
+                    "end": 1517,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1518,
+                    "end": 1521,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 1898,
+                    "end": 1902,
+                    "text": "[18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1903,
+                    "end": 1906,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Most of the existing distributed or federated learning algorithms focus on regression models with independent observations, including logistic regression and Cox regression [20] [21] [22] [23] [24] [25] [26] . However, EHR data are longitudinal and correlated in nature, where multiple medical encounters may be associated with the same patient, physician or facility. Therefore, in EHR-based analyses, methods to account for such multi-level longitudinal and correlated observations are necessary. Among many existing methods to address the multi-level correlated data structure, the generalized mixed model (GLMM) is one of the most widely applied methods with great flexibility [27, 28] . To fit GLMM federatively, one straightforward way is to fit separated models locally across sites and aggregate the local estimates through a meta-analysis [29] . Although meta-analysis is straightforward to implement in practice, it has been shown that its accuracy may be suboptimal, especially when rare conditions are included in the model [23] . More recently, a few methods have been developed which consider using site-level random effects to account for heterogeneity across sites. For example, Luo et al. proposed a lossless algorithm for the linear mixed model [30] , and a few methods have been proposed for GLMM [31] [32] [33] . However, these approaches only consider site-level random effects, which cannot handle repeated and correlated measures within each site. Methods are needed that allow flexible specification of random effects to account for longitudinal or correlated observations at lower levels.",
+            "cite_spans": [
+                {
+                    "start": 173,
+                    "end": 177,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 178,
+                    "end": 182,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 183,
+                    "end": 187,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 188,
+                    "end": 192,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 193,
+                    "end": 197,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 198,
+                    "end": 202,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 203,
+                    "end": 207,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 681,
+                    "end": 685,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 686,
+                    "end": 689,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 848,
+                    "end": 852,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1036,
+                    "end": 1040,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1263,
+                    "end": 1267,
+                    "text": "[30]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1316,
+                    "end": 1320,
+                    "text": "[31]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1321,
+                    "end": 1325,
+                    "text": "[32]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1326,
+                    "end": 1330,
+                    "text": "[33]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we propose an accurate and fast federated algorithm to fit GLMM (Fed-GLMM) with correlated data structures. Our method can be implemented in both federated and centralized networks with different data-sharing constraints. Specifically, in a federated setting where the pooled analysis is not feasible, our method provides a privacy-preserving solution that only requires a small amount of aggregated data to be shared across sites. Our method requires limited numbers of communications across sites and thus can be applied to both the automated and manual federated settings. In a centralized setting where the pooled analysis is allowed, our method can greatly reduce the computation time and memory cost. In all settings, our method can achieve nearly identical results as the gold-standard pooled analysis estimator, allows flexible specification of random and fixed effects in models, and can account for heterogeneity in the distribution of data across sites. We demonstrate the utility of Fed-GLMM through a real-world EHR data analysis that assesses characteristics associated with virtual versus in-person care utilization during the COVID-19 pandemic, using data from 8 healthcare facilities in the New England area. While the development of Fed-GLMM is motivated by EHR data analysis, the method can be used to address correlated structure in many types of real-world datasets, including administrative claims, genetic and clinical trial datasets, thus helping inform a wide range of clinical and scientific questions. is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Fed-GLMM allows modeling correlated observations from multiple EHRs using the following generic GLMM:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "GLMM Accounting for Site-Level Heterogeneity"
+        },
+        {
+            "text": "where g(.) denotes a link function, and y ijk denotes the outcome variable of the i-th visit for the j-th patient at the k-th site. x ijk , w ijk and z ijk denote the corresponding covariates with common fixed effect \u03b2, site-specific fixed effect \u03b1 k and random effect b i , respectively. Note that z ijk is a subset of the union of x ijk and w ijk . The random effect b i can be flexibly specified to account for different correlation structures. For example, we can include patient-level random effects to account for the correlation between visits of the same patient, and also physician-level random effects to account for the correlation between visits with the same physician.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "GLMM Accounting for Site-Level Heterogeneity"
+        },
+        {
+            "text": "To account for the heterogeneity across sites, we allow site-specific fixed effect \u03b1 k and site-specific variance-covariance structure B k , which is parameterized by \u03b3 k . In a homogenous setting, \u03b1 k and B k (\u03b3 k ) can be set equal across sites. Compared with existing work where site-level heterogeneity is adjusted by introducing a random effect b k [30] [31] [32] [33] , our method imposes no assumptions on the exchangeability of the site-level effects, which is more robust when the heterogeneity is large, and allows accurate estimation even when the number of sites is very small.",
+            "cite_spans": [
+                {
+                    "start": 354,
+                    "end": 358,
+                    "text": "[30]",
+                    "ref_id": null
+                },
+                {
+                    "start": 359,
+                    "end": 363,
+                    "text": "[31]",
+                    "ref_id": null
+                },
+                {
+                    "start": 364,
+                    "end": 368,
+                    "text": "[32]",
+                    "ref_id": null
+                },
+                {
+                    "start": 369,
+                    "end": 373,
+                    "text": "[33]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "GLMM Accounting for Site-Level Heterogeneity"
+        },
+        {
+            "text": "The core concept upon which Fed-GLMM is built is to construct a quadratic surrogate function using summary statistics collected from each site to approximate the global likelihood function constructed from directly pooling all the data. Figure 1 provides an overview of the Fed-GLMM algorithm. We start with initialization for all the model parameters, denoted by\u03b8. Since our model has both common parameters across sites and site-specific parameters, each site is required to fit its own GLMM in the initialization step. The initial values for the site-specific parameters are set to their local estimates (denoted by\u03b4 k for the k-th site), while initial values for the common parameters are updated by a meta-analysis (denoted by\u03b2). With more accurate initial values, we can achieve the same level of estimation accuracy with fewer communications across sites. In step 2, each site calculates and broadcasts summary statistics s k and H k involving less than p 2 numbers (p is the number of parameters in the local model). These summary statistics are essentially derivatives of the local likelihood function. In 4 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 237,
+                    "end": 245,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Fed-GLMM"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ;  step 3, the summary statistics obtained from step 2 are used to construct a quadratic surrogate function and obtain the parameter updates. When iterative communications are allowed, steps 2-3 can then be repeated to further update the parameter values. We present further details in the Methods section.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 67,
+                    "text": "March 10, 2022. ;",
+                    "ref_id": null
+                },
+                {
+                    "start": 68,
+                    "end": 68,
+                    "text": "",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fed-GLMM"
+        },
+        {
+            "text": "Step 1: Fit GLMM locally to obtain initial values of parameter estimates",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Central Analytics"
+        },
+        {
+            "text": "Step 2: Calculate and broadcast the local first-and second-order derivatives",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Central Analytics"
+        },
+        {
+            "text": "Step 3: Update parameter estimates, which can be used as initial values in the next iteration For the k-th site, both s k and H k are functions of the local data D k , the common parameter value\u03b2, and the site-specific parameter value\u03b4 k . The local data D k is composed of the local design matrix for the common fixed effect X k , the local design matrix for the site-specific fixed effect W k , and the local outcome vector y k . The site-specific parameter value\u03b4 k is composed of the values of site-specific fixed effect\u1fb1 k and site-specific variance parameter\u03b3 k . In step 3, the central analytics combines all the local intermediate results to construct a surrogate global likelihood function that provides updates for parameter estimates. Steps 2-3 can be iteratively performed to keep updating parameter estimates.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Central Analytics"
+        },
+        {
+            "text": "We use a simulation study to demonstrate the improved accuracy of Fed-GLMM compared to the standard meta-analysis, and the improved computation time compared to the gold-standard pooled analysis. We generated simulated data mimicking a setting composed of 10 EHR datasets each with 100 patients and 5 visit encounters per patient. For each encounter, a binary outcome, a binary exposure and three additional covariates are generated from a GLMM with the logit link function, a patient-level random 5 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Study"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Study"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. intercept, and a site-specific slope for one of the covariate variables. The detailed parameter and model specifications are described in the Methods section. We compared the estimation accuracy of the meta-analysis and Fed-GLMM using the relative bias from the pooled analysis estimator (referred to as the relative bias hereafter). We also compared the computational efficiency of Fed-GLMM to the meta-analysis and the pooled analysis.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 65,
+                    "text": "March 10, 2022.",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Simulation Study"
+        },
+        {
+            "text": "Fed-GLMM demonstrated improved accuracy compared to meta-analysis in a federated setting. As shown in Figure 2 (upper left panel), the relative bias of the meta-analysis estimator for the exposure coefficient was more severe with rare outcomes or exposures. In contrast, Fed-GLMM converged to the values nearly identical to the pooled analysis estimates within 5 iterations in all prevalence settings. Additionally, in most non-rare event settings, Fed-GLMM achieved considerable improvement over the meta-analysis within 1-2 iterations. Compared with the meta-analysis, Fed-GLMM also demonstrated small variability in bias from the pooled analysis estimates across the simulation replicates, as shown in Supplementary Figure 1 . Relative Bias (%) Figure 2 : Accuracy of Fed-GLMM and meta-analysis estimates relative to gold-standard pooled analysis. We compared Fed-GLMM with the meta-analysis in their accuracy by calculating the median absolute relative difference from the gold-standard pooled analysis for the exposure coefficient estimate. The underlying model has a binary outcome, a binary exposure, three more covariates with 10 site-specific fixed effect coefficients for the normally distributed covariate and a patient-level random intercept. We considered 25 combinations of outcome and exposure prevalence to assess the model accuracy with 100 simulation replicates per combination. Fed-GLMM demonstrated reduced relative bias after 1-2 iterations compared with the meta-analysis, which was severely biased in the presence of rare events.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 102,
+                    "end": 110,
+                    "text": "Figure 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 705,
+                    "end": 727,
+                    "text": "Supplementary Figure 1",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 748,
+                    "end": 756,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Simulation Study"
+        },
+        {
+            "text": "6 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Study"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint Fed-GLMM demonstrated improved computational efficiency compared to the pooled analysis in a centralized setting. We divided a pooled dataset into a different number of subsets and Fed-GLMM was applied using multiple computing nodes in parallel. Figure 3 shows that Fed-GLMM spent less than 5% of the computation time required by the pooled analysis when the number of computing nodes exceeds 20, and the time can be further reduced with more computing nodes. The meta-analysis can also provide a similar time reduction effect through parallel computing. However, with more computing nodes, the meta-analysis resulted in increasing relative bias, while Fed-GLMM retained its accuracy relative to the pooled analysis. and meta-analysis relative to gold-standard pooled analysis with increasing computing nodes/EHR subsets. We compared Fed-GLMM with the meta-analysis using the ratio (in percentage) of computation time over the pooled analysis. For each simulation replicate, we generated one single centralized EHR. The underlying model has a binary outcome, a binary exposure, three more covariates and a patient-level random intercept. We considered dividing the centralized EHR data into varying numbers of subsets to be computed in parallel. Both Fed-GLMM and the meta-analysis spent less than 5% of the computation time required by the pooled analysis with the number of computing nodes greater than 20. However, the meta-analysis had increased relative bias for the exposure coefficient when the number of subsets increased, while Fed-GLMM retained its accuracy relative to the pooled analysis. The points and bars represent median and interquartile range of computation time and relative bias in percentage respectively.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 379,
+                    "end": 387,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Simulation Study"
+        },
+        {
+            "text": ". CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "7"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint We applied Fed-GLMM to assess visit characteristics associated with virtual versus in-person care utilization during the COVID-19 pandemic. The outcome was defined as whether a care encounter or visit was conducted virtually versus in-person. The covariates of the model included variables measuring patient demographics, insurance status, English proficiency, digital literacy, visit type, and a temporal indicator for the \"social normalization\" during the COVID-19 pandemic. As care encounters are clustered by patients and physicians, we included both patient-level and physician-level random intercepts to account for the correlated observations. The detailed model specifications are described in the Methods section.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "7"
+        },
+        {
+            "text": "We identified all outpatient encounters over a one-year period between 10/1/2020 and 9/30/2021 from 8 acute care hospital facilities in the New England area. Combining data from 8 facilities, a total of around 3 million outpatient records are available. The facility with the highest visit volume has 1,194,009 records, making it computationally difficult to fit a GLMM even within one site.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "7"
+        },
+        {
+            "text": "To demonstrate the use case of Fed-GLMM in a federated setting, we applied it to EHRs from all 8 facilities to fit the GLMM with facility-specific fixed intercepts that account for heterogeneity across facilities. EHRs from the two large facilities both with over 900,000 records were each split into 10 subsets to improve computation time, while other smaller EHRs were not split. Different from the simulation study where we had only the patient-level random effects, physician-level random effects were also included, which added difficulties in terms of dividing data into subsets. If patients were nested within physicians, we could simply split the records by physicians. However, since multiple visits of the same patient can be associated with different physicians, a random division based on physicians is not the optimal splitting strategy as observations of the same patient would be split into different subsets. We proposed a clustering-based splitting method that splits physicians based on how many shared patients they have. Two physicians are more likely to be assigned to the same subsets if they share more patients. In this way, we can best preserve the correlation structure of the data, and therefore achieve better accuracy. A numerical evaluation has shown that the clustering-based splitting strategy has higher estimation accuracy than the random splitting strategy. More details of the evaluation are shown in Supplementary Figure 2 is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1437,
+                    "end": 1459,
+                    "text": "Supplementary Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Federated Setting"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ; https://doi.org/10.1101/2022.03.07.22271469 doi: medRxiv preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Federated Setting"
+        },
+        {
+            "text": "We demonstrate the computation time benefit of Fed-GLMM compared to the pooled analysis in a centralized setting. We fit the same GLMM using the EHR data from the facility with the highest visit volume. With Fed-GLMM, the EHR was split into 10 smaller subsets to be computed in parallel. Fitting Fed-GLMM to the EHR data of the single facility (n = 1,194,009) using the clustering-based splitting strategy, we observed convergence at the 4th iteration. The entire process took 5,026 seconds, while the analysis would be otherwise infeasible if all data were fit in a single GLMM process. Our analysis was performed with R 4.0.2 on a Linux cluster with up to 512GB RAM per node at 1600MHz.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Centralized Setting"
+        },
+        {
+            "text": "The results of EHR modeling for the federated (all 8 facilities) and centralized (the facility with the highest visit volume only) settings are summarized in Figure 4 . In both settings, the characteristics associated with lower odds of conducting a virtual visit (i.e., greater odds of in-person visit) includes increasing age, Hispanic, non-Hispanic black, non-Hispanic Asian or other non-Hispanic relative to non-Hispanic white race/ethnicity, limited English proficiency, inactive patient portal (as a proxy for lower-level of digital literacy). Compared with primary care visits, behavioral health and specialty visits were more likely to be conducted virtually. Visits of female patients, as well as visits billed to Medicaid were also more likely to be conducted virtually. is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 158,
+                    "end": 166,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Centralized Setting"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ; https://doi.org/10.1101/2022.03.07.22271469 doi: medRxiv preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Centralized Setting"
+        },
+        {
+            "text": "In light of the increasing need for multicenter collaborative research utilizing EHR data, and the potential challenges in data sharing and large-scale computation, we proposed the Fed-GLMM algorithm to model correlated EHR data that allows privacy-preserving integration of datasets from multiple healthcare systems. Our method also enables fitting GLMM with much less computation time and memory cost in both federated and centralized networks, and thus can also be applied to EHR from a single site. Our simulation study has demonstrated that Fed-GLMM achieves nearly identical results to the pooled analysis with reduced computation time over a broad spectrum of settings. Our real-world data analysis demonstrated the feasibility of applying Fed-GLMM to single-site and multicenter EHR-based studies to fit a model with millions of observations. Compared to existing work, the most important contribution of Fed-GLMM is that it allows the modeling of longitudinal and correlated data within each institution and can accommodate all GLMM specifications, including crossed or nested random effects. However, when performing Fed-GLMM to improve computational efficiency through splitting large-scale data, one needs to be mindful of the data splitting strategy to generate accurate results for models with crossed or nested random effects. For nested random effects, splitting the data by the highest-level factors will allow Fed-GLMM estimates to converge to the gold-standard pooled analysis results. For crossed random effects, one should split the data such that the correlated observations are allocated to the same subsets as much as possible as shown in Supplementary Figure 2 . This makes the Fed-GLMM estimates close (though not identical) to the pooled analysis estimates.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1663,
+                    "end": 1685,
+                    "text": "Supplementary Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Discussion"
+        },
+        {
+            "text": "As demonstrated in our simulation and real-world data analyses, iterative communication among the central analytics and individual sites is not required. In most cases, only one round of parameter updating provides negligible bias. Thus, in federated research networks that rely on manual data transferring, our method with one round of iteration is preferred to reduce the communication cost. However, when multiple rounds of communication are feasible, with an increasing number of iterations, our method will eventually converge to the pooled analysis. When studying rare conditions, extra iterations help correct the bias, so a balance needs to be reached between the communication cost and estimation accuracy. In addition, the sharing of first-and second-order derivatives is common among federated algorithms but may still entail a risk of identifiability for small datasets with rare events. Nevertheless, this risk is limited in that the transmission of summary-level statistics is typically regulated and protected by the data-sharing protocols of collaborative research networks. Methods such as differential privacy and data encryption techniques can be combined with Fed-GLMM to improve privacy protection. is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ;  In the virtual care analysis, we found lower odds of virtual care use among Hispanic, non-Hispanic black, non-Hispanic Asian or other non-Hispanic relative to non-Hispanic white patients but higher odds among patients with Medicaid insurance. These results are in contrast to a previous study investigating the same health system [34], which used a generalized linear model without accounting for the patient-and physician-level correlations. The different findings may be explained by distinct study periods and different levels of virtual care adoption over time, or may be explained by the different methodological approach we employed here. By including random effects, our analysis was better able to address correlations among visits within patients and physicians. While we have demonstrated Fed-GLMM for analyzing EHR data to assess virtual care utilization, the algorithm can be used in other types of datasets with correlated observations to investigate a variety of biomedical and epidemiological research questions.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 67,
+                    "text": "March 10, 2022. ;",
+                    "ref_id": null
+                },
+                {
+                    "start": 68,
+                    "end": 68,
+                    "text": "",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Suppose we want to use Fed-GLMM to integrate data from K EHRs stored at K different sites. At each site, we fit the following model:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "where \u03b2 denotes the fixed effects shared across sites, \u03b1 k denotes the fixed effects specific to the k-th site, and B k denotes the variance-covariance matrix of the random effect b i and is parameterized by \u03b3 k .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "Let I k denote the index set indicating patients in the k-th site. Suppose the j-th patient has n j observations. The log-likelihood function constructed by data from the k-th site can then be written as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "Since the integral above does not have a closed-form solution, the log likelihood is often approximated by methods such as the penalized quasi-likelihood, Laplace's method or Gaussian quadrature [27, 28] . Fed-GLMM applies to any of these integral approximation methods, and here we use Laplace's method as an example which approximates the log likelihood byl",
+            "cite_spans": [
+                {
+                    "start": 195,
+                    "end": 199,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 200,
+                    "end": 203,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": ". CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ; https://doi.org/10.1101/2022.03.07.22271469 doi: medRxiv preprint where q(b i , \u03b2, \u03b1 k , \u03b3 k ) = ln( n j i p \u03b2,\u03b1 k (y ijk |b i )p \u03b3 k (b i )) with b i evaluated atb i such that the corresponding first-order derivative \u2207 b q(b i , \u03b2, \u03b1 k , \u03b3 k ) = 0, and \u2207 2 b q(b i , \u03b2, \u03b1 k , \u03b3 k ) denotes the second-order derivative.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "We denote the parameters specific to the k-th EHR as \u03b4 k = (\u03b1 k , \u03b3 k ), and denote the entire set of parameters as \u03b8 = (\u03b2, \u03b4 1 , \u03b4 2 , . . . , \u03b4 K ) T . The combined log-likelihood function encompassing all K EHRs can be written a\u015d",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "We then propose the following quadratic surrogate function that approximates the global functionl(\u03b8) at an initial value\u03b8 = (\u03b2,\u03b4 1 ,\u03b4 2 , . . . ,\u03b4 K ) T :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "To obtainl(\u03b8;\u03b8), site k needs to share",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "which are summary statistics that can be calculated using the local EHR given an initial value\u03b8. After getting all the summary statistics, the parameter estimates can be updated through\u03b8 = argmax \u03b8l (\u03b8;\u03b8). The above procedure can be repeated T times when iterative communications are allowed or until a convergence criterion d is reached.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "We denote the resulting value as \u03b8 F ed . The Fed-GLMM algorithm is summarized as Algorithm 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "12 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM Algorithm"
+        },
+        {
+            "text": "Step 1: Fit GLMM locally for k in 1, 2, . . . , K do At the k-th site, fit a GLMM and obtain initial estimators\u03b4 k ,\u03b2 k , as well as the estimated variance of\u03b4 k , denoted by V k Transmit\u03b2 k and V k to the central analytics",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "Step 2: Calculate and broadcast the summary statistics for k in 1, 2, . . . , K do",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "At the k-th site, given \u03b8 (t) , calculate the first-and second-order derivatives s k and H k according to Equations 2 and 3",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "Transmit the derivatives to the central analytics",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "Step 3: Update parameter estimates through the central analytics",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "Combine elements of the derivatives from all EHRs to construct the surrogate global likelihood functionl(\u03b8; \u03b8 (t) ) according to Equation 1 Obtain \u03b8 (t+1) = argmax \u03b8l (\u03b8; \u03b8 (t) ) Update \u2206 = ||\u03b8 (t+1) \u2212 \u03b8 (t) || 2 , and t = t + 1",
+            "cite_spans": [
+                {
+                    "start": 129,
+                    "end": 139,
+                    "text": "Equation 1",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "The algorithm also applies to the centralized setting in which site-specific parameters are not involved and our model of interest becomes",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "where the entire set of parameters is redefined as \u03b8 = (\u03b2, \u03b1, \u03b3) T .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Fed-GLMM"
+        },
+        {
+            "text": "The variance of the Fed-GLMM estimator can be calculated directly using the Hessian of the surrogate global likelihood evaluated at \u03b8 F ed , denoted as H F ed . The variance-covariance estimator for \u03b8 F ed can then be obtained through V ar(\u03b8 F ed ) = (\u2212H F ed ) \u22121 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Variance Estimation"
+        },
+        {
+            "text": "13 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Variance Estimation"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Variance Estimation"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Variance Estimation"
+        },
+        {
+            "text": "We considered a GLMM with a binary outcome, a binary exposure and three additional covariates (one binary and two continuous variables that follow standard normal and uniform distributions respectively). The model also included a patient-level random intercept, which can be expressed as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation: Evaluate the Accuracy of Fed-GLMM"
+        },
+        {
+            "text": ", and x 4ijk \u223c N (0, 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation: Evaluate the Accuracy of Fed-GLMM"
+        },
+        {
+            "text": "We randomly assigned k distinct values ranging from 0 to 1 for the K sites as the site-level fixed effect \u03b1 k . To study the impact of the prevalence of binary exposure on the model performance, we let p x vary from 0.01 to 0.5. By choosing different values of \u03b2 0 , we were also able to allow the prevalence of the binary outcome to vary from 0.01 to 0.5.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation: Evaluate the Accuracy of Fed-GLMM"
+        },
+        {
+            "text": "In a single simulation replicate, we simulated 10 EHR datasets, each with 100 patients and 5 encounters per patient (500 encounters in total). We performed the pooled analysis, the meta-analysis and Fed-GLMM respectively. We evaluated the accuracy of Fed-GLMM vs. meta-analysis using the absolute relative bias from the pooled analysis for estimating the coefficient of the binary exposure x 1 , calculated as the following:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation: Evaluate the Accuracy of Fed-GLMM"
+        },
+        {
+            "text": "Relatvie Bias = F ed-GLM M or M eta-analysis Estimate \u2212 P ooled Analysis Estimate P ooled Analysis Estimate",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation: Evaluate the Accuracy of Fed-GLMM"
+        },
+        {
+            "text": "The simulation results are summarized in Figure 2 and described in the Results section.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 41,
+                    "end": 49,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Simulation: Evaluate the Accuracy of Fed-GLMM"
+        },
+        {
+            "text": "We considered a homogeneous setting with the same GLMM specifications and variable distributions as in the previous simulation. In a single simulation replicate, we generated a single dataset with 5,000 patients and 5 encounters per patient (25,000 encounters in total). The prevalence of the binary exposure was set to 0.05 and the prevalence of binary outcome was set to 0.25. We applied Fed-GLMM by randomly splitting the dataset into subsets. We investigated the computation time with the number of subsets ranging from 5 to 100. We generated 50 simulation replicates for each setting, and for each simulation replicate, we also performed the pooled analysis and the meta-analysis. We evaluated 14 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ; https://doi.org/10.1101/2022.03.07.22271469 doi: medRxiv preprint the computational efficiency of Fed-GLMM and the meta-analysis as the ratio of their computation time to that of the pooled analysis, calculated as the following:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fed-GLMM"
+        },
+        {
+            "text": "The simulation results are summarized in Figure 3 and described in the Results section.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 41,
+                    "end": 49,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Relative Computation T ime = F ed-GLM M or M eta-analysis Computation T ime P ooled Analysis Computation T ime"
+        },
+        {
+            "text": "The Virtual Care dataset was curated from the data warehouse of a large New England healthcare system. For a demonstration of Fed-GLMM, we included all 3,165,913 ambulatory visits with physicians conducted at 8 acute care hospital facilities during a one-year period from 10/1/2020 through 9/30/2021. We extracted patient characteristics and demographics, physician primary specialty, and whether the visit was conducted in person or virtually through associated modifier codes. We performed a complete-case analysis where all observations with missing values (6.8% or 215,329 visits) were excluded from the final analytical sample. This EHR study was approved by the Mass General Brigham Institutional Review Board as a medical record review that did not require patient consent.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Real-World Data Analysis"
+        },
+        {
+            "text": "We considered a GLMM with a binary outcome indicating whether a care encounter was conducted virtually (coded as 1) or in-person (coded as 0). The covariates in the model included patient age, gender, race/ethnicity (Hispanic, non-Hispanic white, non-Hispanic black, non-Hispanic Asian and other non-Hispanic race/ethnicity), English proficiency (whether the patient indicated English as the preferred language), the digital patient portal status (whether the portal was activated or not for the care encounter as a proxy for \"digital literacy\"), insurance status (whether the visit was billed to the Medicaid as a proxy for social determinants of health), visit type (whether the visit was completed in a primary care, behavioral health or specialty department), and an indicator for whether the care happened on or after 5/29/2021 -the ending of social restriction in Massachusetts (to approximate the beginning of \"social normalization\" during the COVID-19 pandemic in the New England area). All covariates were entered in the model linearly. We included a physician-level random intercept and a patient-level random intercept to account for the correlations across encounters at different levels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Real-World Data Analysis"
+        },
+        {
+            "text": "When applied to the centralized large EHR from a single facility (n=1,194,009) which was split into 10 subsets, Fed-GLMM fit the model above for each subset separately. With two crossed random effect terms in the model, Fed-GLMM provides accurate results only when the data can be appropriately split such that the correlated observations are 15 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Real-World Data Analysis"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Real-World Data Analysis"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ;  allocated to the same data subsets as much as possible. One way to achieve this is to cluster physicians who shared patients together and then split data by physician clusters. We examined the crossing structure of patients and physicians through physicians' patient-sharing network. While existing network community detection algorithms can be handy to cluster physicians, desired cluster numbers and uniform cluster sizes are not always achievable for densely connected networks. Therefore, we proposed an algorithm, summarized as Algorithm 2, to implement the clustering-based splitting strategy.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 67,
+                    "text": "March 10, 2022. ;",
+                    "ref_id": null
+                },
+                {
+                    "start": 68,
+                    "end": 68,
+                    "text": "",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Real-World Data Analysis"
+        },
+        {
+            "text": "Step 1: Obtain the edge list from the physicians' patient-sharing network Step 2: Cluster physicians according to edge weights",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 2: Clustering-based Data Splitting Strategy for Crossed Patient and Physician Random Effects"
+        },
+        {
+            "text": "To split the large-scale EHR data into A subsets, choose A \u2212 1 cut points for the edge weights to cut the full edge list into A sub-edge lists in sequence such that the A subsets obtained in Step 3 have approximately uniform sizes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": "Allocate all physicians involved in the first sub-edge list (the one with the highest weights) into the first cluster, and then allocate all physicians in the second sub-edge list into the second cluster, excluding those already classified into the first cluster; repeat the allocation steps through all sub-edge lists to obtain A physician clusters",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": "Step 3: Split the large-scale EHR into A subsets according to A physician clusters",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": "When applying Fed-GLMM to EHRs from all 8 facilities, we included facility-specific intercepts (fixed effects) to account for the potential heterogeneity in the prevalence 16 . CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ;  of the virtual visits across facilities. EHRs from the two large facilities both with over 900,000 records were each split into 10 subsets using the clustering-based data splitting approach to improve computation time, while other smaller EHRs were not split.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 67,
+                    "text": "March 10, 2022. ;",
+                    "ref_id": null
+                },
+                {
+                    "start": 68,
+                    "end": 68,
+                    "text": "",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": ". CC-BY-NC-ND 4.0 International license It is made available under a perpetuity.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": "is the author/funder, who has granted medRxiv a license to display the preprint in (which was not certified by peer review) preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        },
+        {
+            "text": "The copyright holder for this this version posted March 10, 2022. ; https://doi.org/10.1101/2022.03.07.22271469 doi: medRxiv preprint",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sort the edge list by edge weights in descending order"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Secondary use of EHR: data quality issues and informatics opportunities",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Botsis",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hartvigsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Weng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Summit on Translational Bioinformatics",
+            "volume": "2010",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Electronic health records: then, now, and in the future",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Evans",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Yearbook of medical informatics",
+            "volume": "25",
+            "issn": "S",
+            "pages": "48--61",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Big data and precision medicine: challenges and strategies with healthcare data",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kraus",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lausser",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kuhn",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Jobst",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bock",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Halanke",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hummel",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Heuschmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Kestler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Journal of Data Science and Analytics",
+            "volume": "6",
+            "issn": "3",
+            "pages": "241--249",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Targeting underrepresented populations in precision medicine: A federated transfer learning approach",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2108.12112"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Launching PCORnet, a national patient-centered clinical research network",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Fleurence",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Curtis",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Califf",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Platt",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Selby",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Brown",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "21",
+            "issn": "4",
+            "pages": "578--582",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "International electronic health record-derived COVID-19 clinical course profiles: the 4CE consortium",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Brat",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Weber",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Gehlenborg",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Avillach",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Palmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chiovato",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Cimino",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Waitman",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Omenn",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Malovini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "NPJ digital medicine",
+            "volume": "3",
+            "issn": "1",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "The national COVID cohort collaborative (N3C): rationale, design, infrastructure, and deployment",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Haendel",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Chute",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Bennett",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Eichmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guinney",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Kibbe",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Payne",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Pfaff",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Robinson",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Saltz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "28",
+            "issn": "3",
+            "pages": "427--443",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Prevalence of COVID-19-related risk factors and risk of severe influenza outcomes in cancer survivors: A matched cohort study using linked english electronic health records data",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Carreira",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Strongman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Peppa",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Santos-Silva",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Stanway",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Smeeth",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Bhaskaran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "EClinicalMedicine",
+            "volume": "29",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Real-time prediction of COVID-19 related mortality using electronic health records",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Schwab",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mehrjou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Parbhoo",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Celi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hetzel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hofer",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Sch\u00f6lkopf",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bauer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Nature communications",
+            "volume": "12",
+            "issn": "1",
+            "pages": "1--16",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Comparative effectiveness of famotidine in hospitalized COVID-19 patients",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shoaibi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Fortin",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Weinstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Berlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ryan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Official journal of the American College of Gastroenterology-ACG",
+            "volume": "116",
+            "issn": "4",
+            "pages": "692--699",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "A review of PHR, EMR and EHR integration: A more personalized healthcare and public health policy",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Heart",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ben-Assuli",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Shabtai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Health Policy and Technology",
+            "volume": "6",
+            "issn": "1",
+            "pages": "20--25",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "pSCANNER: Patient-centered scalable national network for effectiveness research",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ohno-Machado",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Agha",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Bell",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Dahm",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Day",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Doctor",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gabriel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Kahlon",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hogarth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "21",
+            "issn": "4",
+            "pages": "621--626",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Healthcare data integration and informatics in the cloud",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bahga",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Madisetti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Computer",
+            "volume": "48",
+            "issn": "2",
+            "pages": "50--57",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Observational health data sciences and informatics (OHDSI): opportunities for observational researchers",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hripcsak",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Duke",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Shah",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Reich",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Huser",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Schuemie",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Suchard",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "C K"
+                    ],
+                    "last": "Wong",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Rijnbeek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Studies in health technology and informatics",
+            "volume": "216",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Global biobank meta-analysis initiative: Powering genetic discovery across human diseases",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "B M"
+                    ],
+                    "last": "Initiative",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "The electronic medical records and genomics (eMERGE) network: past, present, and future",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Gottesman",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kuivaniemi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tromp",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Faucett",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Manolio",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Sanderson",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kannry",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zinberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Basford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Genetics in Medicine",
+            "volume": "15",
+            "issn": "10",
+            "pages": "761--771",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "PEDSnet: a national pediatric learning health system",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Forrest",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Margolis",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Bailey",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Marsolo",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Beccaro",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Finkelstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Milov",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Vieland",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Wolf",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "21",
+            "issn": "4",
+            "pages": "602--606",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "A divide-and-conquer method for sparse risk prediction and evaluation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Biostatistics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "A fast divide-and-conquer sparse cox regression",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Palmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Di",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schwartz",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Kohane",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Biostatistics",
+            "volume": "22",
+            "issn": "2",
+            "pages": "381--401",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "G rid Binary LO gistic RE gression (GLORE): building shared models without sharing data",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ohno-Machado",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "19",
+            "issn": "5",
+            "pages": "758--764",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "WebDISCO: a web service for distributed cox model learning without patient-level data sharing",
+            "authors": [
+                {
+                    "first": "C.-L",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ohno-Machado",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "22",
+            "issn": "6",
+            "pages": "1212--1219",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Learning from electronic health records across multiple sites: A communication-efficient and privacy-preserving distributed algorithm",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Boland",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Schmid",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Forrest",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Holmes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "27",
+            "issn": "3",
+            "pages": "376--385",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Learning from local to global: An efficient distributed algorithm for modeling time-to-event data",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Schuemie",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Boland",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bian",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Holmes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "27",
+            "issn": "7",
+            "pages": "1028--1036",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Lossless integration of multiple electronic health records for identifying pleiotropy using summary statistics",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Lumley",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pendergrass",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Hakonarson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Carrell",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Smoller",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-Q",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Nature communications",
+            "volume": "12",
+            "issn": "1",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Individual data protected integrative regression analysis of high-dimensional heterogeneous data",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "",
+            "issn": "",
+            "pages": "1--15",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Heterogeneity-aware and communication-efficient distributed statistical inference",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Ning",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2022,
+            "venue": "Biometrika",
+            "volume": "109",
+            "issn": "1",
+            "pages": "67--83",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Approximate inference in generalized linear mixed models",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Breslow",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Clayton",
+                    "suffix": ""
+                }
+            ],
+            "year": 1993,
+            "venue": "Journal of the American statistical Association",
+            "volume": "88",
+            "issn": "421",
+            "pages": "9--25",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Linear and generalized linear mixed models and their applications",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Meta-analysis in clinical trials revisited",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Dersimonian",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Laird",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Contemporary clinical trials",
+            "volume": "45",
+            "issn": "",
+            "pages": "139--145",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF2": {
+            "text": "Schematic overview of Fed-GLMM. Fed-GLMM enables the joint implementation of GLMM for EHRs from multiple sites without sharing individual-level data. In step 2, each site calculates intermediate results s k , H k locally, which are summary statistics evaluated at the initial values, and broadcasts them to the central analytics.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Comparison of computation time and estimate accuracy for Fed-GLMM",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Adjusted odds ratios of virtual visit vs. in-person visit of patient and visit characteristics. Using the forest plot, we visualized the adjusted odds ratios obtained through Fed-GLMM for both all facilities (federated setting to demonstrate privacy preservation) and the single facility (centralized setting to demonstrate computation improvement). The points and bars represent the point estimates and 95% confidence intervals, respectively. Abbreviations: OR -Odds Ratio; NH -Non-Hispanic; LEP -Limited English Proficiency",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "a binary contingency table for patients and physicians from the large EHR dataset, stored as matrix P , where each cell indicates if at least one visit happened involving the corresponding patient and physician Construct physicians' patient-sharing network from the weighted adjacency matrix P T P Extract the weighted edge list from the network, where the weight of an edge indicates the number of patients shared by the two physicians on the edge",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF2": {
+            "text": "An Application of Fed-GLMM to Real-World EHR data: Evaluate Visit Characteristics Associated with Virtual Care",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

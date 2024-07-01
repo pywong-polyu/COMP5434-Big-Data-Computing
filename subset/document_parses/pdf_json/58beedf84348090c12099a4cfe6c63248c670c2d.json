@@ -1,0 +1,3101 @@
+{
+    "paper_id": "58beedf84348090c12099a4cfe6c63248c670c2d",
+    "metadata": {
+        "title": "Anomaly Detection in COVID-19 Time-Series Data",
+        "authors": [
+            {
+                "first": "Hajar",
+                "middle": [],
+                "last": "Homayouni",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Indrakshi",
+                "middle": [],
+                "last": "Ray",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Sudipto",
+                "middle": [],
+                "last": "Ghosh",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "\u00b7",
+                "middle": [],
+                "last": "Shlok Gondalia",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Michael",
+                "middle": [
+                    "G"
+                ],
+                "last": "Kahn",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Anomaly detection and explanation in big volumes of real-world medical data, such as those pertaining to COVID-19, pose some challenges. First, we are dealing with time-series data. Typical time-series data describe behavior of a single object over time. In medical data, we are dealing with time-series data belonging to multiple entities. Thus, there may be multiple subsets of records such that records in each subset, which belong to a single entity are temporally dependent, but the records in different subsets are unrelated. Moreover, the records in a subset contain different types of attributes, some of which must be grouped in a particular manner to make the analysis meaningful. Anomaly detection techniques need to be customized for time-series data belonging to multiple entities. Second, anomaly detection techniques fail to explain the cause of outliers to the experts. This is critical for new diseases and pandemics where current knowledge is insufficient. We propose to address these issues by extending our existing work called IDEAL, which is an LSTM-autoencoder based approach for data quality testing of sequential records, and provides explanations of constraint violations in a manner that is understandable to end-users. The extension (1) uses a novel two-level reshaping technique that splits COVID-19 data sets into multiple temporally-dependent subsequences and (2) adds a data visualization plot to further explain the anomalies and evaluate the level of abnormality of subsequences detected by IDEAL. We performed two systematic evaluation studies for our anomalous subsequence detection. One study uses aggregate data, including the number of cases, deaths, recovered, and percentage of hospitalization rate, collected from a COVID tracking project, New York Times, and Johns Hopkins for the same time period. The other study uses COVID-19 patient medical records obtained from Anschutz Medical Center health data warehouse. The results are promising and indicate that our techniques can be used to detect anomalies in large volumes of real-world unlabeled data whose accuracy or validity is unknown.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Publisher's Note Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Large amounts of data records are being collected from various sources over time to analyze the immediate and long-term impacts of COVID-19 on human health. Examples include the analysis of the impacts [1] , diagnosis [2] , treatments [3] , and pre-symptom detection [4] of COVID-19 based on the available data collected from radiography, chest CT, chest X-ray, wearable devices, and COVID-19 tracking reports. Such data records are assumed to be accurate. However, the records may get corrupted in the non-trivial data collection and transformation processes. Anomalous data may lead to incorrect inferences and research findings. Thus, it is critical to automatically find inaccurate or anomalous data before doing any analysis and explain how the data is anomalous to the healthcare professionals. This article is part of the topical collection \"Artificial Intelligence for HealthCare\" guest edited by Lydia Bouzar-Benlabiod, Stuart H. Rubin and Edwige Pissaloux. Page 2 of 17",
+            "cite_spans": [
+                {
+                    "start": 202,
+                    "end": 205,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 218,
+                    "end": 221,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 235,
+                    "end": 238,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 267,
+                    "end": 270,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Existing anomaly detection techniques for COVID-19 data (some based on machine learning) focus only on outbreak detection [5] [6] [7] [8] in the COVID-19 tracking cases across the world. Machine learning approaches [9] [10] [11] have also been used for data quality assurance in other domains. Many of these techniques use supervised machine learning, which assumes the existence of labeled training data which in real-world is unavailable for new forms of outbreaks such as COVID-19. Moreover, outlier detection using machine learning fails to explain how records are anomalous to the domain experts. Finally, most works [12] [13] [14] [15] [16] [17] identifying anomalous records in a data set cannot be used on time-series data as anomalies may span multiple attributes and records in a sequence [18] . We aim to eliminate the above shortcomings by detecting anomalies in COVID-19 time-series data without having access to labeled data and explaining the anomalies to domain experts in a comprehensible manner.",
+            "cite_spans": [
+                {
+                    "start": 122,
+                    "end": 125,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 126,
+                    "end": 129,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 130,
+                    "end": 133,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 134,
+                    "end": 137,
+                    "text": "[8]",
+                    "ref_id": null
+                },
+                {
+                    "start": 215,
+                    "end": 218,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 219,
+                    "end": 223,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 224,
+                    "end": 228,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 622,
+                    "end": 626,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 627,
+                    "end": 631,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 632,
+                    "end": 636,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 637,
+                    "end": 641,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 642,
+                    "end": 646,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 647,
+                    "end": 651,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 799,
+                    "end": 803,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "This approach, called IDEAL, builds upon our previous work on data quality assessment approach [19] that uses an LSTM-autoencoder [10] network to find anomalies in unsupervised data. Anomalies are data records or subsequences of data records whose behaviors (i.e., attribute values or change in the values over time) are significantly different from the majority of records and subsequences in a timeseries data set [5] . IDEAL automatically (1) discovers different types of constraints from the sequence data, (2) marks subsequences and records that violate the constraints as suspicious, and (3) explains the violations. IDEAL automatically generates three types of visualizations to explain the anomalies. The plot showing the suspiciousness score per attribute indicates which attributes make the subsequence anomalous. The second visualization uses decision trees to illustrate the violated constraints. The third plot compares a suspicious subsequence detected by IDEAL with normal subsequences belonging to the same data set. The approach incorporates feedback from domain experts to improve the accuracy of constraint discovery and anomaly detection. We proposed an autocorrelation-based reshaping technique that automatically adjusts the LSTM-autoencoder input window size based on how far the records are related to their past values. We evaluated the effectiveness of IDEAL using data sets from Yahoo servers [20] , NASA Shuttle [21] , and Colorado State University Energy Institute [22] . We demonstrated that IDEAL could detect previously known and injected anomalies in these data sets.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 130,
+                    "end": 134,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 416,
+                    "end": 419,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1420,
+                    "end": 1424,
+                    "text": "[20]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1440,
+                    "end": 1444,
+                    "text": "[21]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1494,
+                    "end": 1498,
+                    "text": "[22]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "The above mentioned work needs to be extended for COVID-19 time-series data. The Yahoo servers [20] and NASA Shuttle [21] data sets that we previously used contain time-series data associated with a single entity; COVID-19 time-series data belongs to multiple entities (e.g., cases and deaths for states and counties, or lab test type and test name for different patients. Thus, in COVID-19 data there are multiple subsets of data each of which belongs to a single entity. Records in each subset are temporally dependent but they are unrelated to records in other subsets. Moreover, in each subset there are multiple grouping attributes (e.g., test type and test name) which requires the data to be preprocessed to make the results correct. We extend IDEAL using a two-level reshaping approach to transform data into a shape that is suitable for analysis. This approach removes the restriction that all data records in a sequence data set must be temporally dependent and are describing behaviors of the same object over time. Instead, IDEAL supports data sets in which a subset of records are temporally related to each other but are unrelated to the records from other subsets in the same data set. For example, a health data store may contain medical records of multiple patients over time. The records of each patient are temporally dependent but independent from those of other patients.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[20]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[21]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "One na\u00efve solution may be to directly split the data based on grouping attribute(s) and generate multiple temporallydependent subsequences. However, such a solution does not preserve associations among grouping attribute values. Consequently, IDEAL uses a pivoting-based approach to split data into multiple independent subsequences in a manner that preserves the associations among grouping attribute values.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "In addition, IDEAL also offers an explanation of the anomalous behavior. It provides a data visualization plot that explains the level of abnormality of anomalous subsequences detected by the approach. This plot visualizes the data over time to help a domain expert understand the difference between the attribute values of a suspicious subsequence with those of other subsequences in the data set. Such a plot draws attention to the anomalous subsequences; this is especially useful for large volumes of data where there is a lack of domain knowledge.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "We conduct two types of studies to evaluate the anomaly detection effectiveness of IDEAL in the absence of domain knowledge. The first study validates the level of abnormality of an anomalous subsequence generated from a data source that is detected by IDEAL by comparing it with subsequences generated from other data sources that are reporting the same information. The data sources we use to conduct this study are COVID-19 tracking data collected from Johns Hopkins [23] , New York Times [24] , and COVID Tracking project [25] repositories. We demonstrate that IDEAL can detect anomalous subsequences which are indeed outliers when compared with other data sets reporting the same information.",
+            "cite_spans": [
+                {
+                    "start": 470,
+                    "end": 474,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 492,
+                    "end": 496,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 526,
+                    "end": 530,
+                    "text": "[25]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "The second study validates the level of abnormality of the suspicious subsequences by comparing the suspicious subsequences detected by IDEAL against other subsequences generated from the same data set. Here the data sets correspond to a homogeneous population, i.e., a phenotype of people with the same values for personal (e.g., gender and age) and medical (e.g., diagnosis category, disease type, and medication type) attributes. We use COVID-19 medical data collected from the health data warehouse in Anschutz medical campus [26] . We demonstrate that IDEAL can detect abnormal subsequences from the data sets under test.",
+            "cite_spans": [
+                {
+                    "start": 530,
+                    "end": 534,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "The contributions of this work are as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "\u2022 We propose a two-level reshaping technique to prepare data for training the LSTM-autoencoder model. Thus, the preprocessing step that we develop allows IDEAL to be used on different types of time-series data, possibly grouped by different attributes, and belonging to multiple entities. \u2022 We propose a data visualization plot to explain the level of abnormality of the subsequences detected by IDEAL. This helps the domain experts quickly identify the anomalous portions of data in large data sets. \u2022 We propose systematic validation techniques based on a comparison between suspicious and other subsequences to demonstrate the anomaly detection effectiveness of IDEAL. Such a method is useful when there is a lack of labeled data or where there is insufficient domain knowledge.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "The value of this work lies in automating the process of detecting and explaining potential anomalies that allow clinicians who have domain knowledge but lack data science skills to evaluate the effect of the level of abnormality and the seriousness of an anomaly on the clinical research question they are seeking to answer from the COVID-19 data. Due to the large number of investigators who intend to use the COVID-19 data, the use of the approach could potentially benefit a wide range of clinical investigators. This work can also be used for other domains that are analyzing large volumes of unlabeled timeseries data that belong to multiple entities. The rest of the paper is organized as follows. \"Related work\" describes the related work. \"Approach\" provides an overview of IDEAL. \"Extension to data preparation\" describes how we handle time-series data belonging to multiple independent objects. \"Extension to anomaly interpretation\" discusses anomaly interpretation in depth. \"Evaluation\" presents the evaluation of our approach. \"Conclusions\" concludes the paper and outlines directions for future work. Appendix A explains the architecture of the LSTM-autoencoder network.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "SN Computer Science"
+        },
+        {
+            "text": "The existing anomaly detection techniques in COVID-19 data focus only on outbreak detection [5] [6] [7] [8] in the COVID-19 tracking cases across the world. Karadayi et al. [5] used a hybrid autoencoder network composed of a 3D convolutional neural network (CNN) and an autocorrelation based network for outbreak detection from spatio-temporal COVID-19 data provided by the Italian Department of Civil Protection. Jombart et al. [6] used linear regression, generalised linear models (GLMs), and Bayesian regression to detect sudden changes in potential COVID-19 cases in England. However, there has been no focus on quality assurance of COVID-19 data used for various analysis.",
+            "cite_spans": [
+                {
+                    "start": 92,
+                    "end": 95,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 96,
+                    "end": 99,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 100,
+                    "end": 103,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 104,
+                    "end": 107,
+                    "text": "[8]",
+                    "ref_id": null
+                },
+                {
+                    "start": 173,
+                    "end": 176,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 429,
+                    "end": 432,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Machine learning-based techniques used for outlier detection in non-sequence data, such as support vector machine (SVM) [12] , local outlier factor (LOF) [13] , isolation forest (IF) [14] , and elliptic envelope (EE) [15] have been used to detect anomalous records from time series data [27] . Such approaches do not consider temporal dependencies between data records and can only detect trivial out-of-range outliers.",
+            "cite_spans": [
+                {
+                    "start": 120,
+                    "end": 124,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 154,
+                    "end": 158,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 183,
+                    "end": 187,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 217,
+                    "end": 221,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 287,
+                    "end": 291,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Techniques that detect anomalous records from timeseries data can be categorized as decomposition and modeling techniques. Decomposition techniques, suitable only for univariate time series, break a time series into level, trend, seasonality, and noise components and monitor the noise components to capture the anomalous records [28, 29] . Modeling techniques represent a time series as a linear/non-linear function that associates each current value to its past values, predict the value of a record at a specific time, and report as anomalies those records whose prediction error falls outside a threshold. Stochastic modeling techniques, such as Moving Average (MA) [30] , Autoregressive Integrated Moving Average (ARIMA) [31] , and Holt-Winters (HW) [32] use statistical measures to calculate the correlation between the data records. These techniques assume that the time series is linear and follows a known statistical distribution, which make them inapplicable to many practical problems [33] . Machine learning modeling techniques support non-linear modeling, with no assumption about the distribution of the data [33] . Examples are multi layer perceptrons (MLPs) [34] , long short term memory (LSTM) [9] , and hierarchical temporal memory (HTM) [11] . Some of these techniques can model multivariate time-series. However, they produce complex equations, which are not human interpretable.",
+            "cite_spans": [
+                {
+                    "start": 330,
+                    "end": 334,
+                    "text": "[28,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 335,
+                    "end": 338,
+                    "text": "29]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 670,
+                    "end": 674,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 726,
+                    "end": 730,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 755,
+                    "end": 759,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 997,
+                    "end": 1001,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1124,
+                    "end": 1128,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1175,
+                    "end": 1179,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 1212,
+                    "end": 1215,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1257,
+                    "end": 1261,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Existing techniques for anomalous sequence detection split the data into multiple subsequences, typically based on a fixed-size window [35] or an exhaustive brute-force approach [36] . Clustering-based anomalous sequence detection techniques extract subsequence features, such as trend and seasonality, and group the subsequences based on the similarities between their features. An anomalous subsequence is detected as the one that is distantly positioned within a cluster or is positioned in the smallest cluster. These approaches only detect anomalous sequences without determining the records and attributes that are the major causes of invalidity in each subsequence. Autoencoderbased techniques (1) take subsequences as input, (2) use an autoencoder network to reconstruct the subsequences, (3) assign invalidity scores based on the reconstruction errors to the subsequences, and (4) detect as anomalous those subsequences whose scores are greater than a threshold. These techniques can learn complex non-linear associations among the attributes in the time series but are not able to model the temporal dependencies among the records in the input subsequence. An LSTM-autoencoder extends an autoencoder for time series data, and captures long-term temporal associations among data records in the form of complex equations that are not human interpretable. Our work aims to fill this gap by illustrating the cause of anomaly to the domain experts. Figure 1 shows an overview of our approach. The input is in the form of data records and the output consists of a report showing subsequences of suspicious records accompanied with an explanation of the violated constraints. There are five components, namely, data preparation, constraint discovery, anomaly detection, anomaly interpretation, and anomaly inspection. These components form the basis of IDEAL [19] and are briefly described in the following paragraphs. \"Extension to data preparation\" and \"Evaluation\" describe how the data preparation and anomaly interpretation components are extended in this paper.",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 178,
+                    "end": 182,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 1862,
+                    "end": 1866,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1454,
+                    "end": 1462,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "Data preparation This component prepares the data by transforming raw data into a form suitable for analysis. We used the one-hot encoding [37] method for preprocessing categorical attributes and the normalization [38] method for numeric attributes. Moreover, we proposed a systematic reshaping approach that uses autocorrelation [39] of the time-series attributes to enable the LSTM-autoencoder network discover dependencies between highly correlated records. Note that, this step must be extended to handle COVID-19 data. The extensions are described in \"Extension to data preparation\".",
+            "cite_spans": [
+                {
+                    "start": 139,
+                    "end": 143,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 214,
+                    "end": 218,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 330,
+                    "end": 334,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Approach"
+        },
+        {
+            "text": "Constraint discovery IDEAL uses an LSTM-autoencoder, which is a sequence-to-sequence modeling technique [40] used to learn time series dependencies. An LSTMautoencoder can discover constraints involving long-term non-linear associations among multivariate time-series data records and attributes. The input and output to this network are fixed-size time series matrices. The network is composed of two hidden LSTM layers. The first LSTM layer functions as an encoder that investigates the dependencies from the input sequence and produces a complex hidden context. The second LSTM layer functions as a decoder that reconstructs the input sequence, based on the learned complex context and the previous output state. The difference between the original input and the reconstructed input is termed as the reconstruction error. Appendix A describes the architecture of the LSTM-autoencoder network.",
+            "cite_spans": [
+                {
+                    "start": 104,
+                    "end": 108,
+                    "text": "[40]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Approach"
+        },
+        {
+            "text": "The LSTM-autoencoder is an unsupervised technique that can potentially learn incorrect constraints from invalid data and generate false alarms. IDEAL uses an interactive learning approach that takes the expert's feedback through the anomaly inspection component to retrain the LSTM-Autoencoder model and improve its accuracy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Approach"
+        },
+        {
+            "text": "Anomaly detection This component detects suspicious subsequences and records that do not conform to the constraints represented by the trained model. Subsequence and records are assigned suspiciousness scores (s-scores), which are calculated based on the network reconstruction error and the record labels. The record label indicates the validity level of the record. If we start with an unlabeled data set, the labels of all records are 0. The record label changes as we incorporate domain expert feedback in the subsequent iterations. Subsequences and records whose scores are greater than a threshold are flagged as suspicious. Using record labels in the definition of s-scores ensures that no valid subsequences or records are reported as suspicious in the retraining phase, thereby minimizing false alarms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Approach"
+        },
+        {
+            "text": "Anomaly interpretation This component helps a domain expert interpret each suspicious subsequence by generating visualization plots of two types, namely, s-score per attribute and decision tree. The trained LSTM-autoencoder model calculates the s-score per attribute. The higher the value of s-score, the more likely is the attribute to contribute to the invalidity of the subsequence. For each subsequence, IDEAL plots the s-score values for all the attributes in the subsequence. Moreover, IDEAL uses a decision tree [41] based technique called random forest [42] classifier to determine the constraints that are violated by each suspicious [19] subsequence. For each attribute of the subsequence, a set of time series features, such as Mean, Max, and Curvature are extracted using Tsfeatures [43] CRAN library. Next, decision trees are generated using these features. The decision trees represent a set of if-then-else decision rules, which describe the constraints that identify sequences as valid or invalid based on their feature values. Note that, our anomaly interpretation component is extended in \"Evaluation\".",
+            "cite_spans": [
+                {
+                    "start": 519,
+                    "end": 523,
+                    "text": "[41]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 561,
+                    "end": 565,
+                    "text": "[42]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 643,
+                    "end": 647,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 795,
+                    "end": 799,
+                    "text": "[43]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Approach"
+        },
+        {
+            "text": "Anomaly inspection This component takes domain expert feedback through a web-based user interface that uses check boxes for the expert to flag as faulty the subsequences that are actually anomalous. The feedback is incorporated to label the training data records as faulty or valid. The accuracy of constraint discovery is improved by adding the record label with four possible values (1: faulty, 0.5: suspicious, 0: unknown, and \u22121 : valid) as a new attribute to the training data set. This label is updated using domain expert feedback in every interaction. We redefine the reconstruction error of LSTM-autoencoder based on the labels to minimize false alarms. The network is trained to minimize both the difference between the time series and its reconstruction, and the difference between the record labels in a time series and the labels predicted by the network.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Approach"
+        },
+        {
+            "text": "Analyzing COVID-19 time series data requires that the data be converted to a form suitable for analysis. In COVID-19 data, there are multiple subsets of data; records in each subset are temporally dependent but they are unrelated to records in other subsets. Such data must be prepared before being fed as input to sequential learning models, including the LSTM-based model used in this study, which assumes that all data records in an input sequence are temporally dependent and are describing behaviors of the same object over time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "A time series T is a sequence of d-dimensional records [44] described using the vector",
+            "cite_spans": [
+                {
+                    "start": 55,
+                    "end": 59,
+                    "text": "[44]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "and a j i is the jth attribute of the ith record. A time series can be univariate (d = 1) or multivariate (d > 1) [45] . A univariate time series has one time-dependent attribute. For example, a univariate time series can consist of daily COVID-19 cases recorded sequentially over 24-h increments. A multivariate time series is used to simultaneously capture the dynamic nature of multiple attributes. For example, a multivariate time series from a health data store can consist of multiple laboratory results of patients over time.",
+            "cite_spans": [
+                {
+                    "start": 114,
+                    "end": 118,
+                    "text": "[45]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "Reshaping is an essential data preparation step for sequential learning models [46, 47] . This method reshapes the data to base the model computations at a time step t on a specified number of previous time steps. The number of previous time steps is known as window size.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[46,",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 84,
+                    "end": 87,
+                    "text": "47]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "Existing reshaping techniques use a single-level windowing approach, which assumes that all data records in a data set are temporally dependent and are describing behaviors of a single object over time. For example, all the traffic data in the Yahoo Benchmark data store [20] are records related to a single server. The NASA Shuttle data set [21] contains records of a single shuttle over time. However, real-world data sets including the ones used in this study typically contain records of multiple objects over time. For example, a COVID-19 tracking data set can store case records of multiple states over time in the US. A medical data set may contain clinical records for multiple patients over time. Each object (i.e., state in the COVID-19 data set and patient in the medical data set) has a unique id, which distinguishes the records concerning that object from the other records in the data set. Single-level reshaping techniques cannot be used to split the data records into multiple subsequences in such data sets. These techniques may generate subsequences with temporally unrelated records, which can result in generating false alarms. For example, Table 1 shows a portion of records (i.e., for Patient_ID = 1001 and Patient_ID = 1005) in a medical data set that stores patient weights over time.",
+            "cite_spans": [
+                {
+                    "start": 271,
+                    "end": 275,
+                    "text": "[20]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 342,
+                    "end": 346,
+                    "text": "[21]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1162,
+                    "end": 1169,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "Splitting this data set through single-level reshaping using window size equal to three with one record overlap results in two subsequences (Fig. 2) , which contain unrelated records.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 140,
+                    "end": 148,
+                    "text": "(Fig. 2)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "However, the correct windowing must only contain temporally-related records of a single object (Fig. 3 ). An anomaly detection technique may incorrectly detect subsequence 1 and 2 in Fig. 2 as anomalous (i.e., two false positives) because of the sudden changes in the Weight values. Figure 3 shows the correct reshaping for our example.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 95,
+                    "end": 102,
+                    "text": "(Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 183,
+                    "end": 189,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 283,
+                    "end": 291,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "In this work, we propose a two-level reshaping technique to address the above-mentioned issue. This technique (A) groups the time-series data based on domaindependent grouping attributes, and (B) splits the data records in each group using our systematic autocorrelation-based reshaping [19] approach. ",
+            "cite_spans": [
+                {
+                    "start": 287,
+                    "end": 291,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extension to Data Preparation"
+        },
+        {
+            "text": "We split the data records into multiple temporally dependent groups. For this purpose, we (1) identify grouping attributes and their hierarchy, (2) concatenate the non-first-level grouping attributes into a new attribute, (3) pivot the new attribute into multiple temporal attributes, and (4) use the first-level grouping attribute to split the data records into multiple temporally-dependent subsequences.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Grouping Data Records"
+        },
+        {
+            "text": "1. Identify grouping attributes. A grouping attribute is a categorical column by which we can group the data set records into multiple temporally-dependent subsequences. A data set may have one or more grouping attributes, which are domain-dependent. Figure 4a shows an example of a medical data set of laboratory results for multiple patients over time. This data set contains three levels of grouping attributes to describe the data records. The first-level grouping attribute (i.e., Patient_ID) indicates the objects in a data set, each of which is represented by a unique Id. The second-to h-level grouping attributes indicate features about those objects. For example, in Fig. 4a , the second-level grouping attribute (i.e., Test_Type) represents the type of laboratory test. Each patient can receive multiple types of test. The third-level grouping attribute (i.e., Test_Name) is the name of the laboratory test performed on the patients. Each Test_Type includes multiple Test_Name. We identify the domain-dependent grouping attributes with the help from domain experts. In the future, we will use statistical autocorrelation-based [48] techniques to automatically identify the grouping attributes and their hierarchy from an input data set. 2. Concatenate non-first-level grouping attributes. Our approach converts all the non-first-level grouping attributes into a single data set column to reduce the complexity (i.e., dimensionality) of the problem. We call this new column the second-level grouping attribute. Figure 4b shows the new generated column from all the non-first-level grouping attributes. At this step, we can use the first-and second-level attributes to group the data into multiple temporally dependent subsequences. However, using the resulting subsequences generated by this approach, time-series analysis techniques will not preserve the associations among the values of second-level attribute if any. For example, if there are associations among \"Blood-Sugar\" and \"Blood-Pressure\" of a patient, grouping at this stage would not preserve this association. To address this issue, our approach uses another step for pivoting the second-level attribute into multiple temporal attributes based on the attribute values. 3. Pivot second-level grouping attribute. A pivoting query",
+            "cite_spans": [
+                {
+                    "start": 1138,
+                    "end": 1142,
+                    "text": "[48]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 251,
+                    "end": 260,
+                    "text": "Figure 4a",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 677,
+                    "end": 684,
+                    "text": "Fig. 4a",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1521,
+                    "end": 1530,
+                    "text": "Figure 4b",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Grouping Data Records"
+        },
+        {
+            "text": "[49] converts all unique rows of an attribute into separate columns of their own, each of which contains a value specified as an input to the query. IDEAL pivots the second-level grouping attribute to generate multiple temporal attributes. The objective is to preserve the associations among grouping attribute values. Pivoting results in a smaller number of records in comparison to the original data set. Figure 4c shows how the pivoting process works in the example data set. The second-level grouping attribute (i.e., a concatenation of Test_Type and Test_Name) is converted into five new attributes, each of which contains the corresponding test result stored in the value attribute. If a patient has not received a specific test at a specific time, the value of that test is set to Null. 4. Group records by first-level grouping attribute. We use the first-level grouping attribute to categorize the data records in a sequence data set into multiple groups",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 407,
+                    "end": 416,
+                    "text": "Figure 4c",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Grouping Data Records"
+        },
+        {
+            "text": "where m is the number of the distinct values of that attribute. Figure 4c shows the two groups of temporally-dependent records (i.e., G 1 and G 2 ) generated for the example data set.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 64,
+                    "end": 73,
+                    "text": "Figure 4c",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Grouping Data Records"
+        },
+        {
+            "text": "For each group, IDEAL uses a systematic reshaping approach that we proposed in an earlier work [19] to split the data records in that group. This approach is based on the autocorrelation of the time series attributes to enable the LSTM-autoencoder network discover dependencies between the records that are highly correlated. The input size is adjusted based on how far the records in a group are related to their past values. By feeding the LSTM-autoencoder network with highly correlated records, this reshaping approach prevents the network from incorrectly discovering associations among non-correlated records. For each group G i , IDEAL uses the autocorrelationbased approach to identify the window size w i for that group. Autocorrelation is defined as the correlation of sequence data records with the records in the previous time steps, called lags [39] . An Autocorrelation Function (ACF [48] ) at lag k for an attribute identifies to what extend the attribute is correlated to its kth past value. IDEAL calculates ACF to identify the lags at which the attribute values are highly correlated to set the window size. As the LSTM-autoencoder window size must be similar for all the data records in a data set, IDEAL sets the final value of window size W to the smallest value of window sizes calculated for the groups (Eq. 1). Finally, our approach reshapes the data records in groups based on the value of W.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 858,
+                    "end": 862,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 898,
+                    "end": 902,
+                    "text": "[48]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Autocorrelation-Based Reshaping of Groups"
+        },
+        {
+            "text": "where m is the number of distinct values of the grouping attribute. Figure 4d shows how IDEAL splits the records in each group into multiple subsequences for W = 2.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 68,
+                    "end": 77,
+                    "text": "Figure 4d",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Autocorrelation-Based Reshaping of Groups"
+        },
+        {
+            "text": "(1) ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Autocorrelation-Based Reshaping of Groups"
+        },
+        {
+            "text": "IDEAL uses an additional data visualization plot to explain the level of abnormality of suspicious subsequences. This plot visualizes attribute values for multiple groups (e.g., state in COVID-19 data set and patient in medical data set) over time. The visualization plot uses color-coded diagrams for every group to help a domain expert compare a suspicious subsequence with other subsequences from other groups in the data set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extension to Anomaly Interpretation"
+        },
+        {
+            "text": "For each suspicious subsequence, IDEAL uses s-score per attribute values [19] to select the attribute with the highest suspiciousness score. Next, IDEAL plots values of that attribute for all the groups (i.e., G i , 1 \u2264 i \u2264 m ) over time. The attribute values of the suspicious subsequence are represented by red points. Figures 5 and 6 shows the visualization plots generated for a suspicious subsequence detected from the laboratory results in the Anschutz medical data. Figure 5 shows that e_TOTGLOB attribute (i.e., total serum globulin) is the major cause of invalidity (i.e., attribute with the highest s-score value) in this subsequence. The data visualization plot in Fig. 6 shows the values of the e_TOTGLOB attribute over time for this subsequence (in red) as well as other subsequences (in colors other than red) in the same data set. We can visually observe from this figure how the values of e_TOTGLOB for this patient deviate from those of the majority of the patients in the data set. As the value of this attribute is elevated in certain immunological diseases, this deviation can be caused by an immunological disease of the patient.",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 77,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 321,
+                    "end": 336,
+                    "text": "Figures 5 and 6",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 473,
+                    "end": 481,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 676,
+                    "end": 682,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Extension to Anomaly Interpretation"
+        },
+        {
+            "text": "We evaluated the anomaly detection effectiveness of IDEAL using COVID-19 records from Johns Hopkins (JH) [23] , New York Times (NT) [24] , and Tracking project (T) [25] repositories. These publicly available data sets are updated daily and contain county-or state-level COVID-19 attributes. Wissel et al. [50] compared these data sets based on different factors, such as their data sources, collected attributes, region granularity, and frequency of updates. We used nine-month data from March 5th to November 11th, 2020 to evaluate one execution of IDEAL, which is an execution without the feedback loop. Moreover, we used four health data sets from the University of Colorado Anschutz medical campus [26] to evaluate the anomaly detection effectiveness of IDEAL. We used records of COVID-19-positive patients to evaluate one execution of IDEAL.",
+            "cite_spans": [
+                {
+                    "start": 105,
+                    "end": 109,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 164,
+                    "end": 168,
+                    "text": "[25]",
+                    "ref_id": null
+                },
+                {
+                    "start": 305,
+                    "end": 309,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 702,
+                    "end": 706,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Current knowledge about the COVID-19 data attributes, pattern of spread, and distribution is insufficient as this is an unprecedented pandemic. We used two evaluation approaches to validate the suspicious subsequences detected from the COVID-19 data in the domain knowledge absence; these are (1) comparing suspicious subsequences detected by IDEAL from one data source to those from other independent sources that are recording values of the same records and attributes and (2) comparing the suspicious subsequences ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "The objective is to identify whether or not a suspicious subsequence is actually anomalous by comparing the suspicious subsequence from a data source with its equivalent subsequences from other independent COVID-19 data repositories. Two subsequences are equivalent if they contain records of same object (i.e., same grouping attribute value) and are observed during the same time period. For example, data records of the Alabama state collected from three sources of data during March to April 2020 form three equivalent subsequences. We formalized possible observations on equivalent subsequences to validate a suspicious subsequence based on whether (1) the same subsequence is detected by IDEAL as suspicious from all available sources of data or (2) the subsequence is detected as anomalous only in some of the available sources. We decided on whether or not each suspicious subsequence is actually anomalous based on a distance measure (i.e. mean square error (MSE)) between the attribute values of the suspicious subsequence detected from a source with those of equivalent subsequences collected from the other data sources.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparing Suspicious Subsequences from Different Sources (Johns Hopkins (JH), New York Times (NT), and Tracking Project (T))"
+        },
+        {
+            "text": "For each suspicious subsequence s i detected from the ith source in a set of sources D (where |D| = n ), we calculated the mean square error value between s i and all its equivalent subsequences s j from the other sources ( 1 \u2264 j \u2264 n and j \u2260 i ). s j can be either an undetected or a suspicious subsequence:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparing Suspicious Subsequences from Different Sources (Johns Hopkins (JH), New York Times (NT), and Tracking Project (T))"
+        },
+        {
+            "text": "where A f i attribute is the major cause of invalidity in s i , A f j is its equivalent attribute in s j , and w is the window size. The following four cases describe how we validated a suspicious subsequence s i based on the MSE value. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparing Suspicious Subsequences from Different Sources (Johns Hopkins (JH), New York Times (NT), and Tracking Project (T))"
+        },
+        {
+            "text": "then: -s i , s j , and s k are abnormal and need more investigation",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparing Suspicious Subsequences from Different Sources (Johns Hopkins (JH), New York Times (NT), and Tracking Project (T))"
+        },
+        {
+            "text": "We ran two experiments. Table 2 shows the attributes from the COVID-19 data sets used for each experiment. Figure 7 shows data visualization plots for suspicious subsequences detected by IDEAL from data sets of the first experiment. In this figure, each color represents data of a state. There are 50 plots for the 50 states of the US. The red plot represents the data of the suspicious subsequence. We used Fig. 8 to validate the suspicious subsequences by comparing the attribute values of the suspicious subsequences with those of their equivalent subsequences from the first experiment data sets. These attributes are major causes of invalidity in each suspicious subsequence. In this experiment, the threshold T is set at 0.03 based on our observations of the values of MSE in these data sets. Figure 7a : A suspicious subsequence s JH was detected from JH in California data. An equivalent subsequence s T was detected from T. The Confirmed attribute was the major cause of invalidity in these subsequences. The data visualization plot in Fig. 7a shows how the Confirmed attribute values of the suspicious subsequence from California data in JH (red points) deviate from other subsequences from other states in the same source (i.e., JH). The constraint violations reported by the decision trees for this suspicious subsequence were over the Minimum and Mean features of the subsequence. In Fig. 8a , MSE(s JH , s T ) < T , Page 10 of 17 MSE(s JH , s NT ) < T , and MSE(s T , s NT ) < T . This result indicates that in California, the numbers of confirmed cases over time reported by all three data sources for this suspicious subsequence are close to each other. Based on the case A, s JH , s NT , and s T are either (1) abnormal but valid or (2) anomalous data that have been obtained from the same source. Figure 7b : A suspicious subsequence s T was detected from T in New York data. Equivalent subsequences s JH and s NT were also detected from JH and NT. The Deaths attribute was the major cause of invalidity in these subsequences. The data visualization plot in Fig. 7b shows how the Deaths attribute values of the suspicious subsequence from New York data in T (red points) deviate from other subsequences from other states in the same source (i.e., T). The constraint violations reported by the decision trees for this suspicious subsequence were over the Linearity (i.e., strength of linearity, which is the sum of squared residuals of time-series from a linear autoregression) and Burstiness (i.e., ratio between the variance and the mean (Fano Factor) of time series) features of the subsequence. In Fig. 8b , MSE(s JH , s T ) > T , MSE(s NT , s T ) > T , and MSE(s JH , s NT ) < T . This result indicates that the number of death cases in the New York state collected by the data source T was considerably less than that of the other two sources of data. Based on case B, s T is anomalous and s JH , s NT are valid. Figure 7c : A suspicious subsequence s NT was detected only from NT in Florida data. The Confirmed attribute was the major cause of invalidity in this subsequence. The data visualization plot in Fig. 7c shows how the Confirmed attribute values of the suspicious subsequence from Florida data in NT (red points) deviate from other subsequences from other states in the same source (i.e., NT). The constraint violations reported by the decision trees for this suspicious subsequence were over the Mean and Curvature (i.e., strength of curvature, which is the amount by which a time series curve deviates from being a straight line and calculated based on the coefficients of an orthogonal quadratic regression) features of the subsequence. In this figure, MSE(s JH , s T ) < T , MSE(s JH , s NT ) < T , and MSE(s T , s NT ) < T . This result indicates that in Florida, the numbers of confirmed cases over time reported by all three data sources for this suspicious subsequence are close to each other. Based on case A, s JH , s NT , s T are either valid or anomalous collected from the same source. Figure 9 shows data visualization plots for suspicious subsequences detected by IDEAL from data sets of the second experiment. We used Fig. 10 to validate the suspicious subsequences by observing the actual values of attributes for the suspicious subsequences and their equivalent subsequences from the second experiment data sets. These attributes are major causes of invalidity in each suspicious subsequence. In this experiment threshold T is set at 0.0004 based on our observations on the values of MSE in these data sets. Figure 9a : A suspicious subsequence s JH was detected only from JH in Kentucky data. The Hospitalization_Rate attribute was the major cause of invalidity in this subsequence. The data visualization plot in Fig. 9a shows how the Hospitalization_Rate attribute values of the suspicious subsequence (red points) from Kentucky data in JH deviate from other subsequences from other states in the same source (i.e., JH). The constraint violations reported by the decision trees for this suspicious subsequence were over the Mean, Maximum, and Vchange (i.e., maximum difference in variance between consecutive blocks in time series) Fig. 10a , MSE(s JH , s T ) > T . This result indicates that the hospitalization rates reported by the two sources of data for the Kentucky state were considerably distinct. Based on case D, s JH and s T are abnormal subsequences that need more investigation. Figure 9b : A suspicious subsequence s T was detected only from T in Ohio data. The Hospitalization_Rate attribute was the major cause of invalidity in this subsequence. The data visualization plot in Fig. 9b shows how the Hospitaliza-tion_Rate attribute values of the suspicious subsequence from Ohio data in T (red points) deviate from other subsequences from other states in the same source. The constraint violations reported by the decision trees for this suspicious subsequence were over the Mean, Curvature (i.e., strength of curvature, which is the amount by which a time series curve deviates from being a straight line and calculated based on the coefficients of an orthogonal quadratic regression), and Highlowmu (i.e., ratio between the means of data that is below and upper the global mean of time series) features of the subsequence. In Fig. 10b , MSE(s JH , s T ) > T . This result indicates that the hospitalization rates reported by the two sources of data for the Ohio state were considerably distinct. Based on case D, s JH and s T are abnormal subsequences that need more investigation. Figure 9c : A suspicious subsequence s T was detected only from T in Oregon data. The Hospitalization_Rate attribute was the major cause of invalidity in this subsequence. The data visualization plot in Fig. 9c shows how the Hospitalization_Rate attribute values of the suspicious subsequence from Oregon data in T (red points) deviate from other subsequences from other states in the same source. The constraint violations reported by the decision trees for this suspicious subsequence were over the Variance and Burstiness (i.e., ratio between the variance and the mean (Fano Factor) of time series) features of the subsequence. In Fig. 10c , MSE(s JH , s T ) > T . This result indicates that the hospitalization rates reported by the two sources of data for the Oregon state were considerably distinct. Based on case D, s JH and s T are abnormal subsequences that need more investigation.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 24,
+                    "end": 31,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 107,
+                    "end": 115,
+                    "text": "Figure 7",
+                    "ref_id": null
+                },
+                {
+                    "start": 408,
+                    "end": 414,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 799,
+                    "end": 808,
+                    "text": "Figure 7a",
+                    "ref_id": null
+                },
+                {
+                    "start": 1045,
+                    "end": 1052,
+                    "text": "Fig. 7a",
+                    "ref_id": null
+                },
+                {
+                    "start": 1397,
+                    "end": 1404,
+                    "text": "Fig. 8a",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 1815,
+                    "end": 1824,
+                    "text": "Figure 7b",
+                    "ref_id": null
+                },
+                {
+                    "start": 2076,
+                    "end": 2083,
+                    "text": "Fig. 7b",
+                    "ref_id": null
+                },
+                {
+                    "start": 2619,
+                    "end": 2626,
+                    "text": "Fig. 8b",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 2936,
+                    "end": 2945,
+                    "text": "Figure 7c",
+                    "ref_id": null
+                },
+                {
+                    "start": 3131,
+                    "end": 3138,
+                    "text": "Fig. 7c",
+                    "ref_id": null
+                },
+                {
+                    "start": 4033,
+                    "end": 4041,
+                    "text": "Figure 9",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 4168,
+                    "end": 4175,
+                    "text": "Fig. 10",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 4560,
+                    "end": 4569,
+                    "text": "Figure 9a",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 4767,
+                    "end": 4774,
+                    "text": "Fig. 9a",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 5187,
+                    "end": 5195,
+                    "text": "Fig. 10a",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 5447,
+                    "end": 5456,
+                    "text": "Figure 9b",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 5648,
+                    "end": 5655,
+                    "text": "Fig. 9b",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 6298,
+                    "end": 6306,
+                    "text": "Fig. 10b",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 6554,
+                    "end": 6563,
+                    "text": "Figure 9c",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 6757,
+                    "end": 6764,
+                    "text": "Fig. 9c",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 7188,
+                    "end": 7196,
+                    "text": "Fig. 10c",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Comparing Suspicious Subsequences from Different Sources (Johns Hopkins (JH), New York Times (NT), and Tracking Project (T))"
+        },
+        {
+            "text": "The data of the patients of a homogeneous population should relatively look similar. We used this idea as a relative goal to evaluate the COVID-19 data in the absence of a domain expert. For this purpose, we extracted data of four homogeneous populations from Anschutz medical data store (Table 3) . These data sets are results of joins of multiple tables (i.e., Patient, Diagnosis, and Lab) in the Anschutz health data warehouse. We fed each population data as an input data set to the IDEAL tool to detect suspicious subsequences.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 288,
+                    "end": 297,
+                    "text": "(Table 3)",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Comparing Suspicious Subsequences from a Homogeneous Population"
+        },
+        {
+            "text": "We validated the suspicious subsequences by visually observing the data visualization plots generated by IDEAL; we identified as actually abnormal (true positive) those suspicious subsequences of patients whose attribute values changing pattern over time are considerably different (i.e., visually observable) from other patients in their population. We identified as normal (false positive) those suspicious subsequences of patients whose attribute values changing pattern over time are not different (i.e., not visually observable) from other patients in their population. Figure 11 shows a visualization plot generated by IDEAL for a suspicious subsequence detected by IDEAL from data set ID = 1. In this example, the e_Meancorpusc3 attribute is the major cause of suspiciousness of the subsequence. We can visually observe that the suspicious subsequence represented by red data points shows a considerable difference with other subsequences of the same population (i.e., COVID-positive with diabetes). As a result, this subsequence is a true positive. The constraint violations reported by the decision trees for this suspicious subsequence were over the Mean and Variance features of the subsequence. Figure 12 shows a visualization plot generated by IDEAL for a suspicious subsequence detected by IDEAL from data set ID=3. In this example, the Phart attribute is the major cause of suspiciousness of the subsequence. We cannot visually observe a considerable difference between the suspicious subsequence represented by red data points and other subsequences of the same population (i.e., COVID-positive with hypertension). As a result, this subsequence is a false positive. The constraint violations reported by the decision trees for this suspicious subsequence were over the Maximum, Curvature (i.e., strength of curvature, which is the amount by which a time series curve deviates from being a straight line and calculated based on the coefficients of an orthogonal quadratic regression), and Linearity (i.e., strength of linearity, which is the sum of squared residuals of time series from a linear autoregression) features of the subsequence. Table 4 shows number of true positives (TP), number of false positives (FP), Precision = TP (TP+FP) and total time (TT) it took to run the automated steps of IDEAL against each data set under test. As the data is unlabeled, we cannot calculate the recall metric, which is based on the number of false negatives. The number of true positives and false positives are calculated based on our observation on the data visualization plots. It took between 58 and 108 s to run IDEAL against the data sets. IDEAL could detect between 1 and 4 abnormal subsequences in these data sets. The precision was between 75 and 100%.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 575,
+                    "end": 584,
+                    "text": "Figure 11",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1207,
+                    "end": 1216,
+                    "text": "Figure 12",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 2156,
+                    "end": 2163,
+                    "text": "Table 4",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Comparing Suspicious Subsequences from a Homogeneous Population"
+        },
+        {
+            "text": "We extended our previous data quality test approach to address the problem of anomaly detection in data pertaining to COVID-19. We (1) proposed a two-level reshaping technique for data preparation, (2) added a data visualization plot for anomaly explanation, and (3) evaluated the approach against different COVID-19 data sets in the domain knowledge absence. We ran two experiments to validate the suspicious subsequences detected by IDEAL from Johns Hopkins, New York Times, and COVID-19 tracking project. We compared the attribute values of the suspicious subsequence detected from a source with those collected from other sources of data. IDEAL could find an anomalous subsequence in COVID-19 Tracking data set in the number of deaths in the New York state. IDEAL could find three abnormal subsequences in the three sources, which need more investigation by domain experts.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "We also evaluated the anomaly detection effectiveness of IDEAL using four health data sets from Anschutz medical campus. We compared a suspicious supsequence with other subsequences in a homogeneous population. IDEAL could detect ten abnormal subsequences in these data sets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "In the future, we will evaluate the approach using other types of COVID-19 time series data. We plan to extend IDEAL to find anomalies in streaming COVID-19 data. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "A Long Short Term Network (LSTM) [9] is a Recurrent Neural Network (RNN) [51] that contains loops in its structure to allow information to persist and make network learn sequential dependencies among data records [9] . An RNN can be represented as multiple copies of a neural network, each passing a value to its successor. The original RNNs can only learn short-term dependencies among data records using the recurrent feedback connections [45] . LSTMs extend RNNs using specialized gates and memory cells in their neuron structure to learn long-term dependencies. The computational units (neurons) of an LSTM are called memory cells. An LSTM has the ability to remove or add information to the memory cell state using gates. The gates are defined as weighted functions that govern information flow in the memory cells. The gates are composed of a sigmoid layer and a point-wise operation to optionally let information through. The sigmoid layer outputs a number between zero (to let nothing through) and one (to let everything through). There are three types of gates, namely, forget, input, and output.",
+            "cite_spans": [
+                {
+                    "start": 33,
+                    "end": 36,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 73,
+                    "end": 77,
+                    "text": "[51]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 213,
+                    "end": 216,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 441,
+                    "end": 445,
+                    "text": "[45]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Appendices An LSTM-Autoencoder"
+        },
+        {
+            "text": "-Forget gate Decides what information to discard from the memory cell. Equation 3 shows the mathematical representation of the forget gate.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 71,
+                    "end": 81,
+                    "text": "Equation 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Appendices An LSTM-Autoencoder"
+        },
+        {
+            "text": "where W f is the connection weight between the inputs ( h t\u22121 and x t ) and the sigmoid layer; b f is the bias term and is the sigmoid activation function. In this gate, f t = 1 means that completely keep the information and f t = 0 means that completely get rid of the information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendices An LSTM-Autoencoder"
+        },
+        {
+            "text": "-Input gate Decides which values to be used from the network input to update the memory state. Equation 4 shows the mathematical representation of the input gate.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 95,
+                    "end": 105,
+                    "text": "Equation 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Appendices An LSTM-Autoencoder"
+        },
+        {
+            "text": "(3)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendices An LSTM-Autoencoder"
+        },
+        {
+            "text": "where C t is the new memory cell state and C t\u22121 is the old cell state, which is multiplied by f t to forget the information decided by the forget gate; C t is the new candidate value for the memory state, which is scaled by i t as how much the gate decides to update the state value.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendices An LSTM-Autoencoder"
+        },
+        {
+            "text": "-Output gate Decides what to output based on the input and the memory state. Equation 5 shows the mathematical representation of the output gate. This gate pushes the cell state values between \u22121 and 1 by using a hyperbolic tangent function and multiplies it by the output of its sigmoid layer to decide which parts of the input and the cell state to output.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 77,
+                    "end": 87,
+                    "text": "Equation 5",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Appendices An LSTM-Autoencoder"
+        },
+        {
+            "text": "An autoencoder is an unsupervised deep neural network that discovers constraints in the unlabeled input data. An autoencoder is composed of an encoder and a decoder. The encoder compresses the data from the input layer into a short representation, which is a non-linear combination of the input elements. The decoder decompresses this representation into a new representation that closely matches the original data. The network is trained to minimize the reconstruction error (RE), which is the average squared distance between the original data and its reconstruction [52] . An LSTM-autoencoder [44] is an extension of an autoencoder for time-series data using an encoder-decoder LSTM architecture. An LSTM-autoencoder can capture the temporal dependencies among the input records by using LSTM networks as the layers of the autoencoder network. Figure 13 shows the LSTM-autoencoder architecture. The input and output are fixed-size time series matrices. X i,j = [x 0 i,j , \u2026 , x d\u22121 i,j ] is the jth record with d attributes, T i is the ith time series that contains w records, and w is the window size. The network output has the same dimensionality as the network input. The network is composed of two hidden layers that are LSTMs with d \u2032 units. The first LSTM layer functions as an encoder that investigates the dependencies from the input sequence and produces a complex hidden context (i.e., d \u2032 encoded time series features, where the value of d \u2032 depends on the underlying encoding used by the autoencoder). The second LSTM layer functions as a decoder that produces the output sequence, based on the learned complex context and the previous output state. The TimeDistributed layer is used to process the output from the LSTM hidden layer. This layer is a dense (fully-connected) wrapper layer that makes the network return a sequence with shape (d * w) . The reconstruction error for this network is defined as follows [52] : where T i and T \u2032 i are the ith network input and output and m is the total number of subsequences.",
+            "cite_spans": [
+                {
+                    "start": 569,
+                    "end": 573,
+                    "text": "[52]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 596,
+                    "end": 600,
+                    "text": "[44]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1930,
+                    "end": 1934,
+                    "text": "[52]",
+                    "ref_id": "BIBREF51"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 847,
+                    "end": 856,
+                    "text": "Figure 13",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Appendices An LSTM-Autoencoder"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "COVID-19: the gendered impacts of the outbreak",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wenham",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Morgan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Lancet",
+            "volume": "395",
+            "issn": "",
+            "pages": "846--854",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Deep learning based detection and analysis of COVID-19 on chest X-ray images",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Taneja",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hemanth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Appl Intell",
+            "volume": "51",
+            "issn": "",
+            "pages": "1--11",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "A systematic review on the efficacy and safety of chloroquine for the treatment of COVID-19",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cortegiani",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ingoglia",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ippolito",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Giarratano",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Einav",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "J Crit Care",
+            "volume": "57",
+            "issn": "",
+            "pages": "279--83",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Presymptomatic detection of COVID-19 from smartwatch data",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mishra",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Metwally",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Bogu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Brooks",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bahmani",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Alavi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Celli",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Higgs",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Dagan-Rosenfeld",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nat Biomed Eng",
+            "volume": "4",
+            "issn": "",
+            "pages": "1--13",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Unsupervised anomaly detection in multivariate spatio-temporal data using deep learning: early detection of COVID-19 outbreak in Italy",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Karadayi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Aydin",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "\u00d6\u01e7renc\u00ed",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Access",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ACCESS.2020.3022366"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Real-time monitoring of COVID-19 dynamics using automated trend fitting and anomaly detection",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Jombart",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghozzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Schumacher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Leclerc",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jit",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Flasche",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Greaves",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ward",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Eggo",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Nightingale",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Learning from large-scale wearable device data for predicting epidemics trend of COVID-19. Discrete Dynamics in Nature and Society",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Meng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "2020",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1155/2020/6152041"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Review of big data analytics, artificial intelligence and nature-inspired computing models towards accurate detection of COVID-19 pandemic cases and contact tracing",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Agbehadji",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Awuzie",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Ngowi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Millham",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Int J Environ Res Public Health",
+            "volume": "17",
+            "issn": "15",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "A review of recurrent neural networks: LSTM cells and network architectures",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Si",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Neural Comput",
+            "volume": "31",
+            "issn": "7",
+            "pages": "1235--70",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Evaluating statistical models for network traffic anomaly detection",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kromkowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Abraham",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Osborne",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Brown",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "2019 systems and information engineering design symposium",
+            "volume": "87355",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/SIEDS.2019.8735594"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Hierarchical temporal memory method for time-series-based anomaly detection",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Neurocomputing",
+            "volume": "273",
+            "issn": "",
+            "pages": "535--581",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Application of one-class support vector machine to quickly identify multivariate anomalies from geochemical exploration data",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Geochem Explor Environ Anal",
+            "volume": "17",
+            "issn": "3",
+            "pages": "231--239",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "LOF: identifying density-based local outliers",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Breunig",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kriegel",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sander",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "ACM SIGMOD international conference on management of data",
+            "volume": "",
+            "issn": "",
+            "pages": "93--104",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Outlier detection using isolation forest and local outlier factor",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zou",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Conference on research in adaptive and convergent systems",
+            "volume": "",
+            "issn": "",
+            "pages": "161--168",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Voting-Based Ensemble of Unsupervised Outlier Detectors",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Judith",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jayakumari",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Karagiannidis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Advances in Communication Systems and Networks",
+            "volume": "656",
+            "issn": "",
+            "pages": "501--511",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "ADQuaTe: an automated data quality test approach for constraint discovery and fault detection",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Homayouni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ray",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE 20th international conference on information reuse and integration for data science",
+            "volume": "",
+            "issn": "",
+            "pages": "61--68",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "An interactive data quality test approach for constraint discovery and fault detection",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Homayouni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ray",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kahn",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "2019 IEEE International Conference on Big Data (Big Data)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/BigData47090.2019.9006446"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "An outlier detection algorithm based on cross-correlation analysis for time series dataset",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Fei",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Guan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Access",
+            "volume": "6",
+            "issn": "",
+            "pages": "53593--610",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "An autocorrelation-based LSTM-Autoencoder for anomaly detection on time-series data",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Homayouni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ray",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gondalia",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Duggan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Kahn",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "2020 IEEE International Conference on Big Data (Big Data). 2020",
+            "volume": "93781",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/BigData50022.2020.9378192"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "13 An LSTM-autoencoder network SN Computer Science",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fig",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Yahoo Server Traffic: A Benchmark Dataset for Time Series Anomaly Detection",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Novel Coronavirus COVID-19 (2019-nCoV) Data Repository by Johns Hopkins CSSE",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "An Ongoing Repository of Data on Coronavirus Cases and Deaths in the US",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "HDC",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Anomaly detection on shuttle data using unsupervised learning techniques",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shriram",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Sivasankar",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "2019 International Conference on Computational Intelligence and Knowledge Economy (ICCIKE). 2019",
+            "volume": "90043",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICCIKE47802.2019.9004325"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Large-Scale unusual time series detection",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hyndman",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Laptev",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "2015 IEEE International Conference on Data Mining Workshop (ICDMW)",
+            "volume": "",
+            "issn": "",
+            "pages": "1616--1619",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDMW.2015.104"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Generic and scalable framework for automated time-series anomaly detection",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Laptev",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Amizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Flint",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 21th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1939--1947",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2783258.2788611"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Electrical load forecasting models: a critical systematic review",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kuster",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Rezgui",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mourshed",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Sustain Cities Soc",
+            "volume": "35",
+            "issn": "",
+            "pages": "257--70",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Time series analysis with explanatory variables: a systematic literature review",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ma\u00e7aira",
+                    "suffix": ""
+                },
+                {
+                    "first": "Amt",
+                    "middle": [],
+                    "last": "Thom\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "Flc",
+                    "middle": [],
+                    "last": "Oliveira",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alc",
+                    "middle": [],
+                    "last": "Ferrer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Environ Model Softw",
+            "volume": "107",
+            "issn": "",
+            "pages": "199--209",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "An adaptive anomaly detection algorithm for periodic data streams",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Hasani",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jakimovski",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Velinov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kon-Popovska",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "385--97",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "An introductory study on time series modeling and forecasting",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Adhikari",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Agrawal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Neural networks for pattern recognition",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bishop",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bishop Ponccm",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "A multimodalanomaly detector for robot-assisted feeding using an LSTM-based variational autoencoder",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hoshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Kemp",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Robot Autom Lett",
+            "volume": "3",
+            "issn": "3",
+            "pages": "1544--51",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Data-Driven anomaly detection for UAV sensor data based on deep learning prediction model",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "2019 Prognostics and System Health Management Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "286--290",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/PHM-Paris.2019.00055"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Deep learning over multi-field categorical data",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "J ;",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ferro",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Crestani",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Moens",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mothe",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Silvestri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Di",
+                    "middle": [],
+                    "last": "Nunzio",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hauff",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Silvello",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Advances in Information Retrieval",
+            "volume": "9626",
+            "issn": "",
+            "pages": "45--57",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Normalization as a preprocessing engine for data mining and the approach of preference matrix",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Shalabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Shaaban",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "2006 International Conference on Dependability of Computer Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "207--214",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/DEPCOS-RELCOMEX.2006.38"
+                ]
+            }
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Fundamentals of probability and stochastic processes with applications to communications",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Park",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Sequence to sequence pattern learning algorithm for real-time anomaly detection in network traffic",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Loganathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Samarabandu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Canadian Conference on Electrical Computer Engineering (CCECE)",
+            "volume": "84475",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/CCECE.2018.8447597"
+                ]
+            }
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Algorithmic decision-making based on machine learning from big data: can transparency restore accountability",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "De Laat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Philos Technol",
+            "volume": "31",
+            "issn": "4",
+            "pages": "525--566",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "A framework for sensitivity analysis of decision trees",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Kaminski",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jakubczyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Szufel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Cent Eur J Oper Res",
+            "volume": "26",
+            "issn": "1",
+            "pages": "135--59",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Anomaly detection in streaming nonstationary temporal data",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Talagala",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hyndman",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Smith-Miles",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kandanaarachchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Munoz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "J Comput Graph Stat",
+            "volume": "29",
+            "issn": "",
+            "pages": "1--21",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Outlier detection for multidimensional time series using deep neural networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Jensen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "19th IEEE International Conference on Mobile Data Management (MDM)",
+            "volume": "",
+            "issn": "",
+            "pages": "125--134",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/MDM.2018.00029"
+                ]
+            }
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Robust online time series prediction with recurrent neural networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Aberer",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Funaya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE International Conference on Data Science and Advanced Analytics (DSAA)",
+            "volume": "",
+            "issn": "",
+            "pages": "816--825",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/DSAA.2016.92"
+                ]
+            }
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Anomaly detection using bidirectional LSTM",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Aljbali",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Roy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Intelligent systems and applications",
+            "volume": "",
+            "issn": "",
+            "pages": "612--621",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Autocorrelation functions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Finlay",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Fung",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Seneta",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Int Stat Rev",
+            "volume": "79",
+            "issn": "2",
+            "pages": "255--71",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "An interactive online dashboard for tracking COVID-19 in US counties, cities, and states in real time",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Wissel",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Van Camp",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kouril",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Weis",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Glauser",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "White",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Kohane",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Dexheimer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "J Am Med Inform Assoc",
+            "volume": "27",
+            "issn": "7",
+            "pages": "1121--1126",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Recurrent Neural Networks",
+            "authors": [
+                {
+                    "first": "Lstm",
+                    "middle": [],
+                    "last": "Understanding",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Networks",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Anomaly detection with robust deep autoencoders",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Paffenroth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "30980",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3097983.3098052"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "IDEAL overview",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Incorrect reshaping of patient records into multiple subsequences Correct reshaping of patient records into multiple subsequences",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Splitting a data set with multiple grouping attributes into multiple temporally-dependent subsequences Page 8 of 17SN Computer Science",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "-score per attribute plot for suspicious subsequence detected from Lab results from Anschutz Medical Campus",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Data visualization plot for e_TOTGLOB attribute detected by IDEAL from a homogeneous population with the other subsequences in that population.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "A) If attribute values of equivalent subsequences to s i collected from all other sources of data are close to values of s i , then all of those subsequences are either abnormal but valid, or anomalous detected from the same source. An abnormal subsequence can indicate signals of a COVID-19 outbreak [5]. If \u2200j \u2208 {1, \u2026 , n}, MSE(s i , s j ) \u2264 Threshold , then s i and s j are either -Abnormal but valid, or -Anomalous collected from the same source(2) MSE(s i , s j attribute values of equivalent subsequences to s i collected from all other sources of data are far from values of s i but close to one another, then s i is anomalous: If \u2200j, k \u2208 {1, \u2026 , n} ( j, k \u2260 i), MSE(s i , s j ) > Threshold and MSE(s j , s k ) \u2264 Threshold , then s i is: -Anomalous (C) If attribute values of s i are close to a subset of equivalent subsequences to s i but far from another subset of equivalent subsequences, then all subsequences in the smaller subset are anomalous: If \u2200j \u2208 D 1 , k \u2208 D 2 (D 1 \u222a D 2 = D, D 1 \u2229 D 2 = \u2205, |D 1 | < |D 2 |), MSE(s i , s j ) \u2264 Threshold and MSE(s i , s k ) > Threshold , then: -s i and s j are anomalous, and s k is valid (D) If attribute values of s i are close to a subset of equivalent subsequences to s i but far from another subset of equivalent subsequences and the two subsets are of the same size, then all subsequences in both subsets are abnormal and need more investigations by a domain expert:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Actual attribute values in suspicious subsequences detected from data sets of experiment 1 Page 12 of 17 SN Computer Science features of the subsequence. In",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Actual",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "Actual attribute values in suspicious subsequences detected from data sets of experiment 2",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "Data visualization plot for a suspicious subsequence from COVID-positives with diabetes",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Data visualization plot for a suspicious subsequence from COVID-positives with hypertension",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Patient weights sequence",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Health data sets Data set ID Data set name #records #attributes",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Results for health data sets",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "On behalf of all authors, the corresponding author states that there is no conflict of interest.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conflict of interest"
+        }
+    ]
+}

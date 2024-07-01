@@ -1,0 +1,541 @@
+{
+    "paper_id": "4790d3c0a23e1aac598dd72085d428a62fd4783b",
+    "metadata": {
+        "title": "Reversible Computations in Logic Programming",
+        "authors": [
+            {
+                "first": "Germ\u00e1n",
+                "middle": [],
+                "last": "Vidal",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Universitat Polit\u00e8cnica de Val\u00e8ncia",
+                    "location": {
+                        "settlement": "Valencia",
+                        "country": "Spain"
+                    }
+                },
+                "email": "gvidal@dsic.upv.es"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In this work, we say that a computation is reversible if one can find a procedure to undo the steps of a standard (or forward) computation in a deterministic way. While logic programs are often invertible (e.g., one can use the same predicate for adding and for subtracting natural numbers), computations are not reversible in the above sense. In this paper, we present a so-called Landauer embedding for SLD resolution, the operational principle of logic programs, so that it becomes reversible. A proof-of-concept implementation of a reversible debugger for Prolog that follows the ideas in this paper has been developed and is publicly available.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In this work, we say that a semantics is reversible if there exists a deterministic procedure to undo the steps of any computation (often called backward determinism). The ability to explore the steps of a computation back and forth is particularly useful in the context of program debugging, as witnessed by several previous tools like Undo [8] , rr [6] or CauDEr [4] , to name a few.",
+            "cite_spans": [
+                {
+                    "start": 342,
+                    "end": 345,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 351,
+                    "end": 354,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 365,
+                    "end": 368,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we present a reversible version of SLD resolution [5] , the operational semantics of logic programs, that may constitute the basis of a reversible debugger for Prolog. As is well known, logic programming is already invertible, i.e., one can exchange the input and output arguments of a predicate so that, e.g., the same predicate is used both for addition and for subtraction of natural numbers. However, SLD resolution is in principle irreversible according to the definition above. Nevertheless, given an irreversible semantics, one can always define an instrumented version which is reversible (this process is often called reversibilization) by defining an appropriate Landauer embedding [3] , i.e., by adding a \"history\" to each state with enough information to undo the steps of a computation. However, defining a non-trivial Landauer embedding for SLD resolution is particularly challenging due to non-determinism and unification.",
+            "cite_spans": [
+                {
+                    "start": 65,
+                    "end": 68,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 707,
+                    "end": 710,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Let us first briefly recall some basic notions from logic programming (see, e.g., [1, 5] for more details). A query is a finite conjunction of atoms which is denoted by a sequence of the form A 1 , . . . , A n , where the empty query is denoted by true. A clause has the form H \u2190 B 1 , . . . , B n , where H (the head ) and B 1 , . . . , B n (the body) are atoms, n \u2265 0 (thus we only consider definite logic programs, i.e., logic programs without negated atoms in the body of the clauses). Clauses with an empty body, H \u2190 true, are called facts, and are typically denoted by H.",
+            "cite_spans": [
+                {
+                    "start": 82,
+                    "end": 85,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 86,
+                    "end": 88,
+                    "text": "5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In the following, atoms are ranged over by A, B, C, H, . . . while queries (possibly empty sequences of atoms) are ranged over by A, B, . . . Substitutions and their operations are defined as usual; they are ranged over by \u03c3, \u03b8, . . . In particular, the application of a substitution \u03b8 to a syntactic object o is denoted by juxtaposition, i.e., we write o\u03b8 rather than \u03b8(o). We denote by \u03c3 \u2022 \u03b8 the composition of substitutions \u03c3 and \u03b8. Moreover, id denotes the identity substitution A variable renaming is a substitution that is a bijection on the domain of variables. A substitution \u03b8 is a unifier of two atoms A and B iff A\u03b8 = B\u03b8; furthermore, \u03b8 is the most general unifier of A and B, denoted by mgu(A, B) if, for every other unifier \u03c3 of A and B, we have that \u03b8 is more general than \u03c3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A logic program is a finite sequence of clauses. Given a program P , we say that A, B P,\u03c3 (B, B )\u03c3 is an SLD resolution step 1 if H \u2190 B is a renamed apart clause (i.e., with fresh variables) of program P , in symbols, H \u2190 B < < P , and \u03c3 = mgu(A, H). The subscript P will often be omitted when the program is clear from the context. An SLD derivation is a (finite or infinite) sequence of SLD resolution steps. A terminating SLD derivation can be either successful, if it ends with the query true, or failed, if it ends in a query where the leftmost atom does not unify with the head of any clause. SLD derivations are represented by a (possibly infinite) finitely branching tree, which is called SLD tree, where choice points (queries with more than one child) correspond to queries where the leftmost atom unifies with the head of more than one program clause.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Consider, for instance, the following simple logic program:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Given the query p(X, b, b), r(b, X), we have the following SLD derivation:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In order to undo, e.g., the first step in this derivation, we face several problems:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-First, one needs to know the applied rule, since there exist several possibilities; for instance, one can always consider undoing the application of a fact by adding a call to this predicate to the left of the current query. E.g., one could go backwards from q(b),",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": ", which is not the desired backward step. -Second, we need to \"unapply\" the computed substitution in this step (which is applied to all the atoms of the query). Unfortunately, there is no deterministic way to do that. E.g., given the last atom r(b, b) in the second query, we can undo the application of \u03b8 and get r(b, X) but also r(X, b) or r(X, X). -Finally, we have no deterministic way to obtain the selected call in the previous goal, even if we know the applied rule and the computed unifier (this is also related to the previous point and the fact that there is no deterministic way to undo the application of a substitution).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Of course, one could define a trivial Landauer embedding where all queries in a derivation are stored, e.g.,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "but the overhead would be very high since we would need to store the entire derivation. In the next section, we present a more efficient approach.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this section, we present a reversible version of SLD resolution. In principle, in order to avoid the nondeterminism when undoing the application of a substitution, one could consider some non-standard queries where computed substitutions (mgu's) are not applied to the atoms of the query but stored in a list. For instance, one could redefine SLD resolution as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Reversible Semantics for Logic Programs"
+        },
+        {
+            "text": "Of course, this definition introduces some additional (possibly unavoidable) overhead since the computed substitutions must be composed and applied at each resolution step. However, this is not enough to make SLD resolution reversible. Additionally, one would also need to store the selected call of the previous query, since it cannot be obtained even if we know the applied rule and keep the computed substitutions in a list. Furthermore, we need to know how many (leftmost) atoms should be discarded when performing a backward step (i.e., we need to store the number of atoms in the body of the applied clause).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Reversible Semantics for Logic Programs"
+        },
+        {
+            "text": "In summary, we define our (forward) reversible SLD resolution semantics (denoted by ) as shown in Fig. 1 , where the auxiliary function subst is used to compute the (partial) answer computed so far from the current history (this notion is formalized below). In this semantics, reversible queries have the form B; H , where B is a standard query (a sequence of atoms) and H, the history, is a list of elements of the form fail(A) or unf(A, H, m). The first one, fail(A), is used to denote that A is the last query of a failing derivation (i.e., the leftmost atom in A unifies with the head of no clause). The second one, unf(A, H, m), is used for unfolding steps, where A is the selected call of the query (the leftmost atom), H is the head of the applied clause, and m is the number of atoms in the body of this clause. This is enough to make SLD resolution reversible.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 98,
+                    "end": 104,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "A Reversible Semantics for Logic Programs"
+        },
+        {
+            "text": "It is worthwhile to note that we have chosen to store elements of the form unf (A, H, m) instead of unf(A, \u03b8, m) as observed above. This decision might introduce some additional overhead since we should not only compose and apply the computed substitutions at each step, but we must also recompute the mgu's of all considered pairs of atoms (A, H) once per forward step. Nevertheless, storing pairs (A, H) instead of the corresponding mgu's is rather convenient since we do not need to implement (expensive) operations like substitution composition and application, but rely on Prolog's native unification and propagation of variable bindings. There are, however, several possible optimizations that can be applied to improve performance, like storing mgu's as lists of pairs Variable = value (as suggested by one of the reviewers of this paper). This is left as future work.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 79,
+                    "end": 88,
+                    "text": "(A, H, m)",
+                    "ref_id": null
+                }
+            ],
+            "section": "A Reversible Semantics for Logic Programs"
+        },
+        {
+            "text": "In the following, we use Haskell's notation for lists so that E : H denotes a history where E is the first element and H contains the remaining elements of the list; the empty history is denoted by an empty list [ ]. Moreover, we also use Haskell's list concatenation operator, ++, so that H++[E] denotes a history that begins with the elements of list H and ends with element E. Consider again the program from Sect. 1 and the initial query p (X, b, b) , r(b, X). An (incomplete) reversible SLD derivation is then as follows:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 444,
+                    "end": 453,
+                    "text": "(X, b, b)",
+                    "ref_id": null
+                }
+            ],
+            "section": "A Reversible Semantics for Logic Programs"
+        },
+        {
+            "text": "Now, we have enough information in each query in order to deterministically undo a step. The corresponding backward semantics (denoted by ) is shown in Fig. 2 , where each forward rule (e.g., unfold) has a counterpart in the backward semantics (e.g., unfold). The rules are self-explanatory. Note that H is not needed in rule unfold; it was only stored in order to be able to compute the mgu's of the derivation for the next steps of the forward computation. We note that extending our developments to SLD resolution with an arbitrary computation rule (i.e., different from Prolog's rule, which always selects the leftmost atom) is not difficult. Basically, one only needs to extend the unf elements as follows: unf (A, H, i, m) , where i is the position of the selected atom, and m is the number of atoms in the body of the applied clause (as before).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 152,
+                    "end": 158,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 716,
+                    "end": 728,
+                    "text": "(A, H, i, m)",
+                    "ref_id": null
+                }
+            ],
+            "section": "A Reversible Semantics for Logic Programs"
+        },
+        {
+            "text": "The following result states the correctness of our reversible semantics (it can be proved by a simple induction on the length of the considered derivation): For instance, given the previous (incomplete) forward derivation, we can produce the following backward derivation: q(b), 0) , unf(p (X, b, b), p(b, b, Y ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 273,
+                    "end": 281,
+                    "text": "q(b), 0)",
+                    "ref_id": null
+                },
+                {
+                    "start": 290,
+                    "end": 310,
+                    "text": "(X, b, b), p(b, b, Y",
+                    "ref_id": null
+                }
+            ],
+            "section": "A Reversible Semantics for Logic Programs"
+        },
+        {
+            "text": "r(Y, Y ), r(b, X); [unf(q(Y ),), 2)] q(Y ), r(Y, Y ), r(b, X); [unf(p(X, b, b), p(b, b, Y ), 2)] p(X, b, b), r(b, X); [ ]",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. Let P be a logic program and A a query. Given a forward derivation"
+        },
+        {
+            "text": "To the best of our knowledge, no other reversible debugger for Prolog has been defined. Typical Prolog debuggers are based on the so called \"box model\", where every predicate call or atom, A, has four associated events: call, the initial call to A; exit, when unification of A with the head of a program clause succeeds; redo, when A is tried again after backtracking; and fail, when A does not unify with any other head clause. Typically, debuggers can only proceed forward in the computation or redo the current goal. The closer approach we are aware of is that of Opium [2] , which introduces a trace query language for inspecting and analyzing trace histories. In this tool, the trace history of the considered execution is stored in a database, which is then used for trace querying. Several analysis can then be defined in Prolog itself by using a set of given primitives to explore the trace elements. A proof-of-concept implementation of a Prolog reversible debugger that follows the ideas in this paper has been developed. It is publicly available from https://github.com/mistupv/Prolog-reversible-debugger. The main features of our debugger are the following: -It implements both the (nondeterministic) forward semantics and the (deterministic) backward semantics presented in the previous section. Some additional extensions include dealing with built-in's, using colors and other visual improvements, etc. Essentially, the debugger shows a trace including every call and whether it succeeds (exit) or fails. Calls that unify with the head of more than one clause (choice points) are distinguished in bold. In contrast to traditional Prolog debuggers, we show the entire goal and underline the selected atom, rather than showing only the selected atom. -The SLD tree of a query can be explored step by step using the cursor arrows: down (next step), up (previous step), left/right (considering alternative clauses for choice points). When a derivation ends with failure, pressing the down arrow will jump to the next pending choice (backtracking). In particular, we follow Prolog's search strategy, where clauses are considered in their textual order (from top to bottom) and the SLD tree is explored using a depth-first strategy with backtracking (despite the fact that this strategy is incomplete [1] ). However, the debugger cannot undo a backtracking step. If we press the up arrow after a backtracking step jumps to the next alternative of a choice point, the debugger will show the previous goal in this derivation (the parent of this node) rather than the failing leaf that caused backtracking. This was a design decision to ease the exploration of a given computation (following the ideas in this paper). Finally, if a derivation ends with an empty query (a successful derivation), the computed answer is shown. Alternative derivations (if any) can be explored by typing \";\" (as in Prolog). -We have also implemented a \"continuous\" mode (pressing \"s\", a shorthand for \"skip\"), where the entire trace up to a leaf of the SLD tree (either a failure or a success) is shown.",
+            "cite_spans": [
+                {
+                    "start": 573,
+                    "end": 576,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 2310,
+                    "end": 2313,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Consider, for instance, the following example:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "p(X,Y) :-q(X), r(X,Y). q(a). q(f(X)) :-X is 2+1. q(c). r(f(X),f(X)).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "where the built-in is/2 evaluates the expression in the second argument and unifies it with the first argument. A typical session looks as follows: Our reversible debugger can be a useful tool both for program understanding and for locating the source of a misbehaviour. The development of a reversible debugger is an ongoing work, so several extensions are planned. In particular, we would like to consider more Prolog features (e.g., deal with exceptions, so that one can explore a computation backwards from a runtime error) as well as introducing a technique for record and replay. Often, one is not interested in exploring all the SLD tree but just a single root-to-leaf derivation (the one that led to the misbehaviour). Here, being able to produce a log of the considered computation and use this log to replay only this particular derivation in our reversible debugger might be useful.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "As for the overhead, we consider several possibilities: first, we can consider a more efficient representation by storing pairs Variable = value instead of atoms, as discussed in Sect. 2; moreover, we could simplify the stored unification problems (the pairs A, H) when they cannot affect the current query (e.g., when they are ground or the bindings do not affect to other atoms); also, one might consider the introduction of \"spy points\" (as in the standard debugger for Prolog) so that the reversible mode is restricted to some computations rather than the entire SLD tree. Finally, we also plan to explore the definition of a reversible linear semantics for Prolog, analogous to that of [7] . This approach might be useful to undo backtracking steps.",
+            "cite_spans": [
+                {
+                    "start": 691,
+                    "end": 694,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "From Logic Programming to Prolog",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Apt",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Opium: an extendable trace analyzer for prolog",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ducass\u00e9",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "J. Log. Program",
+            "volume": "39",
+            "issn": "1-3",
+            "pages": "177--223",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/S0743-1066(98)10036-5"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Irreversibility and heat generation in the computing process",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Landauer",
+                    "suffix": ""
+                }
+            ],
+            "year": 1961,
+            "venue": "IBM J. Res. Dev",
+            "volume": "5",
+            "issn": "",
+            "pages": "183--191",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Causal-consistent replay debugging for message passing programs",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Lanese",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Palacios",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Vidal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "FORTE 2019",
+            "volume": "11535",
+            "issn": "",
+            "pages": "167--184",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-21759-4_10"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Foundations of Logic Programming",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lloyd",
+                    "suffix": ""
+                }
+            ],
+            "year": 1987,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-83189-8"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Engineering record and replay for deployability: Extended technical report",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "O&apos;callahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Froyd",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Huey",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Noll",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Partush",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "A linear operational semantics for termination and complexity analysis of ISO prolog",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Str\u00f6der",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Emmes",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Schneider-Kamp",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Giesl",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fuhs",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "LOPSTR 2011",
+            "volume": "7225",
+            "issn": "",
+            "pages": "237--252",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-32211-2_16"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Undo Software: Increasing software development productivity with reversible debugging",
+            "authors": [],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Reversible SLD resolution: forward semantics.Let us briefly explain the rules of the reversible forward semantics inFig. 1:-Rule success is used to denote the end of a successful derivation. Here, \u03c3 denotes the computed answer substitution of the derivation (typically restricted to the variables of the initial goal), where the auxiliary function subst is defined as follows:subst(H) = mgu(A, H) \u2022 subst(H ) if H = H ++[unf(A, H, m)] id if H = [ ]Intuitively speaking, subst(H) computes the substitution encoded by the elements in H. In this rule, we add nothing to the current history since the step is trivially reversible. -Rule failure is used to denote the end of a failing derivation. Essentially, a query fails when the (instantiated) leftmost atom, A\u03c3, does not unify with the head of any program clause, where \u03c3 is the substitution encoded by the current history. In this case, we store an element fail(A, B)since the current goal is needed to undo the step. -Finally, rule unfold performs an unfolding step. In this case, we add an element unf(A, H, m)to the history, where A is the selected atom (the leftmost atom of the query), H is the head of the considered (renamed apart) clause, and m is the number of atoms in the body of this clause.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Reversible SLD resolution: backward semantics.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": ": p(A, B) Exit : p(A, B) \u2193 Call : q(A), r(A, B) Exit : q(a), r(a, A) \u2193 Call : r(a, A) Fail : r(a, A) so our first derivation is a failing one. Now, if we press the up arrow once, we get back to Call : p(A, B) Exit : p(A, B) Call : q(A), r(A, B) Exit : q(a), r(a, A) and we can consider the next choice (pressing the right arrow), ending up with the following successful derivation: Solution [p(A,B)]:A = f(3), B = f(3)",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The author gratefully acknowledges the anonymous referees for their useful comments and suggestions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements."
+        }
+    ]
+}

@@ -1,0 +1,3378 @@
+{
+    "paper_id": "68ca1b03ddef8323662c93af2e29f68a1e7e63fd",
+    "metadata": {
+        "title": "Trust It or Not: Confidence-Guided Automatic Radiology Report Generation",
+        "authors": [
+            {
+                "first": "Vol",
+                "middle": [],
+                "last": "Ieee",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "",
+                "middle": [],
+                "last": "Xx",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "",
+                "middle": [],
+                "last": "No",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "",
+                "middle": [],
+                "last": "Xxxx",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Medical imaging plays a pivotal role in diagnosis and treatment in clinical practice. Inspired by the significant progress in automatic image captioning, various deep learning (DL)-based methods have been proposed to generate radiology reports for medical images. Despite promising results, previous works overlook the uncertainties of their models and are thus unable to provide clinicians with the reliability/confidence of the generated radiology reports to assist their decision-making. In this paper, we propose a novel method to explicitly quantify both the visual uncertainty and the textual uncertainty for DL-based radiology report generation. Such multi-modal uncertainties can sufficiently capture the model confidence degree at both the report level and the sentence level, and thus they are further leveraged to weight the losses for more comprehensive model optimization. Experimental results have demonstrated that the proposed method for model uncertainty characterization and estimation can produce more reliable confidence scores for radiology report generation, and the modified loss function, which takes into account the uncertainties, leads to better model performance on two public radiology report datasets. In addition, the quality of the automatically generated reports was manually evaluated by human raters and the results also indicate that the proposed uncertainties can reflect the variance of clinical diagnosis. * Y. Wang and Z. Lin contribute equally to this work. Y. Wang and Z. He are with Institute of Computing Technology,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Radiology report generation, which combines Computer Vision (CV) and Natural Language Processing (NLP) to automatically generate reports for medical images, has become a rapidly-growing topic in the medical imaging field. Since generating hand-crafted diagnostic reports is time-consuming and hard to follow the same protocol, automatic generation can alleviate doctor's workload and make standardized diagnosis. With the convincing performance and understandable interpretations of DL's predictions, there is a great potential to automate the clinical workflows. Most existing research for radiology report generation usually borrows ideas from natural image captioning [1] - [6] , where the images are firstly encoded into vectorial representations and then decoded to generate the captions. Despite promising results have been obtained by these DL methods, their reliability has not been explored sufficiently for the following reasons. First, learning from inadequate samples can result in unreliable models, which is prone to generate inaccurate reports. Second, existing evaluation metrics are mostly designed for mainstream NLP tasks, which have been proved to be not suitable for the task of generating radiology reports from medical images [7] , [8] . However, it has been extensively shown in [9] , [10] that some traditional factors including poor image quality, improper protocol selection, deficient clinical data, limitations in experience and technology, and lack of established diagnostic standards may affect diagnosis report uncertainty and thus interfere the clinical outcomes. Reiner BI [11] also indicated the need for report uncertainty in clinical workflow and built their relationships. As mentioned in [11] , the referring clinician may require follow-up radiographs due to the inherent uncertainty contained in the report. If, however, the clinician was presented with context and user-specific uncertainty data, they could make a further decision on the need for follow-up radiographs. Similarly, as the DL-based automatic report generation systems are data-driven and less interpretable, they can also introduce more uncertainties to the predicted reports and thus become less reliable to clincians. Therefore, it is highly desirable to assess how much patients and doctors can trust such generated radiology reports for decision making. This motivates us to present a comprehensive confidence measurement to quantify the model uncertainty in radiology report generation.",
+            "cite_spans": [
+                {
+                    "start": 671,
+                    "end": 674,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 677,
+                    "end": 680,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1249,
+                    "end": 1252,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1255,
+                    "end": 1258,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1303,
+                    "end": 1306,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1309,
+                    "end": 1313,
+                    "text": "[10]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1607,
+                    "end": 1611,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1727,
+                    "end": 1731,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Most existing research on model uncertainty characterization focused on single-modal tasks. For example, [12] - [16] studied the model uncertainties for the classification/segmentation tasks, where additional supervisions are leveraged to promote the model's prediction reliability. [17] , [18] quantified the uncertainties for different NLP tasks, such as sentiment analysis, named entity recognition, language modeling and summarization. For multi-modal tasks such as image captioning, however, estimating its uncertainties is challenging because the uncertainties may appear in the processes of both visual feature extraction and text generation.",
+            "cite_spans": [
+                {
+                    "start": 105,
+                    "end": 109,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 112,
+                    "end": 116,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 283,
+                    "end": 287,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 290,
+                    "end": 294,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "In this paper, we propose a new method to characterize and quantify both the visual and textual uncertainties in radiology arXiv:2106.10887v3 [cs.CV] 3 Feb 2022 report generation. For the visual encoder, we first adopt Monte Carlo (MC) dropout [19] to sample weights as a Bayesian Neural Network (BNN). Since it is unrealistic to directly quantify the model uncertainty for visual extraction in the output space, we then design an extra AutoEncoder to obtain such visual uncertainty, VISVar, which can estimate the parameter variance for the visual extractor and encourage the model to learn meaningful and generalizable latent representations. Besides, for the generated radiology reports, a proper report similarity measurement formulates the basis of uncertianty estimation. Inspired by Word Rotator's Distance (WRD) [20] , we propose the Sentence Matched Adjusted Semantic Similarity (SMAS) to measure their similarities, which considers sufficient information and characteristics of medical diagnosis reports. Based on SMAS, SMASVar and SMASVar-l are further proposed to separately measure the model uncertainties at both the report level and the sentence level. Particularly, both uncertainty measurements focus on the semantics of sentences rather than their structures, which can provide more valuable confidence scores for the generated radiology reports. Finally, such visual-textual uncertainties are leveraged to define an uncertainty-weighted loss to achieve more comprehensive model optimization, lessen misjudgement risk and improve overall performance on radiology report generation. Our extensive experiments conducted on the Indiana University chest X-Ray (IU X-Ray) and a public COVID-19 CT Report dataset (COV-CTR) [21] have demonstrated the effectiveness of our proposed method. More importantly, our method is better at characterizing the visual-textual uncertainties and providing more reliable confidence scores for radiology report generation than the state-of-the-art works do.",
+            "cite_spans": [
+                {
+                    "start": 244,
+                    "end": 248,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 820,
+                    "end": 824,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1735,
+                    "end": 1739,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Our contributions are as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "\u2022 We are the first to explicitly quantify the inherent visualtextual uncertainties existing in the multi-modal task of radiology report generation from the perspective of both report level and sentence level. \u2022 We demonstrate the significance of visual extractor in image-caption architectures and incorporate an auxiliary AutoEncoder branch to encode specific features and further obtain visual uncertainty. \u2022 We propose a novel method SMAS to measure the semantic similarity of radiology reports, which can better capture the characteristics of diagnosis information. Textual uncertainty is further quantified based on SMAS. \u2022 The obtained uncertainties can be integrated into the model to balance the loss function of reports/sentences and benefit the whole optimization process. \u2022 Extensive experiments evaluated by both commonly used automatic metric and experienced doctors show that our approach leads to more accurate generated radiology reports and our uncertainty estimation can better capture the relative confidence among different reports and sentences, which yields valuable guidance for report generation in clinical practice.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Our work has drawn recent attention on 1) Radiology Report Generation and 2) Uncertainty Modeling. 1) Radiology Report Generation: For a given medical image, radiology report generation aims at automatically generating a set of descriptive and informative sentences. It is related to the computer vision task for image captioning, where various CNN-RNN/LSTM architectures together with attention mechanisms have achieved promising results [22] - [27] . Recently, inspired by the capacity on parallel training, transformers [28] - [31] have been successfully applied to predicting words according to the extracted features from CNN. Generating radiology reports is much more challenging as it requires to identify the relevant information from noisy radiology images with similar patterns and generating long contextual descriptions [1] - [6] , [32] - [34] . Particularly, Liu et al. [35] proposed a domain-aware automatic generation system, which employed a hierarchical convolutional-recurrent neural network and reinforcement learning for report generation. Chen et al. [6] incorporated the relational memory into the transformer via a relational memory and memory-driven conditional layer normalization, which is capable of generating long reports with informative content. Liu et al. [32] explored the posterior and prior knowledge from a pre-defined medical knowledge graph to alleviate visual and textual data bias. Wang et al. [33] proposed an auxiliary image-text matching task to learn strongly correlated visual and text features and then the two tasks could boost each other in a progressive way. Chen et al. [34] designed a shared memory to record the alignment between images and texts, which could facilitate the interaction and generation across modalities. However, these methods only focus on achieving higher generation accuracy, but they do not actually evaluate whether the generated reports are applicable in real clinical practice.",
+            "cite_spans": [
+                {
+                    "start": 439,
+                    "end": 443,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 446,
+                    "end": 450,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 523,
+                    "end": 527,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 530,
+                    "end": 534,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 832,
+                    "end": 835,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 838,
+                    "end": 841,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 844,
+                    "end": 848,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 851,
+                    "end": 855,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 883,
+                    "end": 887,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1072,
+                    "end": 1075,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1288,
+                    "end": 1292,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1434,
+                    "end": 1438,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1620,
+                    "end": 1624,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "II. RELATED WORK"
+        },
+        {
+            "text": "2) Uncertainty Modeling: Uncertainty mostly occurs due to the inadequate knowledge and data during model training, and uncertainty estimation is a key approach to quantify the reliability of the model's predictions [13] . BNN interprets a posterior uncertainty of the underlying model parameters, which can be realized via sampling weights and forwarding the inputs through the networks for multiple times. Recently, there has been increasing number of studies on investigating the uncertainty in different CV and NLP tasks. These methods mostly quantify the uncertainties through the predicted classes such as segmentation [15] , [16] , [36] , detection [37] , [38] , classification [14] , [39] , sentiment analysis and named entity recognition [17] . Machine translation or other text generation tasks usually quantify the uncertainties through Beam Score, Sequence Probability [40] or BLEU Score [41] .",
+            "cite_spans": [
+                {
+                    "start": 215,
+                    "end": 219,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 624,
+                    "end": 628,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 631,
+                    "end": 635,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 638,
+                    "end": 642,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 655,
+                    "end": 659,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 662,
+                    "end": 666,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 684,
+                    "end": 688,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 691,
+                    "end": 695,
+                    "text": "[39]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 746,
+                    "end": 750,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 880,
+                    "end": 884,
+                    "text": "[40]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 899,
+                    "end": 903,
+                    "text": "[41]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "II. RELATED WORK"
+        },
+        {
+            "text": "Compared with the above tasks, quantifying uncertainties in radiology report generation task is more challenging because it is hard to estimate visual uncertainty with only feature extractors and to quantify the textual uncertainty of key information in diagnostic reports. Therefore, we first design an AutoEncoder as a BNN to quantify visual uncertainty in the output level. To get textual uncertainty, we need to quantify the semantic similarity between two diagnostic reports. Simply calculating similarity from commonly used scores such as BLEU [41] , ROUGE [42] and METEOR [43] , or image captioning metrics such as CIDEr [44] and SPICE [45] fail to capture semantic information. BERT-based pre-trained methods such as BERTScore [46] or Sentence-BERT [47] have been shown to be ineffective for unsupervised semantic textual similarity (STS) task [20] . Recent transformer-based methods such as SIF [48] are unable to capture medical knowledge without costly training. Word Rotator's Distance (WRD) [20] performs better on STS task and it can capture medical information with proper pre-trained medical word embeddings. However, measuring similarity on diagnostic report is different from general semantic similarity measurement, because: (1) it is inappropriate to treat diagnostic reports as single long sentences, as sentences from the same report can be highly independent; (2) some key words or descriptions of diseases will greatly affect the semantic similarity between two reports.",
+            "cite_spans": [
+                {
+                    "start": 550,
+                    "end": 554,
+                    "text": "[41]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 563,
+                    "end": 567,
+                    "text": "[42]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 579,
+                    "end": 583,
+                    "text": "[43]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 628,
+                    "end": 632,
+                    "text": "[44]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 643,
+                    "end": 647,
+                    "text": "[45]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 735,
+                    "end": 739,
+                    "text": "[46]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 757,
+                    "end": 761,
+                    "text": "[47]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 852,
+                    "end": 856,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 904,
+                    "end": 908,
+                    "text": "[48]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1004,
+                    "end": 1008,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1244,
+                    "end": 1247,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "II. RELATED WORK"
+        },
+        {
+            "text": "To address these problems, we consider WRD at the sentencelevel to measure the semantic similarity between radiology reports. This leads to our novel diagnostic report similarity measurement, Sentence Matched Adjusted Semantic Similarity (SMAS). It is a promising and under-explored direction as the medicalspecific uncertainty can provide information on how confident the generated reports are and in turn enables time-effective corrections by AI diagnosis itself and doctors. Fig. 1 shows an overview of our proposed method. We first illustrate the image-text generation network in Section III-A-III-C. Section III-D describes how to estimate the report-level and sentence-level uncertainties in the proposed architecture. We elaborate our novel uncertainty-weighted loss in Section III-E.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 478,
+                    "end": 484,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "II. RELATED WORK"
+        },
+        {
+            "text": "The raw images are taken as the input {X} N i=1 \u2208 R 3\u00d7224\u00d7224 for the image encoder, which aims at extracting high-dimensional visual features to detect a wide range of visual concepts, landmarks and other entities for the language model. The image encoder adopts a pre-trained Convolution Neural Network (CNN) from ImageNet [49] , and the parameters are fixed during training. However, medical images, being visually different from natural images, contain more specific physiological and medical-related information. Since text generation largely relies on the content of the input images, the extracted representations should be some specific medical features for a final description.",
+            "cite_spans": [
+                {
+                    "start": 325,
+                    "end": 329,
+                    "text": "[49]",
+                    "ref_id": "BIBREF50"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Feature AutoEncoder"
+        },
+        {
+            "text": "For the above purposes, we design an auxiliary AutoEncoder branch to add an additional guidance to the feature extractor for image reconstruction. The auxiliary module allows the image encoder to extract features that are more effective in addressing the target-specific problem. It also introduces additional regularization to the framework, which alleviates the data deficiency issue. Specifically, a shared encoder, which is pre-trained on ResNet-101, maps X to hidden representations R \u2208 R 2048\u00d77\u00d77 . To preserve more spatial content, the feature maps from the intermediate layer are picked for the decoder part of AutoEncoder, with the size of Y \u2208 R 512\u00d728\u00d728 . We denote the mapping function f (\u00b7) as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Feature AutoEncoder"
+        },
+        {
+            "text": "where s f is a nonlinear activation function and W and b represent the weight matrix and bias. The decoder part of AutoEncoder is trained to reconstruct Y back to X via a mapping g(\u00b7) as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Feature AutoEncoder"
+        },
+        {
+            "text": "The whole process is performed in an unsupervised manner which empowers the encoder with strong ability on automatic feature extraction. The reconstruction loss is generally a mean squared error (MSE) as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Feature AutoEncoder"
+        },
+        {
+            "text": "(3)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Feature AutoEncoder"
+        },
+        {
+            "text": "The obtained abundant task-specific features R are then used as N input tokens with d = 2048 dimensions to a standard transformer encoder. Each encoder layer consists of a multihead self-attention layer followed by a positional feed-forward neural network. Specifically, the tokens are first transformed into query Q \u2208 R Nq\u00d7d k , key K \u2208 R N k \u00d7d k and value V \u2208 R N k \u00d7dv as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "where W Q , W K , W V are the learnable projection matrices. Then the scaled dot-product attention is applied by each attention head head i as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "All the results of different heads are aggregated by a linear transformation W O as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "Besides, the residual connections and layer normalization Norm are performed, and the feed-forward operation FFN is adopted in the end of each block. The output of the encoder is formalized as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "C. Transformer Decoder",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "The transformer decoder consists of a multi-head selfattention module and a multi-head cross-attention module. The former receives the embedding matrix of the current report and outputs the tokens",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "The output R of the encoder is utilized as the key and value to the multi-head cross-attention, with h a treated as the query. It can be formalized as ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "The context vector is then fed into a linear layer and the output is used to predict the probability of words.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Transformer Encoder"
+        },
+        {
+            "text": "The generated reports can be successfully derived from the aforementioned model. However, there is still no estimation about the reliability level of such predictions, which is a crucial reference for doctors to make further decisions. To tackle this problem, we propose a new method to evaluate the uncertainties of the generation system, which are defined as visual uncertainty measured by variance VISVar and textual SMAS uncertainty measured by variance SMASVar. These two uncertainties quantify the model's uncertainty from the perspective of the processes of image embedding and word generation, respectively. To estimate this uncertainty, we adopt Monte Carlo (MC) dropout variational inference method [19] . Particularly, any neural network with dropout can be viewed as a BNN which interprets the probability distribution over the model's parameters. With the dropout activated, the model uncertainties can be estimated by performing T stochastic forward passes on the model, which samples from the approximate posterior.",
+            "cite_spans": [
+                {
+                    "start": 709,
+                    "end": 713,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "1) Visual Uncertainty: Since it could be difficult to perform uncertainty quantification for the feature extractor in the output space, our proposed AutoEncoder branch serves as a guidance to obtain the uncertainty map for the input image. This model is extended into a BNN, which captures uncertainty through Bayesian posterior of the reconstruction regression task. The posterior predictive distribution p(X | X) of \u03b8 can be appropriated as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "As this is intractable in deep networks, we apply dropout variational inference method [19] to acquire the approximation of the true posterior distribution. In particular, the dropout operation is utilized after each non-linear layer of the shared part of the AutoEncoder as we expect to obtain the posterior distribution of the feature extractor in our report generation framework. Given an input, the dropout is enabled and the output predictive distributions are obtained through T times stochastic forwarding pass the network. By averaging T samples, the mean \u00b5 VIS and the variance \u03c3 2 VIS are obtained as",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 91,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "In this way, \u03c3 2 VIS is obtained as an uncertainty map for the corresponding input. The overall visual uncertainty is defined as the mean over all pixels of X, i.e., VISVar = |\u03c3 VIS |, which represents the report-level visual uncertainty value.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "2) Textual Uncertainty: The textual uncertainty can be obtained by the variance of semantic similarity scores among generated diagnostic reports. Combined with medical word embeddings (such as BioWordVec [50] ), WRD [20] can be a feasible similarity measurement for reports. Given that sentences from the same radiology report are highly independent of each other, we propose a new method called Sentence-Matched Adjusted Similarity (SMAS), which derives from WRD [20] . Based on SMAS, we further propose SMASVar to measure the report-level textual uncertainty and SMASVar-l to measure the sentence-level textual uncertainty.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 208,
+                    "text": "[50]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 216,
+                    "end": 220,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 464,
+                    "end": 468,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "WRD is based on Earth Mover's Distance (EMD) (also called Wasserstein distance) [51] , [52] . Intuitively, EMD measures the minimum energy cost that is needed to turn one pile of dirt to another. In WRD, a sequence of word vectors, which are usually gained from word embeddings pre-trained by Word2Vec [53] or FastText [54] , serves as the pile of dirt and the energy consumption is the transfer distance from one sentence to another per unit information transfer.",
+            "cite_spans": [
+                {
+                    "start": 80,
+                    "end": 84,
+                    "text": "[51]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 87,
+                    "end": 91,
+                    "text": "[52]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 302,
+                    "end": 306,
+                    "text": "[53]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 319,
+                    "end": 323,
+                    "text": "[54]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "Assume that the sentence S has word vectors w 1 , w 2 , ..., w n , the sentence S has word vectors w 1 , w 2 , ..., w m , and the cosine similarity d i,j represents the distance between w i and w j . We denote the optimal solution as \u03bb i,j which represents turning \u03bb i,j amount of information from w i to w j . Thus, measuring the similarity between two sentences S and S becomes an optimal problem and can be expressed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "where p i and q j represent the information contained in the words w i and w j . Moreover, according to [20] , the information contained in each sentence I S , I S is obtained through summing the norm of each word vector:",
+            "cite_spans": [
+                {
+                    "start": 104,
+                    "end": 108,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "WRD describes the distance between two sentences, and we denote Word Rotator's Similarity (WRS) = 1 \u2212 WRD as the sentence similarity between them. Given two reports R = (S 1 , S 2 , ..., S L ) and R = (S 1 , S 2 , ..., S L ), where L and L represent the numbers of sentences, the similarity between R and R can be obtained by averaging the WRS of corresponding sentences in the two reports. We design a MATCH(\u00b7) algorithm to find their corresponding sentences. Firstly, we get a dict of similarity scores L * L of each pairs of sentences {S i , S j }, where i and j are any of the index in R and R . We then sort the similarity scores in descending order and pop the top item out iteratively. After each iteration, items containing the same sentences will be deleted until there is no item left in the dict. The selected sentences pairs are the matched sentences of the two reports. To speed up the matching process, we do not use WRS to get the similarities of sentences. Instead, we obtain the sentence embeddings through BioSentVec [55] operation BioV(\u00b7) and then calculate the cosine similarities COS(\u00b7) of each sentence pairs. All matched sentences pairs {S i , S j } of report R and R can be obtained by",
+            "cite_spans": [
+                {
+                    "start": 1035,
+                    "end": 1039,
+                    "text": "[55]",
+                    "ref_id": "BIBREF56"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "The sentence matched similarity (SMS) between reports R and R is calculated by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "Based on the characteristics of radiology reports, we assume that each sentence conveys independent information in a given report. Thus, the inconsistency between L and L reflects the redundant or missing information (also explained in Section IV-B.1). To eliminate this negative effect, we multiply a penalty item to SMS to get Sentence-Matched Adjusted Similarity (SMAS) of report R and R :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": ". (16) With T samples generated by T times MC Dropout, the variance of each report can be calculated b\u0177",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "where R \u03b8i and R \u03b8j denote the outputs of the models with different parameters \u03b8 i and \u03b8 j . The report-level textual uncertainty for each report, SMASVar = |\u03c3 SMAS |, along with VISVar, represents the report-level uncertainty. To obtain the sentence-level uncertainty, we first find an average reference report among all T samples. The average report has the smallest distance with the rest of T \u2212 1 samples [41] . Therefore, the reference reportR can be obtained b\u1ef9",
+            "cite_spans": [
+                {
+                    "start": 409,
+                    "end": 413,
+                    "text": "[41]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "DenotingS l as the l th sentence inR, and S \u03b8j ,l as the corresponding sentence in report R \u03b8j withS l , the sentencelevel uncertainty of the l th sentence in the reference report is defined as SMASVar-l = |\u03c3 SMAS-l |, wher\u00ea",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Uncertainty Estimation"
+        },
+        {
+            "text": "The existing models are typically optimized with respect to the generated reports in a batch, where each report and its sentences are equally contributed to the losses. However, as the radiology reports hold similar form and the corresponding sentences describe the same region, it is greatly potential to combine multiple objective losses for each report or sentences and perform a weighted sum of multiple reports in one batch/sentences in one report. Since this weight selection is important but sensitive, our report-level and sentencelevel uncertainties can be treated as Rep-weighting and Senweighting to learn how to balance this weighting optimally. Given a batch of input images {X} R r=1 and the corresponding ground truth reports {R * } R r=1 , the overall loss can be weighted as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Uncertainty Weighting"
+        },
+        {
+            "text": "exp \u2212 \u03b1\u03c3 2 SMAS,r +\u03b2(exp(\u00b5 VIS,r )+\u03c3 ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Uncertainty Weighting"
+        },
+        {
+            "text": "where \u03bb AutoEn , \u03b1, \u03b2 and \u03b3 are four values to adjust AutoEn and the uncertainty weights, \u03b2(\u00b7) denotes the mean over all pixels, S r,l and S * r,l represent the l th sentence in the r th generated report and the corresponding ground-truth report in the batch, and Sen calculates their cross entropy loss. This mechanism enables the model to learn an optimized set of weights for each sentence and each report. Higher uncertainty values (|\u03c3 SMAS,r | and |\u03c3 VIS,r |) will decrease the contribution of r th report and higher |\u03c3 SMAS-l,r | leads to lower weighting of l th sentence in all L r sentences.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Uncertainty Weighting"
+        },
+        {
+            "text": "The experiments are conducted based on PyTorch and an NVIDIA Tesla V100 32GB GPU with two public datasets: the Indiana University chest X-Ray (IU X-Ray) and a public COVID-19 CT Report dataset (COV-CTR). IU X-Ray consists of 7, 470 chest X-ray images with 3, 955 reports. We implement the same way as [56] to randomly select 10% reports for testing. The COV-CTR dataset consists 728 images (349 for COVID-19 and 379 for Non-COVID), which are collected from published papers and their corresponding paired Chinese reports by Li et al. [21] . We also split the entire data into train/val/test as 7:1:2, following [21] , [56] .",
+            "cite_spans": [
+                {
+                    "start": 301,
+                    "end": 305,
+                    "text": "[56]",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 534,
+                    "end": 538,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 611,
+                    "end": 615,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 618,
+                    "end": 622,
+                    "text": "[56]",
+                    "ref_id": "BIBREF57"
+                }
+            ],
+            "ref_spans": [],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "Targeting at medical domain, we adopt a 200-dimensional word embedding BioWordVec [50] trained by fastText [54] and 700-dimensional sentence embedding BioSentVec [55] trained by sent2vec [57] as pre-trained vectors to calculate SMAS.",
+            "cite_spans": [
+                {
+                    "start": 82,
+                    "end": 86,
+                    "text": "[50]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[54]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 162,
+                    "end": 166,
+                    "text": "[55]",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 187,
+                    "end": 191,
+                    "text": "[57]",
+                    "ref_id": "BIBREF58"
+                }
+            ],
+            "ref_spans": [],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "For a fair comparison with other transformer-based methods, we set the transformer as three blocks, 8 heads and 512 hidden units as in [6] . The learning rate of visual extractor is set by 5e \u22125 , while the learning rate for the remaining parameters is set by 1e \u22124 . The hyper-parameters \u03b1, \u03b2, \u03b3, \u03bb are all set to 1 according to the best performance on the validation set. Beam Search is utilized to generate final reports with beam size 3. All the models are trained for 50 epochs and the best results are reported based on the validation set. In order to accelerate the training process, we set T = 4 for training and T = 10 for testing. In both cases dropout is applied with p = 0.5. All the models are evaluated by BLEU [58] , METEOR [43] and ROUGE-L [42] .",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 138,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 725,
+                    "end": 729,
+                    "text": "[58]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 739,
+                    "end": 743,
+                    "text": "[43]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 756,
+                    "end": 760,
+                    "text": "[42]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "A. Performance Comparison 1) Automatic Evaluation: Table I shows the quantitative results of our proposed methods. First, we illustrate the effectiveness of our AutoEncoder and two weighting methods separately. \"BASE\" represents the vanilla transformer architecture for image captioning. It is observed that the \"AutoEncoder\" enhances the performance on all the metrics for the highest 3.3%, which suggests that the AutoEncoder brings stronger ability for feature extraction. Note that applying \"Sen-Weighting\" and \"Rep-Weighting\" provides a large improvement. This indicates that using uncertainty to weight the loss can effectively optimize the process for reports/sentences generation. \"OURS\" represents the combination of all of the aforementioned strategies. It outperforms the state-of-the-art approaches, such as R2Gen [6] , CMN [34] , Self-Boosting [33] and PPKED [32] . The qualitative results are shown in Fig. 3 , which contains three cases from IU X-Ray dataset, including one normal radiology image (first row) and two images with some abnormalities (second & third rows). In the first case, our model has the best ability to describe each region and generates more accurate and professional expressions, such as \"cardiomediastinal silhouette\", \"osseous structures\" and \"normally inflated\". The other two images contain abnormalities about \"degenerative spine\" and \"low lung volumes\", in which our model is able to capture all the symptoms while the competing methods fail to do so. The last two rows in Fig. 3 indicate two abnormal cases from COV-CTR dataset. It can also be observed that our method generates more accurate reports through finding the key information, such as \"the lower lobe of both lungs\" and \"uneven density\".",
+            "cite_spans": [
+                {
+                    "start": 826,
+                    "end": 829,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 836,
+                    "end": 840,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 857,
+                    "end": 861,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 872,
+                    "end": 876,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 51,
+                    "end": 58,
+                    "text": "Table I",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 916,
+                    "end": 922,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1517,
+                    "end": 1523,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "2) Human Evaluation: To better assess the quality of our method, we also conduct a more valid and reliable expert evaluation. Three experienced radiologists were invited to evaluate the reports from three quality dimensions: Accuracy, Informativeness and Readability. They are required to give an overall 5-scale grades (5: Accept, 4: weakly accept, 3: borderline, 2: weakly reject, 1: Reject) based on the clinical acceptance. We randomly select 50 images from the testing set from IU X-Ray dataset and provide their corresponding predicted reports from our model and R2Gen respectively. The average score of our method is 3.61 and R2Gen achieves 3.56. According to the most experienced doctor's evaluation, 24% portions of our reports are better than reports from R2Gen and 60% portions are the same. The evaluation results indicate that our method can generate much more acceptable reports in real clinical practice.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "B. Report-level & Sentence-level Uncertainty 1) SMAS: Since the similarities of reports should be largely determined by the key information such as diseases and organs, we randomly select 60 reports and manually annotate their corresponding diseases and organs. For example, the sentence \"heart size mildly enlarged\" will be labeled by its organ \"Heart\" and abnormality \"Large\". Then we randomly sample 2500 Fig. 2 : Heatmap of correlation among different similarity measurements. \"Info_DIFF\" means key information difference of two diagnostic reports annotated by experts. Greater negative correlation between other scores and \"Info_DIFF\" represents better similarity measurement.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 408,
+                    "end": 414,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "pairs of reports out of the 60 samples with replacement. To illustrate that our SMAS can better capture the similarities among different reports, we calculate the similarities on these pairs using different similarity scores and obtain a heatmap in Fig. 2 to show their correlations. \"Info_DIFF\" and \"Len_DIFF\" represent the absolute value of the differences on the number of labels and sentences bewteen two reports. \"WRS\", \"BLEU-4\" and \"BERTScore\" calculate the similarity scores by treating full report as a single sentence. \"Adj_BLEU-4\" and \"Adj_BERTScore\" represent applying our MATCH(\u00b7) function to BLEU-4 and BERTScore. First, we note that the correlation between \"Info_DIFF\" and \"Len_DIFF\" is 0.65, which means that we can use the inconsistency in the sentence number to roughly determine the inconsistency between reports. This is useful as extracting key information from reports manually is labor-some. Moreover, we find that there is a significantly higher negative correlation between the \"Adj_BLEU-4\" vs. the \"BLEU-4\" and \"Info_Diff\" (\u22120.73 vs. \u22120.25), which means the former gives a more faithful evaluation on the generated reports' relationships by utilizing the key information to measure similarity. Such improvements is solely achieved through our novel MATCH(\u00b7) algorithm. Lastly, note that our \"SMAS\" has the greatest negative correlation to \"Info_DIFF\", proving the strong ability to measure report similarities mostly based on key information.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 249,
+                    "end": 255,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "2) Report-level Uncertainty: The report-level uncertainty is reflected by SMASVar and VISVar. We first draw a scatter plot from the testing set in Fig. 5 (a) to show the relationship among SMASVar, VISVar and BLEU-4 score. We set a threshold curve to find out the cases with extreme high uncertainty. The threshold can be modified based on doctors' risk assessment in clinical practice. This report-level uncertainty serves as an extra important evaluation to assess the reliability or confidence of the generated reports. Fig. 4 shows two cases where A has a higher BLEU-4 score than B. However, the prediction of case A contains two redundant uncertain sentences and their VISVar and SMASVar show higher value than case B, which indicates the information contained in A is less confident than those in B. The superiorities of VISVar and SMASVar over SMAS are further discussed in Appendix. It is also noted that if most generated sentences in one report are certain while only one is uncertain, SMASVar will still be lower. The proposed sentence-level uncertainty SMASVar-l can tackle this problem and measure each sentence's uncertainty concisely. To validate our report-level uncertainty in real clinical settings, we compare it with real diagnosis variance of human evaluation. The variance of the scores from three experienced doctors could represent the real clinical uncertainty. As shown in Fig. 5(a) , red stars indicate diagnosis reports that obtain the same score from all three doctors, i.e., variance = 0, and the orange triangles represent cases that three doctors have strong disagreement on, i.e., variance = 1. It is noted that cases with higher (lower) doctor variance also have larger (smaller) VISVar and SMASVar. Therefore, our report-level uncertainty is comparable to real doctors' diagnosis variance and setting a proper threshold can help doctor make further decision on whether to follow up the automatic generated reports.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 147,
+                    "end": 153,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 523,
+                    "end": 529,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 1400,
+                    "end": 1409,
+                    "text": "Fig. 5(a)",
+                    "ref_id": null
+                }
+            ],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "3) Sentence-level Uncertainty: Fig. 5(b)-(d) show the meanings of sentence-level uncertainty, where one case is presented, along with its several predictions M C \u2212R 1 to M C \u2212R T under T times MC dropout sampling and the reference report M C\u2212 R among them. Different colors represent the uncertainty values of the corresponding sentences. Our proposed reference report covers every information in the ground truth including lungs, pleural effusion, heart and spine with different uncertainties. One can easily observe that the sentence describing spine has the highest uncertainty, which can be explained through the uncertain predicted sentence on spine from M C \u2212 R 1 to M C \u2212 R T . This suggests that the model cannot make sure whether the spine is normal or not. Such an uncertainty should be warned by the report generation system so that doctors can make further decisions based on it.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 31,
+                    "end": 44,
+                    "text": "Fig. 5(b)-(d)",
+                    "ref_id": null
+                }
+            ],
+            "section": "IV. EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "In this paper, we develop a novel method to explicitly quantify the model uncertainties in both the visual and textual domain for the task of radiology report generation. Such multi-modal uncertainty measurements can sufficiently capture the model confidence scores at both the report and sentence level, which can be further leveraged to weight the losses to achieve more comprehensive model optimization. Our experimental results have demonstrated that our proposed method outperforms all existing approaches. Most importantly, extensive experiments have also validated its ability to capture the uncertainty in radiology report generation systems.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "V. CONCLUSION"
+        },
+        {
+            "text": "At present, our model only builds relationships between the visual and textual uncertainties at the report-level. We intend to explicitly map the sentence-level uncertainty with the regionspecific uncertainty in images, which will improve the model performance significantly, lead to better model interpretability, and provide better guidance in clinical practice. Future works also include introducing more prior knowledge from medical domain to enhance the reliability of the generation models. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "V. CONCLUSION"
+        },
+        {
+            "text": "We illustrate how SMASVar and VISVar serve as the confidence evaluation methods. Fig. 6 shows three cases A, B and C, all of which are predicted correctly by the model. They have similar SMAS values as SMAS evaluates the results only from the similarity of ground-truths and predictions. However, due to the different input X-ray images, the model holds different confidence in their predictions, which can be captured by our methods in Fig. 7 . With T = 10 times MC dropout, the generated 10 predictions from the input images of case A are much uncertain while the 10 predictions are similar from B and C. Though A and B have the same SMAS, the MC-#1/#3/#6/#7 of case A include wrong information \"the heart and lungs have xxxx xxxx in the interval\", which makes the final prediction not as reliable as case B. Therefore, the SMASVar and VISVar of B are rather smaller than A, which means the model is more confident and certain in B's X-ray images.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 81,
+                    "end": 87,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 437,
+                    "end": 443,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "APPENDIX"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "On the automatic generation of medical imaging reports",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jing",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "1",
+            "issn": "",
+            "pages": "2577--2586",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Tienet: Textimage embedding network for common thorax disease classification and reporting in chest x-rays",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Summers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "9049--9058",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Multimodal recurrent model with attention for automated radiology report generation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xue",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Long",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Xue",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Antani",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Thoma",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Medical Image Computing and Computer Assisted Intervention -MICCAI 2018 -21st International Conference",
+            "volume": "11070",
+            "issn": "",
+            "pages": "457--466",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-00928-1_52"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Hybrid retrieval-generation reinforced agent for medical image report generation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Baselines for Chest X-Ray Report Generation",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Boag",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.-M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Hsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mcdermott",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Berner",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Alesentzer",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Szolovits",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of the Machine Learning for Health NeurIPS Workshop, ser. Proceedings of Machine Learning Research",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Generating radiology reports via memory-driven transformer",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.-H",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "1439--1449",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Deep learning in generating radiology reports: A survey",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "M A"
+                    ],
+                    "last": "Monshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Poon",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Chung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Artificial Intelligence in Medicine",
+            "volume": "106",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Re-evaluating automatic metrics for image captioning",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kilickaya",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Erdem",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ikizler",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Erdem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "199--209",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Reactions to uncertainty and the accuracy of diagnostic mammography",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Carney",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Abraham",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Miglioretti",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Aiello",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gerrity",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Reisch",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Berns",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Sickles",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Elmore",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "funding Information: Acknowledgement: This work was supported by the Agency for Healthcare Research and Quality (HS-10591) and the National Cancer Institute",
+            "volume": "22",
+            "issn": "",
+            "pages": "234--241",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Uncertainty and its consequences in clinical practice",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "W P"
+                    ],
+                    "last": "Wang Shin-Yun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "30",
+            "issn": "",
+            "pages": "1710--1712",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Quantifying analysis of uncertainty in medical reporting: Creation of user and context-specific uncertainty profiles",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Reiner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Journal of Digital Imaging",
+            "volume": "31",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "What uncertainties do we need in bayesian deep learning for computer vision",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kendall",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal ; I. Guyon",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Luxburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wallach",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Fergus",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Vishwanathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Garnett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "30",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "A review of uncertainty quantification in deep learning: Techniques, applications and challenges",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Abdar",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Pourpanah",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hussain",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rezazadegan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ghavamzadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fieguth",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Khosravi",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Acharya",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Makarenkov",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Nahavandi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Conjugate relation between loss functions and uncertainty sets in classification problems",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kanamori",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Takeda",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Suzuki",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Journal of Machine Learning Research",
+            "volume": "14",
+            "issn": "9",
+            "pages": "1461--1504",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Efficient uncertainty estimation for semantic segmentation in videos",
+            "authors": [
+                {
+                    "first": "P.-Y",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-T",
+                    "middle": [],
+                    "last": "Hsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-Y",
+                    "middle": [],
+                    "last": "Chiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.-F",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Uncertainty-aware self-ensembling model for semi-supervised 3d left atrium segmentation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-W",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-A",
+                    "middle": [],
+                    "last": "Heng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Medical Image Computing and Computer Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "605--613",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Quantifying uncertainties in natural language processing tasks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+            "volume": "33",
+            "issn": "",
+            "pages": "7322--7329",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Understanding neural abstractive summarization models via uncertainty",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Desai",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Durrett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2010.07882"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Dropout as a bayesian approximation: Representing model uncertainty in deep learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ghahramani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of The 33rd International Conference on Machine Learning, ser. Proceedings of Machine Learning",
+            "volume": "48",
+            "issn": "",
+            "pages": "1050--1059",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Word rotator's distance",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yokoi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Takahashi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Akama",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Suzuki",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Inui",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "2944--2960",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Auxiliary signal-guided knowledge encoder-decoder for medical report generation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Show and tell: A neural image caption generator",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Toshev",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Erhan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "2015 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "3156--3164",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Show, attend and tell: Neural image caption generation with visual attention",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kiros",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Courville",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhudinov",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zemel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 32nd International Conference on Machine Learning, ser. Proceedings of Machine Learning",
+            "volume": "37",
+            "issn": "",
+            "pages": "2048--2057",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Sca-cnn: Spatial and channel-wise attention in convolutional networks for image captioning",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Nie",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shao",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.-S",
+                    "middle": [],
+                    "last": "Chua",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "6298--6306",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Knowing when to look: Adaptive attention via a visual sentinel for image captioning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Parikh",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3242--3250",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Natural language generation model for mammography reports simulation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hoogi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mishra",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Gimenez",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rubin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Journal of Biomedical and Health Informatics",
+            "volume": "24",
+            "issn": "9",
+            "pages": "2711--2717",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Deep learning for automated extraction of primary sites from cancer pathology reports",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "X"
+                    ],
+                    "last": "Qiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H.-J",
+                    "middle": [],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Fearn",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Tourassi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Journal of Biomedical and Health Informatics",
+            "volume": "22",
+            "issn": "1",
+            "pages": "244--251",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "TVT: two-view transformer network for video captioning",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of The 10th Asian Conference on Machine Learning",
+            "volume": "95",
+            "issn": "",
+            "pages": "847--862",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "End-to-end dense video captioning with masked transformer",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Corso",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "8739--8748",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Entangled transformer for image captioning",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "2019 IEEE/CVF International Conference on Computer Vision, ICCV 2019, Seoul, Korea (South)",
+            "volume": "",
+            "issn": "",
+            "pages": "8927--8936",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICCV.2019.00902"
+                ]
+            }
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Image captioning: Transforming objects into words",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Herdade",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kappeler",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Boakye",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Soares",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Advances in Neural Information Processing Systems 32: Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "11--135",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Exploring and distilling posterior and prior knowledge for radiology report generation",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ge",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zou",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "CVPR, 2021",
+            "volume": "",
+            "issn": "",
+            "pages": "13--753",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "A self-boosting framework for automated radiographic report generation",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "2433--2442",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Cross-modal memory networks for radiology report generation",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing",
+            "volume": "1",
+            "issn": "",
+            "pages": "5904--5914",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Clinically accurate chest x-ray report generation",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.-M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Hsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mcdermott",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Boag",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-H",
+                    "middle": [],
+                    "last": "Weng",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Szolovits",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ghassemi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 4th Machine Learning for Healthcare Conference, ser. Proceedings of Machine Learning",
+            "volume": "106",
+            "issn": "",
+            "pages": "249--269",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Double-Uncertainty Weighted Method for Semi-supervised Learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tian",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "542--551",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Leveraging uncertainty information from deep neural networks for disease detection",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Leibig",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Allken",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Ayhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Berens",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wahl",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Scientific Reports",
+            "volume": "7",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Bounding box regression with uncertainty for accurate object detection",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Savvides",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2883--2892",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Evidential deep learning to quantify classification uncertainty",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sensoy",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Kaplan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kandemir",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Advances in Neural Information Processing",
+            "volume": "31",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Improving backtranslation with uncertainty-based confidence estimation",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Luan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1909.00157"
+                ]
+            }
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Wat zei je? detecting out-ofdistribution translations with variational transformers",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Gomez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2006.08344"
+                ]
+            }
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Rouge: A package for automatic evaluation of summaries",
+            "authors": [
+                {
+                    "first": "C.-Y.",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Text summarization branches out",
+            "volume": "",
+            "issn": "",
+            "pages": "74--81",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Meteor: An automatic metric for mt evaluation with improved correlation with human judgments",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Banerjee",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lavie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the acl workshop on intrinsic and extrinsic evaluation measures for machine translation and/or summarization",
+            "volume": "",
+            "issn": "",
+            "pages": "65--72",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Cider: Consensusbased image description evaluation",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Vedantam",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "Lawrence"
+                    ],
+                    "last": "Zitnick",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Parikh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "4566--4575",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Spice: Semantic propositional image caption evaluation",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Anderson",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Fernando",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gould",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "382--398",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Bertscore: Evaluating text generation with bert",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Kishore",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Artzi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1904.09675"
+                ]
+            }
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Sentence-bert: Sentence embeddings using siamese bert-networks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Reimers",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gurevych",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1908.10084"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Extending multi-sense word embedding to phrases and sentences for unsupervised semantic applications",
+            "authors": [
+                {
+                    "first": "H.-S",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Agrawal",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mccallum",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2103.15330"
+                ]
+            }
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Imagenet: A large-scale hierarchical image database",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "L.-J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fei-Fei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "2009 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "248--255",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Biowordvec, improving biomedical word embeddings with subword information and mesh",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Scientific data",
+            "volume": "6",
+            "issn": "1",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Grundlehren der mathematischen wissenschaften 332",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "H N H L"
+                    ],
+                    "last": "H\u00f6rmander",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "S B"
+                    ],
+                    "last": "Totaro",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "V M"
+                    ],
+                    "last": "Waldschmidt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Optimal transport for applied mathematicians",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Santambrogio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Birk\u00e4user, NY",
+            "volume": "55",
+            "issn": "58",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Efficient estimation of word representations in vector space",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1301.3781"
+                ]
+            }
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Enriching word vectors with subword information",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bojanowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Grave",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Joulin",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Transactions of the Association for Computational Linguistics",
+            "volume": "5",
+            "issn": "",
+            "pages": "135--146",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Biosentvec: creating sentence embeddings for biomedical texts",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "2019 IEEE International Conference on Healthcare Informatics (ICHI)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--5",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "A self-boosting framework for automated radiographic report generation",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "2433--2442",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Unsupervised learning of sentence embeddings using compositional n-gram features",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pagliardini",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jaggi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1703.02507"
+                ]
+            }
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Bleu: a method for automatic evaluation of machine translation",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Papineni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Roukos",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ward",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-J",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the 40th annual meeting of the Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "311--318",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Hybrid retrieval-generation reinforced agent for medical image report generation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Advances in Neural Information Processing Systems 31: Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1537--1547",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Show, describe and conclude: On exploiting the structure information of chest X-ray reports",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jing",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "6570--6580",
+            "other_ids": {}
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Bert: Pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.-W",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Illustration of the proposed method. The left part presents the architecture of the image encoder, which consists of an AutoEncoder for image reconstruction, a transformer encoder to extract features and a transformer decoder to predict words via attention mechanism. The right part presents the uncertainty estimation workflow.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Similar to the encoder, h m is processed by FFN and Norm as h = Norm (h m + FFN (h m )) .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Illustration of reports generated by BASE model, M-T Transformer and OURS. The left two columns show the input front and lateral chest X-ray images from IU X-Ray dataset (row 1, 2, 3) and CT images from COV-CTR (row 4, 5), followed by their ground-truth reports. Different colors indicate different key information.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Illustration of difference between BLEU-4 and report-level uncertainty.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Samples of report-level uncertainties. Lower VISVar and SMASVar and higher SMAS indicate better performance.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Generated M C predictions from case A, B, C under T = 10 times M C dropout sampling.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Comparison results. \u2020 refers to results from the original papers. \u2021 refers to our reproduction results from officially released codes.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Case BLEU-4\u2191 VISVar\u2193 SMASVar\u2193Aground-truth: cardiac and mediastinal contours are within normal limits . the lungs are clear . bony structures are intact . prediction: the heart size and mediastinal silhouette are within normal limits for contour . the lungs are clear . no pneumothorax or pleural effusions . the xxxx are intact . stable left basilar atelectasis versus scarring . ground-truth: the cardiomediastinal silhouette and pulmonary vasculature are within normal limits in size . the lungs are clear of focal airspace disease pneumothorax or pleural effusion . there are no acute bony findings . prediction: the lungs are clear bilaterally . specifically no evidence of focal consolidation pneumothorax or pleural effusion . cardio mediastinal silhouette is unremarkable . visualized osseous structures of the thorax are without acute abnormality . The lungs are clear. There is no pleural effusion or pneumothorax. The heart and mediastinum are normal. The skeletal structures are normal. The lungs are clear. No pleural effusion or pneumothorax. Heart size and mediastinal contour are within normal limits . The lungs are clear bilaterally. Specifically no evidence of focal consolidation pneumothorax or pleural effusion. Cardio mediastinal silhouette is unremarkable. Visualized osseous structures of the thorax are without acute abnormality.Fig. 5: Illustration of the report-level and sentence-level uncertainties. a) The relationship among SMASVar, VISVar and BLEU-4. The threshold curve is adjustable to find highly uncertain cases for risk assessment. Red stars / Orange triangles show examples that real diagnosis variance is 1 / 0 by human evaluation. b) Front and lateral chest X-ray images. c) Sentence-level uncertainty. d) Ground-truth, reference report M C \u2212 R, and several MC outputs. Different colors show different uncertainty values of corresponding matched sentences.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "normal heart size . clear lungs . no pneumothorax or large pleural effusion . the heart size and pulmonary vascularity appear within normal limits . the lungs are free of focal airspace disease . no pleural effusion or pneumothorax is seen . lungs are clear . there is no pneumothorax or pleural effusion . the heart and mediastinum are within normal limits . bony structures are intact . visualized osseous structures of the thorax are without acute abnormality . visualized osseous structures of the thorax are without acute abnormality .",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

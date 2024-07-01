@@ -1,0 +1,3266 @@
+{
+    "paper_id": "f29756e2cde510e45b2da5a1daea91af96b7ffa5",
+    "metadata": {
+        "title": "Espalier: Efficient tree reconciliation and ARG reconstruction using maximum agreement forests",
+        "authors": [
+            {
+                "first": "David",
+                "middle": [
+                    "A"
+                ],
+                "last": "Rasmussen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "North Carolina State University",
+                    "location": {
+                        "settlement": "Raleigh",
+                        "region": "North Carolina",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Fangfang",
+                "middle": [],
+                "last": "Guo",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "North Carolina State University",
+                    "location": {
+                        "settlement": "Raleigh",
+                        "region": "North Carolina",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In the presence of recombination individuals may inherit different regions of their genome from different ancestors, resulting in a mosaic of phylogenetic histories across their genome. Ancestral recombination graphs (ARGs) can capture how phylogenetic relationships vary across the genome due to recombination, but reconstructing ARGs from genomic sequence data is notoriously difficult. Here we present a method for reconciling discordant phylogenetic trees and reconstructing ARGs using maximum agreement forests (MAFs). Given two discordant trees, a MAF identifies a set of topologically concordant subtrees present in both trees. We show how discordant trees can be reconciled through their MAF in a way that retains discordances strongly supported by sequence data while eliminating conflicts likely attributable to phylogenetic noise. We further show how MAFs and our reconciliation approach can be combined to select a path of local trees across the genome that maximizes the likelihood of the genomic sequence data, minimizes discordance between neighboring local trees, and identifies the recombination events necessary to explain remaining discordances to obtain a fully connected ARG. While heuristic, our ARG reconstruction approach is often as accurate as more exact methods while being much more computationally efficient. Moreover, important demographic parameters such as recombination rates can be accurately estimated from reconstructed ARGs. Finally, we apply our approach to plant infecting RNA viruses in the genus Potyvirus to demonstrate how true recombination events can be disentangled from phylogenetic noise using our ARG reconstruction methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Recombination shuffles genetic material between different genetic backgrounds, creating novel combinations of mutations and new genotypes. Recombination is therefore a major driver of both genotypic diversity and phenotypic novelty. For example, recombination contributes to the emergence of pathogen strains with novel combinations of virulence factors [Zhou et al., 1997] , resistance genes and antigenic escape mutations [Simon-Loriere and Holmes, 2011] . At the same time, recombination poses a formidable challenge to phylogenetic inference because individuals may inherit different regions of their genome from different ancestors, leading to a mosaic of phylogenetic relationships across the genome that cannot be captured by any single phylogenetic tree [Hudson et al., 1990, Schierup and Hein, 2000] .",
+            "cite_spans": [
+                {
+                    "start": 354,
+                    "end": 373,
+                    "text": "[Zhou et al., 1997]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 424,
+                    "end": 456,
+                    "text": "[Simon-Loriere and Holmes, 2011]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 762,
+                    "end": 796,
+                    "text": "[Hudson et al., 1990, Schierup and",
+                    "ref_id": null
+                },
+                {
+                    "start": 797,
+                    "end": 808,
+                    "text": "Hein, 2000]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Despite the complexity recombination introduces to phylogenetic analysis, patterns of ancestry are often highly correlated across large regions of the genome [Wiuf and Hein, 1999 , Rasmussen et al., 2014 , Kelleher et al., 2016 . This can easily be seen if we think about genomes as being divided into different intervals separated by breakpoints at which recombination events have occurred. If no recombination has occurred within each interval, the ancestry of individuals within each interval can be captured by a single local tree. Adjacent local trees separated by a single recombination event are expected to be very similar because the topological effect of a single recombination event is analogous to one subtree prune and regraft (SPR) move which prunes a subtree from one local tree and then reattaches that subtree to a different parental lineage [Hein et al., 2004] . Neighboring trees on either side of a recombination breakpoint will therefore have similar topologies outside of the lineages directly impacted by a recombination event. However, there can be considerable phylogenetic uncertainty about local trees reconstructed from empirical sequence data, making it difficult to discern if phylogenetic discordance between trees is attributable to recombination or due to phylogenetic \"noise\" caused by errors in tree reconstruction.",
+            "cite_spans": [
+                {
+                    "start": 158,
+                    "end": 178,
+                    "text": "[Wiuf and Hein, 1999",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 179,
+                    "end": 203,
+                    "text": ", Rasmussen et al., 2014",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 204,
+                    "end": 227,
+                    "text": ", Kelleher et al., 2016",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 859,
+                    "end": 878,
+                    "text": "[Hein et al., 2004]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Ancestral recombination graphs (ARGs) capture these differing but correlated patterns of ancestry across the genome as a connected network of coalescent and recombination events [Hudson et al., 1990 , Griffiths and Marjoram, 1997 , McVean and Cardin, 2005 . Each local tree is embedded within a larger graph such that the ARG can be thought of as a sequence of local trees for each genomic region separated by breakpoints at which recombination events have occurred. A fully reconstructed ARG therefore not only shows how ancestral relationships vary across the genome, but also what lineages have exchanged genetic material and what genetic material was acquired from which ancestor. Given the full ARG, likelihood-based inference of key demographic and population genetic parameters such as recombination rates also dramatically simplifies [Kuhner et al., 2000] .",
+            "cite_spans": [
+                {
+                    "start": 178,
+                    "end": 198,
+                    "text": "[Hudson et al., 1990",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 199,
+                    "end": 229,
+                    "text": ", Griffiths and Marjoram, 1997",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 230,
+                    "end": 255,
+                    "text": ", McVean and Cardin, 2005",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 842,
+                    "end": 863,
+                    "text": "[Kuhner et al., 2000]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Accurate and efficient methods for reconstructing ARGs from genomic data have therefore been thought of as a \"holy grail\" in phylogenetics and population genomics. However, little progress has been made in developing ARG inference methods that are both general and computationally efficient. Approaches based on parsimony that seek to find minimal ARGs with the fewest number of recombination events necessary to explain the sequence data generally assume an infinite sites model and ignore the possibility of recurrent mutations, limiting their applicability to rapidly evolving organisms (Song and Hein [2003] , Lyngs\u00f8 et al. [2005] , but see Ignatieva et al. [2020] ). State-of-the-art methods like ARGweaver employ clever dynamic programming algorithms to sequentially construct ARGs by \"threading\" lineages between a series of local trees, but are still limited to dozens of genomes [Rasmussen et al., 2014 , Hubisz et al., 2020 . Recently, faster but mostly heuristic algorithms have been proposed to work on much larger datasets, generally by approximating the full ARG as a series of local or marginal trees [Kelleher et al., 2019 , Speidel et al., 2019 . This may be useful for genealogy-based demographic inference where interest lies primarily in the temporal distribution of coalescent events, but these approaches do not reconstruct the recombination events connecting lineages across local trees, and so cannot be used to infer properties of the recombination process itself.",
+            "cite_spans": [
+                {
+                    "start": 590,
+                    "end": 611,
+                    "text": "(Song and Hein [2003]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 614,
+                    "end": 634,
+                    "text": "Lyngs\u00f8 et al. [2005]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 645,
+                    "end": 668,
+                    "text": "Ignatieva et al. [2020]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 888,
+                    "end": 911,
+                    "text": "[Rasmussen et al., 2014",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 912,
+                    "end": 933,
+                    "text": ", Hubisz et al., 2020",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1116,
+                    "end": 1138,
+                    "text": "[Kelleher et al., 2019",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1139,
+                    "end": 1161,
+                    "text": ", Speidel et al., 2019",
+                    "ref_id": "BIBREF46"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The ARG reconstruction method described here is based on first reconstructing local trees and then reconciling differences between them using maximum agreement forests (MAFs). Defined more formally below, a maximum agreement forest (MAF) splits two topologically discordant trees into the smallest possible set of subtrees in which the phylogenetic relationships among taxa in each subtree are concordant (i.e. agree) between trees [Hein et al., 1996 , Rodrigues et al., 2007 , Whidden and Zeh, 2009 . MAFs are central to our approach as they identify subtrees that agree across local trees and therefore allow us to focus only on discordances between local trees. Moreover, we show how MAFs can form the basis of a reconciliation algorithm that preserves discordances between trees that are strongly supported by sequence data while reconciling differences between (local) trees likely attributable to phylogenetic noise. Finally, MAFs can identify both the number and location of recombinations events necessary to reconcile two discordant trees, a property we take advantage of to connect local trees into a fully reconstructed ARG by adding the required recombination events.",
+            "cite_spans": [
+                {
+                    "start": 432,
+                    "end": 450,
+                    "text": "[Hein et al., 1996",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 451,
+                    "end": 475,
+                    "text": ", Rodrigues et al., 2007",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 476,
+                    "end": 499,
+                    "text": ", Whidden and Zeh, 2009",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We have implemented our MAF-based tree reconciliation and ARG reconstruction methods in a Python package called Espalier, which refers to the ancient agricultural art of controlling woody plant growth by pruning and attaching branches to a common frame such as a trellis. Espalier thus serves as a guiding metaphor for how our algorithm reconciles discordances between trees by pruning and regrafting subtrees. Below, we first describe the MAF algorithm used by Espalier and then show how MAFs can be used to efficiently reconcile discordant trees and reconstruct ARGs. We also show that ARGs reconstructed by Espalier can be used to accurately infer demographic parameters under the coalescent with recombination [Hudson, 1983 , Hudson et al., 1990 . Finally, we show how mosaics of discordant phylogenetic trees can be better visualized using tanglegrams by first using Espalier to disentangle discordances likely due to phylogenetic noise.",
+            "cite_spans": [
+                {
+                    "start": 714,
+                    "end": 727,
+                    "text": "[Hudson, 1983",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 728,
+                    "end": 749,
+                    "text": ", Hudson et al., 1990",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Espalier efficiently reconciles discordant phylogenetic trees and reconstructs ARGs using maximum agreement forests. An agreement forest between a pair of trees is a set of subtrees that are topologically concordant between both trees. Topological concordance can formally be defined in terms of bipartitions. Each branch or edge in a tree defines a bipartition of the tree's leaf taxa set X into two disjoint sets. For example, the highlighted edge in tree T 1 in Figure 1A defines the bipartition AB|CDE. An edge is said to be concordant between two trees T 1 and T 2 if its leaf set bipartition exists in both trees, otherwise the edge is discordant. Two trees are discordant if any edge results in a discordant bipartition of the leaf taxa.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 465,
+                    "end": 474,
+                    "text": "Figure 1A",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Computing Maximum Agreement Forests"
+        },
+        {
+            "text": "An agreement forest between two trees can be obtained by cutting all edges such that all component subtrees in the resulting forest are topologically concordant [Rodrigues et al., 2007] . A maximum agreement forest (MAF) is the agreement forest obtained by making the fewest possible cuts and thus has the fewest possible component subtrees. The number of edges that need to be cut in order to obtain the MAF is also the subtree prune and regraft (SPR) distance between two trees [Allen and Steel, 2001] , which we denote dSPR. The SPR distance therefore also represents the smallest number of recombination events required to reconcile two topologically discordant trees. An exhaustive search for the MAF would involve cutting all possible combinations of edges and computing the MAF for both rooted and unrooted trees has been shown to be NP-hard [Bordewich and Semple, 2005] . However, Whidden and Zeh [2009] provide a linear time approximation that computes the SPR distance for rooted trees within a factor of three.",
+            "cite_spans": [
+                {
+                    "start": 161,
+                    "end": 185,
+                    "text": "[Rodrigues et al., 2007]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 480,
+                    "end": 503,
+                    "text": "[Allen and Steel, 2001]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 849,
+                    "end": 877,
+                    "text": "[Bordewich and Semple, 2005]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 889,
+                    "end": 911,
+                    "text": "Whidden and Zeh [2009]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Computing Maximum Agreement Forests"
+        },
+        {
+            "text": "The algorithm of Whidden and Zeh [2009] finds, at each step, a discordant edge characterized by having two child nodes that are siblings in T 1 but not in T 2 . For example, in Figure 1 the orange edge has child siblings A and B in T 1 but the sibling of A is C in T 2 . If we let e a and e c by the edges leading to the discordant sibling pair (A, C) in T 2 and e b be the edge leading to the sibling of A in T 1 (i.e. B), cutting all three edges necessarily removes the discordant edge and reduces the dSPR between T 1 and T 2 by one ( Figure 1B) . Thus, iteratively cutting all three edges surrounding a discordant edge at each step of the algorithm will lead to an approximate MAF with a dSPR within a factor of three of the true dSPR. We therefore refer to this approach as the 3-cut MAF algorithm.",
+            "cite_spans": [
+                {
+                    "start": 17,
+                    "end": 39,
+                    "text": "Whidden and Zeh [2009]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 177,
+                    "end": 185,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 538,
+                    "end": 548,
+                    "text": "Figure 1B)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Computing Maximum Agreement Forests"
+        },
+        {
+            "text": "We modify the 3-cut MAF algorithm in order to find the optimal edge to cut at each step in order to avoid making unnecessary cuts. The logic behind our MAF algorithm can be seen by considering all ways in which a discordant edge may arise through a single recombination event or SPR move. Consider a discordant edge that has child siblings (A, B) in T 1 but the sibling of A is C in T 2 as in Figure 1 . Depending on the topology of the two trees, this discordant relationship may have arisen because either edge e a or edge e c moved through a recombination event (left two trees in Figure 1D ) or because a sibling of edge e a or edge e c , call these e b or e d , recombined and created the sibling pair (A, C) in their absence (right two trees in Figure 1D ). Thus any one of these four edges (e a , e b , e c or e d ) may have recombined. We therefore introduce a 4-cut algorithm that considers all four possible edges, tests which edge cut minimizes discordance between trees, and then picks the optimal edge to cut ( Figure 1C ). To ensure the optimal edge is cut we define a distance metric d bipart (T 1 , T 2 ), which is the number of discordant edges between trees T 1 and T 2 , and cut the edge that minimizes d bipart (T 1 , T 2 ) after the cut is made. Note that in the following algorithm, we assume edges are ordered as in a post-order traversal from tips to root, such that we encounter each discordant edge before we encounter its parent edge. where taxa A and B are siblings in T 1 but a recombination event (dashed arrow) moves taxon C such that taxa A and C are siblings in T 2 . Also shown is one possible agreement forest with three components, although the true MAF requires cutting only one edge (e c ). Thus the correct SPR distance between the trees is one. (B) Schematic illustrating the 3-cut MAF approximation for the same pair of trees. In each step of the algorithm, a discordant edge with children (A,C) in T 2 is chosen and we cut edges e a , e c and e b , where e b is the sibling of e a in T 1 . Note that cutting one or two of these edges is not always sufficient to reconcile the discordance. For example, if edges e a and e b are cut, taxon C would still be sister to D in T 1 but not in T 2 . Cutting all three edges guarantees that a discordant edge is removed at the cost of cutting additional edges. (C) Schematic illustrating our 4-cut algorithm. The 4-cut algorithm derives from the fact that there are four possible edges surrounding a given discordant edge that may have moved by recombining: edges e a and e c in T 2 and their siblings e b and e d in T 1 . Test cuts are then performed to see which edge should be cut to minimize discordance. In this case, cutting e c minimizes discordance and returns the true MAF. (D) Considering all four possibles edges ensures that, regardless of the the topology of the two starting trees, we make the cut that minimizes discordance. Here for example, if edge e c recombined, cutting any other edge besides e c would result in the need to make additional, unnecessary cuts. Note however that all four of these hypothetical edges need not exist. In particular, edges e a or e c may not have siblings in T 1 , meaning that edges e b and e d may not exist (see right two trees).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 393,
+                    "end": 401,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 584,
+                    "end": 593,
+                    "text": "Figure 1D",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 751,
+                    "end": 760,
+                    "text": "Figure 1D",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1024,
+                    "end": 1033,
+                    "text": "Figure 1C",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Computing Maximum Agreement Forests"
+        },
+        {
+            "text": "Algorithm 1: The 4-cut MAF approximation Input: Two starting trees T 1 and T 2 1 Initialize the forest as an empty set F = \u2205. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Computing Maximum Agreement Forests"
+        },
+        {
+            "text": "Re-attach subtree S i back to e i in T 1 and T 2 10 Set i = argmin i\u2208{a,b,c,d} (D i ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Computing Maximum Agreement Forests"
+        },
+        {
+            "text": "Cut e i and prune subtree S i from T 1 and T 2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "11"
+        },
+        {
+            "text": "Add subtree S i to F",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "12"
+        },
+        {
+            "text": "Next we consider reconciling two discordant trees through their corresponding MAF using an approach we call iterative regrafting. To motivate this approach, consider a local tree T 1 reconstructed from sequence data for a single genomic region and another tree T 2 , which could be a local tree for a neighboring genomic region or a reference/consensus tree. The goal is to find a tree that is highly supported by the sequence data over the genomic region being considered while also minimizing discordance between trees by reconciling topological differences that are not strongly supported by the sequence data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tree reconciliation by iterative regrafting"
+        },
+        {
+            "text": "In the iterative regrafting algorithm, we start with a pair of discordant trees T 1 and T 2 and their maximum agreement forest F . We will order the subtrees V in F in the reverse order from which they were pruned by the MAF algorithm, such that V 0 is the last remaining subtree in F after all other subtrees were pruned and V 1 , V 2 , ... V m are ordered such that V m is the first subtree that was pruned by the MAF algorithm. Starting with V 0 , we can regraft V 1 back to its original parent edge from which it was pruned in either T 1 or T 2 . If we iteratively regraft subtrees back to their parent edge in the same starting tree, we can reconstruct T 1 and T 2 from the MAF. Note that the ordering of the subtrees is important here because a given subtree may be nested within another subtree, such that if we wanted to regraft a subtree V k to its original parent edge, we may need to first regraft another subtree V l if k > l. Thus the algorithm reverses the pruning performed in the MAF by regrafting the component subtrees to the starting trees.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tree reconciliation by iterative regrafting"
+        },
+        {
+            "text": "We can also reconcile a discordant pair of trees through their MAF by choosing whether each subtree is regrafted back to its parent edge in either T 1 and T 2 creating a reconciled tree R that is a topological hybrid of T 1 and T 2 (Figure 2 ). For each subtree V k in the MAF, we regraft the subtree to its parent edge in both T 1 and T 2 , creating two alternate trees R 1 and R 2 . Iterating this procedure leads to a bifurcating algorithm where we regraft the next subtree V k+1 to R 1 along both possible parent edges in T 1 and T 2 , and then repeat this regrafting step for R 2 . The bifurcating nature of the algorithm therefore generates a search tree, where each internal node represents a partial phylogenetic tree and tip nodes represent full phylogenetic trees. Because two alternative trees are generated at each of the m regrafting events, there are 2 m possible reconciled trees.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 232,
+                    "end": 241,
+                    "text": "(Figure 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Tree reconciliation by iterative regrafting"
+        },
+        {
+            "text": "Because only a small fraction of the 2 m possible reconciled trees will be strongly supported by the sequence data, we employ a branch-and-bound-type algorithm to search for candidate reconciled trees with high likelihoods [Hendy and Penny, 1982] . At each step, we start with a partially reconciled tree R, and then regraft the next subtree V k+1 along both possible parent edges T 1 and T 2 creating R 1 and Starting with the first subtree V 1 in the MAF, the next subtree V 2 is regrafted along both possible parent edges in T 1 and T 2 , creating alternative partial trees R 1 and R 2 . The likelihoods L 1 and L 2 of the sequence data given R 1 and R 2 are then computed. In this hypothetical scenario, L 2 / L 1 is far less than the lower bound ratio (LBR) so the search path descending from R 2 is terminated. The algorithm then returns to R 1 and regrafts the next subtree V 3 to R 1 along both possible edges. The algorithm terminates once all search paths have either terminated or reached a tip node in the search tree, at which point a fully reconciled phylogenetic tree is output.",
+            "cite_spans": [
+                {
+                    "start": 223,
+                    "end": 246,
+                    "text": "[Hendy and Penny, 1982]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Tree reconciliation by iterative regrafting"
+        },
+        {
+            "text": "R 2 . We then compute the likelihoods L 1 and L 2 of the sequence data given the partial trees R 1 and R 2 , where L 1 = L \u03b8 (S(R 1 )|R 1 ), S(R 1 ) refers to the sequence data for the subset of taxa in R 1 , and \u03b8 is the known or previously estimated parameters governing sequence evolution. We then use the ratio of the likelihoods L 1 and L 2 as an approximate lower bound in the branch-and-bound algorithm: if the ratio of min(L 1 , L 2 ) over max(L 1 , L 2 ) is below some critical lower bound ratio (LBR), such that one tree is much more strongly supported by the sequence data, we terminate the search along the path with the lower likelihood. In the following algorithm, we traverse the search tree by adding candidate nodes to an open queue of nodes to be processed. Each node in the search tree is denoted by a tuple (R, k) consisting of a partial or full phylogenetic tree R and a MAF index k that refers to the last subtree V k regrafted to R.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tree reconciliation by iterative regrafting"
+        },
+        {
+            "text": "Algorithm 2: Iterative branch-and-bound regrafting Input: A MAF F between trees T 1 and T 2 with m components 1 Reverse order subtrees V in F and set R = V 1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tree reconciliation by iterative regrafting"
+        },
+        {
+            "text": "Find parent edge e p2 of V k+1 in T 2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tree reconciliation by iterative regrafting"
+        },
+        {
+            "text": "Create two copies of R: R 1 and R 2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "10"
+        },
+        {
+            "text": "Regraft",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "11"
+        },
+        {
+            "text": "Note that the algorithm is heuristic in that the search for reconciled trees with high likelihood is terminated based on the likelihood ratio of a subset of the sequence data and partial phylogenies. It is therefore possible that terminated search paths would have lead to phylogenies with higher likelihoods L \u03b8 (S|T ) than the trees chosen given the full sequence data. However, in practice we find that this algorithm very efficiently samples trees with high support given the full sequence data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "11"
+        },
+        {
+            "text": "In the situation where we are trying to reconcile a local tree for a given genomic region against a reference tree, a further improvement to the algorithm is obtained by considering information about the local tree contained in the sequence data from sites neighboring but outside of the genomic region of interest. This is especially true when the genomic region of interest is small such that there are few phylogenetically informative sites within the region. How prior information coming from sites outside the region of interest can be incorporated is described in the Supplemental Methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "11"
+        },
+        {
+            "text": "Espalier efficiently reconstructs ARGs by sampling a sequence of local trees for each genomic region and proceeds in four steps. First, starting trees are reconstructed for each genomic region i spanning the closed interval [l i , r i ], where l i and r i refer to the left and right-most genomic positions in the region. Generally, these starting trees will be maximum likelihood (ML) trees inferred from sequence data from the corresponding genomic region S i := S li:ri , although a reference/consensus tree can be substituted if there are not enough phylogenetically informative sites within a genomic region to reconstruct a tree. Second, a set of candidate trees are sampled for each genome region using the tree reconciliation approach described above in order to remove topological differences between local trees that are not well supported by the sequence data. In the third step, described next, we select a sequence of trees, or tree path, to include in the ARG. Finally, a full ARG including the recombination events required to explain discordances between neighboring local trees is assembled by imputing plausible recombination events using the MAF algorithm.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ARG reconstruction"
+        },
+        {
+            "text": "We use a dynamic programming approach based on the Viterbi algorithm [Viterbi, 1967 , Forney, 1973 to sample a sequence of local trees, or tree path, to form the basis of fully reconstructed ARG. We formulate this problem as a Hidden Markov Model (HMM) model where our objective is to sample a sequence of trees from the joint distribution of local trees P (T 1:n |S 1:n , r) over all n regions, where:",
+            "cite_spans": [
+                {
+                    "start": 69,
+                    "end": 83,
+                    "text": "[Viterbi, 1967",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 84,
+                    "end": 98,
+                    "text": ", Forney, 1973",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "We can see from (1) that the joint distribution can be factored into a product of likelihoods L \u03b8 (S i |T i ) for the sequence data given the local trees and a product of transition densities P (T i |T i\u22121 , r) between local trees, where r is the recombination rate per site along each lineage in a tree. The transition densities provide the probability of moving from tree T i\u22121 to tree T i between genomic regions. These transition densities imply that the coalescent-recombination process is Markovian in that the distribution over local tree T i depends only on the previous local tree T i\u22121 . While this is not necessarily true under the full coalescent with recombination where any two ancestral lineages may recombine [Hudson, 1983] , we adopt the Sequential Markov Coalescent (SMC) assumption that ancestral lineages that share no overlapping genetic material are not allowed to recombine [McVean and Cardin, 2005] . In essence, the SMC places additional restraints on the effect of a recombination event in terms of the SPR move it induces: subtrees pruned by recombination can only re-attach to lineages present in the previous local tree rather than any lineage in the entire ARG. While approximate, the SMC is known to be an excellent approximation to the full coalescent with recombination [Wilton et al., 2015] .",
+            "cite_spans": [
+                {
+                    "start": 725,
+                    "end": 739,
+                    "text": "[Hudson, 1983]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 897,
+                    "end": 922,
+                    "text": "[McVean and Cardin, 2005]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1303,
+                    "end": 1324,
+                    "text": "[Wilton et al., 2015]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "Here we set the transition probabilities equal to the probability of the minimum number of recombination events necessary to explain the discordance between trees, which is equivalent to the subtree prune and regraft distance d SP R (T i , T i\u22121 ) computed by the 4-cut MAF algorithm. If recombination events occur independently at rate \u03bb rec over a genomic region, then the number of recombination events follows a Poisson distribution and the transition density between local trees becomes:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "The total rate \u03bb rec at which recombination events occur within a given region i depends on the recombination rate per site r, the number of sites at which recombination could have occurred b i = l i \u2212r i , and the total time elapsed along all lineages in the tree, which is the total length of the tree L Ti . The total recombination rate is therefore:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "An additional subtlety arises because the SPR distance only considers recombination events that result in an observable change in tree topology. However, certain types of recombination events can occur which do not alter the tree topology such as when the two parent lineages of a recombinant lineage coalesce with one another before coalescing with another lineage in the tree Kaplan, 1985, Hein et al., 2004] . Topology-changing recombination events will therefore occur at a lower rate than \u03bb rec , resulting in a thinned Poisson process [Deng et al., 2020] . Our overall recombination rate therefore needs be reduced by a factor proportional to the probability of a topology-changing recombination event. Deng et al. [2020] provide a formula for the probability of a recombination event not changing the tree topology P (unchanged). We can therefore rescale \u03bb rec by 1 \u2212 P (unchanged) to adjust for the rate at which topology changing recombination events occur.",
+            "cite_spans": [
+                {
+                    "start": 378,
+                    "end": 410,
+                    "text": "Kaplan, 1985, Hein et al., 2004]",
+                    "ref_id": null
+                },
+                {
+                    "start": 541,
+                    "end": 560,
+                    "text": "[Deng et al., 2020]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 709,
+                    "end": 727,
+                    "text": "Deng et al. [2020]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "For efficiency, we constrain the state space of P (T i:n |S 1:n , r) to only include the reconciled trees sampled for region i using the iterative regrafting algorithm. These candidate trees are placed in a trellis T of trees which may contain a variable number of trees for each genomic region. We then use a Viterbi algorithm to select the most likely sequence of trees T * 1:n from P (T 1:n |S 1:n , r). The algorithm consists of a forward pass in which path probabilities are computed conditional on the sequence data observed up to region i and then a backwards pass in which the most likely path is selected given all observed sequence data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "Algorithm 3: The Viterbi tree path sampler Input: A trellis of candidate trees T 1 Initialize path probabilities p 1,k = L(S 1 |T 1,k ) for each tree state k.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "// Forward pass 2 for i = 2 to n do",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "Compute updated path probabilities f i,l for each possible previous tree state l:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "7 Select final tree state z n = argmax k (p n,k ) // Backward pass 8 Set T * n = T n,zn 9 for i = n \u2212 1 to 1 do 10 Select tree state z i = q i+1,zi+1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "The algorithm returns the maximum a posteriori (MAP) tree path, which maximizes the likelihood of the sequence data while the transition probabilities constrain the path to be consistent with a given recombination rate. In particular, if the the recombination rate is low, the algorithm has a natural \"smoothing\" effect on the selected tree path in that the transition densities enforce the requirement that neighboring local trees are topologically similar. Finally, while the Viterbi algorithm finds the single most likely path, we describe an alternative forward-backward algorithm in the Supplemental Methods that allows us to randomly sample tree paths with probability proportional to the joint distribution over trees P (T 1:n |S 1:n , r). While not used here, this algorithm might be useful to sample a set of highly probable tree paths consistent with the data in order to quantify uncertainty in the local trees or may be used in a MCMC algorithm where we wish to sample tree paths from their posterior distribution conditional on the current value of r or other parameters.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The tree path sampler"
+        },
+        {
+            "text": "After sampling a tree path, we still need to sample a set of plausible recombination events to reconcile the topological discordances between neighboring trees and connect recombining lineages in the ARG. For this task, we again use the MAF computed between discordant neighboring trees to identify which lineages likely recombined. Because each component of a MAF represents a subtree that attaches to different edges in T 1 and T 2 , identifying the edges to which a subtree attaches in T 1 and T 2 also identifies the lineages that likely recombined. More precisely, if e r is a cut edge leading to a subtree in the MAF and e r attaches to edges e a1 and e a2 in trees T 1 or T 2 , respectively, then we call e r the recombinant edge and the attachment edges e a1 and e a2 the parent edges (Figure 3) . Figure 3 . Determining plausible recombination events and times from a MAF. Trees T 1 and T 2 differ due to a recombination event (dashed arrow) in which (B,C) moves. A MAF between T 1 and T 2 is therefore obtained by cutting (B,C) from both trees. Edge e r leading to (B,C) is therefore the most likely recombinant lineage in the ARG with e a1 and e a2 the most likely parents since e r attaches to these lineages in T 1 and T 2 . Although we do not know the exact timing of the recombination event, the height of the nodes surrounding the recombinant lineage constrains the event to occur within a defined recombination window (shaded interval). If we let t c1 and t p1 be the child and parent node times of the recombinant lineage in T 1 and likewise t c2 and t p2 be the child and parent node times in T 2 , then the recombination window is constrained to be between max(t c1 ,t c2 ) and min(t p1 ,t p2 ), where time increases going backwards from the present at t = 0. Note in this case, t c1 = t c2 but this need not be the case if node heights differ between the two trees.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 793,
+                    "end": 803,
+                    "text": "(Figure 3)",
+                    "ref_id": null
+                },
+                {
+                    "start": 806,
+                    "end": 814,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Rules for sampling recombination events"
+        },
+        {
+            "text": "We can therefore add a recombination event by inserting an additional recombination node along the recombinant edge e r and connecting this node to its two parent edges e a1 and e a2 . However, sequence data will contain no information about the exact timing of recombination events. We therefore assign recombination events random times (i.e. node heights) that satisfy the constraints imposed by the heights of the surrounding nodes. In particular, we enforce the requirement that the recombination event must occur during the interval of time in which the parents e a1 and e a2 are present in both trees and thus eligible to recombine. To specify these exact constraints, let t p1 and t p2 be the height of the parent nodes of the recombinant edge in T 1 or T 2 . Further, let t c1 and t c2 be the height of the child nodes of the recombinant edge in T 1 or T 2 . These times then define a recombination window in which e a1 and e a2 are present in the trees and we can randomly draw a recombination time t r within this window that satisfies the constraints:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rules for sampling recombination events"
+        },
+        {
+            "text": "Most ARG reconstruction methods including ours assume that the recombination rate r is known, although inferring r from empirical data is notoriously difficult [Stumpf and McVean, 2003] . We therefore propose a likehood-based approach to estimate the recombination rate (or other demographic parameters \u03b8) together with the ARG that jointly maximize the likelihood of the sequence data using an Expectation-Maximization (EM) algorithm [Dempster et al., 1977] . Note that technically the algorithm is a version of the Baum-Welch algorithm for hidden Markov models, which is a special case of the more general EM algorithm [Fraser, 2008] . In the expectation step, we use the Viterbi algorithm to select the tree path T 1:n that maximizes P (T 1:n |S 1:n , r) using the current value of the recombination rate r. We then impute probable recombination events as described above and add recombination nodes to the local trees to produce a fully connected ARG G. In the maximization step, we then find the parameters \u03b8 that maxi-mize the likelihood of the current ARG by numerical optimization. For our purposes here, the likelihood L(G|\u03b8) of the ARG is computed under the coalescent with recombination [Hudson, 1983 , Hudson et al., 1990 , as described in [Kuhner et al., 2000] . Alternately updating the ARG in the expectation step and demographic parameters in the maximization step iteratively until the EM algorithm converges on stable values of \u03b8 produces a maximum likelihood estimate of both the ARG and \u03b8.",
+            "cite_spans": [
+                {
+                    "start": 160,
+                    "end": 185,
+                    "text": "[Stumpf and McVean, 2003]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 435,
+                    "end": 458,
+                    "text": "[Dempster et al., 1977]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 621,
+                    "end": 635,
+                    "text": "[Fraser, 2008]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1198,
+                    "end": 1211,
+                    "text": "[Hudson, 1983",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1212,
+                    "end": 1233,
+                    "text": ", Hudson et al., 1990",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1252,
+                    "end": 1273,
+                    "text": "[Kuhner et al., 2000]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Demographic inference under the coalescent with recombination"
+        },
+        {
+            "text": "Algorithm 4: The EM algorithm Input: Initial parameter values \u03b8 0 and trellis of candidate trees T 1 for step s = 1 to S do ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Demographic inference under the coalescent with recombination"
+        },
+        {
+            "text": "The tree reconciliation and ARG reconstruction methods, including the 4-cut MAF algorithm, were implemented in the Python package Espalier. Source code for Espalier is available at github.com/ davidrasm/Espalier and documentation is available at espalier.readthedocs.io. Espalier in turn makes use of several existing phylogenetic packages. Trees are stored and manipulated using Dendropy version 4.5.1 [Sukumaran and Holder, 2010] . We make special use of the way Dendropy encodes edge bipartitions (splits) of the leaf taxa set as integer-valued bitmasks, allowing equivalent edge bipartitions representing the same edge across different trees to be identified through their bitmasks. The bitmask encoding of edge bipartitions also facilitates the rapid identification of topological discordances between trees by comparing the set of edge bipartitions present in each tree using sets of bitmasks.",
+            "cite_spans": [
+                {
+                    "start": 403,
+                    "end": 431,
+                    "text": "[Sukumaran and Holder, 2010]",
+                    "ref_id": "BIBREF49"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation of Espalier"
+        },
+        {
+            "text": "Full ARGs reconstructed from tree paths are stored and accessed through tree sequence objects in tskit [Kelleher et al., 2016 [Kelleher et al., , 2018 . The tree sequence data structure allows ARGs to be stored as flattened tables of nodes and edges. Nodes and edges present across multiple local trees in the ARG therefore only need to be stored once in these tables, allowing for a more concise encoding of local trees in an ARG. Tree sequences also facilitates algorithmic operations on ARGs, such as computing the likelihood of the ARG under the coalescent, as described in Guo and Rasmussen [2022] .",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 125,
+                    "text": "[Kelleher et al., 2016",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 126,
+                    "end": 150,
+                    "text": "[Kelleher et al., , 2018",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 578,
+                    "end": 602,
+                    "text": "Guo and Rasmussen [2022]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation of Espalier"
+        },
+        {
+            "text": "Initial maximum likelihood (ML) trees are reconstructed from the sequence data corresponding to each genomic region using RAxML-NG [Kozlov et al., 2019] . We also compute the likelihood of the sequence data at any site in an alignment given a tree using the -sitelh method in RAxML-NG. For computational efficiency, we only estimate the molecular evolutionary parameters including substitution rates once during the initial tree reconstruction phase, then use the MLE of each parameter when computing the likelihood of sequence data in the tree reconciliation and ARG reconstruction phase.",
+            "cite_spans": [
+                {
+                    "start": 131,
+                    "end": 152,
+                    "text": "[Kozlov et al., 2019]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation of Espalier"
+        },
+        {
+            "text": "To test the performance of Espalier in reconstructing ARGs, mock ARGs were simulated using msprime [Kelleher et al., 2016] . In all simulations, the haploid effective population size N e = 1, such that time is scaled relative to the rate at which pairs of lineages coalesce, but we vary the mutation rate \u00b5 to explore how different levels of genetic diversity impact ARG reconstruction. The average pairwise genetic diversity between nucleotide sequences in our simulations is therefore \u03c0 = 2N e \u00b5 = 2\u00b5. Nucleotide sequences for sampled lineages were then simulated along each local tree under a HKY substitution model using pyvolve [Spielman and Wilke, 2015] .",
+            "cite_spans": [
+                {
+                    "start": 99,
+                    "end": 122,
+                    "text": "[Kelleher et al., 2016]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 633,
+                    "end": 659,
+                    "text": "[Spielman and Wilke, 2015]",
+                    "ref_id": "BIBREF47"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Simulation experiments"
+        },
+        {
+            "text": "While currently 167 species of potyviruses are officially recognized [Wylie et al., 2017] , we limit our analysis to 131 species for which high-quality, full-length genomes are publicly available. Viral genomes were retrieved from NCBI GenBank using the accession numbers provided by [Gadhave et al., 2020] . Full genome nucleotide sequences were aligned using MAFFT version 7 [Katoh and Standley, 2013] . Potential recombination events with significant signal and their corresponding breakpoint locations were identified using 3SEQ [Lam et al., 2018 , Boni et al., 2007 . Because a large number of potential breakpoints were identified across the entire genome including several within each protein coding region, we partitioned the full alignment into non-recombinant blocks (NRBs) within which no recombination breakpoints were identified (see Figure 8A ). The 10 longest NRBs with lengths greater than 200bp were selected for further phylogenetic analysis. ML phylogenetic trees for each NRB were reconstructed in RAxML-NG. The Ryegrass mosaic virus reference genome (GenBank accession Y09854.1) was used as an outgroup to consistently root each ML trees. Ryegrass mosaic virus was chosen as it is the type species of the genus Rymovirus which recent phylogenetic analyses place sister to the potyviruses [Gibbs et al., 2020] . The resulting ML trees were then time-calibrated using least squares dating in LSD version 0.3 to get an ultrametric tree with all contemporaneously sampled potyviruses equidistant from the root. Due to the difficulty of estimating a consistent molecular clock rate from contemporaneously sampled potyviruses [Gibbs et al., 2020] , the molecular clock was fixed at 1.0 substitutions per unit time such that branch lengths in the dated trees are proportional to substitutions per site. Finally, the recombination rate and a reconstructed ARG were inferred using the EM algorithm in Espalier based on the same 10 NRBs.",
+            "cite_spans": [
+                {
+                    "start": 69,
+                    "end": 89,
+                    "text": "[Wylie et al., 2017]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 284,
+                    "end": 306,
+                    "text": "[Gadhave et al., 2020]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 377,
+                    "end": 403,
+                    "text": "[Katoh and Standley, 2013]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 533,
+                    "end": 550,
+                    "text": "[Lam et al., 2018",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 551,
+                    "end": 570,
+                    "text": ", Boni et al., 2007",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1309,
+                    "end": 1329,
+                    "text": "[Gibbs et al., 2020]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1641,
+                    "end": 1661,
+                    "text": "[Gibbs et al., 2020]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 847,
+                    "end": 856,
+                    "text": "Figure 8A",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Potyvirus ARG reconstrucion"
+        },
+        {
+            "text": "Tanglegrams were then used to visualize how phylogenetic relationships vary between local ML trees and local trees in the ARG. Tanglegrams were plotted using the baltic package https://github.com/ evogytis/baltic in Python.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Potyvirus ARG reconstrucion"
+        },
+        {
+            "text": "We first tested the MAF algorithm by simulating a random coalescent tree and rearranging its topology through a randomly chosen number of SPR moves. We then used both the 3-cut algorithm of Whidden and Zeh [2009] and our 4-cut algorithm to compute the MAF between the original and randomized trees. Ideally, the computed MAF should identify the correct SPR distance between trees and contain the same number of subtree components (excluding the final subtree) as the true number of SPR moves performed. As expected, the 3-cut algorithm generally overestimates the number of components in the MAF and therefore also the SPR distance by a factor of up to three ( Figure 4A&C ). In contrast, the 4-cut algorithm generally identifies the correct MAF distance ( Figure 4C&D ). However, for both algorithms, the SPR distance computed from the MAFs is rather variable and may be either higher or lower than the true number of SPR moves when the tree size (number of tips) is small ( Figure 4A&B ). This is most likely due to the fact that two or more SPR moves may rearrange the same edge or region of the tree twice, reversing the effect of the original SPR or adding an additional rearrangement. In either case, the 4-cut algorithm is no longer guaranteed to find the optimal cut nor the true number of SPR moves. Increasing the tree size reduces the probability of a SPR move rearranging the same tree region more than once, in which case there is far less variability in the computed SPR distances and the 4-cut algorithm almost always estimates a SPR distance close to the true distance ( Figure 4C&D) .",
+            "cite_spans": [
+                {
+                    "start": 190,
+                    "end": 212,
+                    "text": "Whidden and Zeh [2009]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 661,
+                    "end": 672,
+                    "text": "Figure 4A&C",
+                    "ref_id": null
+                },
+                {
+                    "start": 757,
+                    "end": 768,
+                    "text": "Figure 4C&D",
+                    "ref_id": null
+                },
+                {
+                    "start": 976,
+                    "end": 987,
+                    "text": "Figure 4A&B",
+                    "ref_id": null
+                },
+                {
+                    "start": 1587,
+                    "end": 1599,
+                    "text": "Figure 4C&D)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Testing the MAF algorithm"
+        },
+        {
+            "text": "C D Figure 4 . Performance of the 3-cut versus 4-cut approximations in computing maximum agreement forests. In each simulation, a coalescent tree was simulated and then a random number of SPR moves ranging from one to five were performed to topologically rearrange the tree. Performance was tested by comparing the true number of SPR moves in each simulation to the SPR distance (number of subtrees in MAF minus one) identified by either the 3-cut (A & C) or the 4-cut algorithm (B & D). Trees included 10 tips in A and B and 100 tips in C and D. 100 simulations were performed under each algorithm and diamonds represent the mean computed SPR distance across simulations for a given number of true SPR moves.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 4,
+                    "end": 12,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "A B"
+        },
+        {
+            "text": "To test our reconciliation approach, we simulated a pair of local trees T 1 and T 2 for neighboring genomic regions in a hypothetical ARG. The simulations were conditioned on exactly one topology-altering re-combination event occurring between regions, such that the true SPR distance between trees is always one. A maximum-likelihood local tree, T M L 2 , was then reconstructed from simulated sequence data for region 2. T M L 2 was then reconciled against T 1 (assumed here to be known) using the iterative regrafting algorithm, which by design should resolve discordances between the trees that are not strongly supported by the sequence data. To ensure our algorithm works correctly, we compared normalized Robinson-Fould distances [Robinson and Foulds, 1981] between T M L 2 and the true local tree T 2 before and after reconciling to see if reconciliation improves local tree inference. We also compared SPR distances between T M L 2 and T 1 before and after reconciliation to check if reconciling local trees correctly removes spurious discordances caused by errors in phylogenetic reconstruction.",
+            "cite_spans": [
+                {
+                    "start": 737,
+                    "end": 764,
+                    "text": "[Robinson and Foulds, 1981]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Testing the reconciliation algorithm"
+        },
+        {
+            "text": "We find that reconciling local trees considerably improves local tree reconstruction. After reconciliation, T M L 2 is generally much closer to the true tree T 2 than before reconciliation in terms of RF distances ( Figure 5A ). The improvement is especially dramatic when the sequence length of region 2 is short such that there is limited phylogenetic information to reconstruct T M L 2 . Likewise, after reconciliation the SPR distance between T M L 2 and and T 1 is generally much smaller and closer to the true SPR distance of one ( Figure 5B ). These two observations suggest that reconciliation correctly eliminates spurious discordances between trees and that reconciling local trees against neighboring trees improves inference of local tree topologies, especially when local trees are reconstructed from limited genomic data.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 216,
+                    "end": 225,
+                    "text": "Figure 5A",
+                    "ref_id": null
+                },
+                {
+                    "start": 538,
+                    "end": 547,
+                    "text": "Figure 5B",
+                    "ref_id": null
+                }
+            ],
+            "section": "Testing the reconciliation algorithm"
+        },
+        {
+            "text": "Next, we tested the ability of Espalier to accurately reconstruct ARGs from data simulated under the coalescent with recombination. Reasoning that the number of phylogenetically informative sites (SNPs) between recombination breakpoints is likely the key factor limiting our ability to accurately reconstruct ARGs, we fixed the recombination rate r = 0.001 per site per generation and varied the mutation rate. To quantify the accuracy of ARG reconstruction, we use normalized Robinson-Fould distances to quantify the topological similarity of local trees in the reconstructed ARG to the local trees in the true (simulated) ARG. We also compare SPR distances between local trees in the reconstructed and true ARGs to check if the reconstruction methods can correctly differentiate true discordance caused by recombination from phylogenetic noise in tree reconstruction. The performance of Espalier was then compared against ARGweaver [Rasmussen et al., 2014] , which serves as a gold-standard for comparison since ARGweaver samples ARGs from their exact posterior distribution up to the approximations made by the sequential Markov coalescent model. At low mutation rates (\u00b5 = 0.01; \u00b5/r = 10; \u03c0 = 2N e \u00b5 = 0.02), the local trees in ARGs reconstructed by both Espalier and ARGweaver are quite topologically distant from the true trees as quantified by the normalized RF distances ( Figure 6A ), suggesting that both methods introduce considerable phylogenetic error in reconstructing local tree topologies. Nevertheless, the local trees sampled by Espalier and ARGweaver are much closer to the true local trees than maximum likelihood trees reconstructed for each genomic region individually, demonstrating that these methods do correctly leverage information across neighboring genomic regions to reconstruct more accurate local trees ( Figure 6A ).",
+            "cite_spans": [
+                {
+                    "start": 934,
+                    "end": 958,
+                    "text": "[Rasmussen et al., 2014]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1381,
+                    "end": 1390,
+                    "text": "Figure 6A",
+                    "ref_id": null
+                },
+                {
+                    "start": 1837,
+                    "end": 1846,
+                    "text": "Figure 6A",
+                    "ref_id": null
+                }
+            ],
+            "section": "ARG reconstruction performance"
+        },
+        {
+            "text": "Neighboring local trees in the reconstructed ARGs are also quite close to one another in terms of SPR distances ( Figure 6B ). In the true ARGs, a single recombination event occurs at each recombination breakpoint between neighboring local trees, but recombination may or may not alter tree topology, such that the true SPR distance between local trees is always zero or one. When the true SPR distance is zero, the average SPR distance between neighboring trees is 0.24 for Espalier and 0.17 for ARGweaver, suggesting that errors in reconstructing local trees do not result in excessive discordance nor an excess of incorrectly imputed recombination events. When the true SPR distance is one, the average SPR distance between trees is 0.81 for ARGweaver but only 0.41 for Espalier. This suggests that at low mutation rates, Espalier may be overly conservative in allowing for topological changes between local trees and thus misses some true recombination events.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 114,
+                    "end": 123,
+                    "text": "Figure 6B",
+                    "ref_id": null
+                }
+            ],
+            "section": "ARG reconstruction performance"
+        },
+        {
+            "text": "At higher mutation rates (\u00b5 = 0.1; \u00b5/r = 100; \u03c0 = 0.2), where there are more phylogenetically A B Figure 5 . Reconciliation correctly eliminates discordances between trees caused by phylogenetic noise. Two neighboring local trees T 1 and T 2 were simulated but T 1 was assumed known whereas a maximum likelihood tree, T M L 2 , was reconstructed for the second tree using sequence data of varying lengths. Distances between T M L 2 and the true trees were then compared before and after reconciling T M L 2 against T 1 . (A) Normalized Robinson-Fould distances between T M L 2 and the true local tree T 2 before and after reconciliation. (B) SPR distances between T M L 2 and the true local tree T 1 before and after reconciliation. 100 simulations were performed at each sequence length using local trees with 20 tips. Sequences were simulated under a HKY substitution model with a mutation rate \u00b5 = 0.1 such that the average pairwise diversity \u03c0 = 0.2. informative sites, local trees reconstructed by all methods (including the ML trees) are much closer to the true local trees. Espalier is slighly more accurate than ARGweaver in terms of reconstructing local tree topologies ( Figure 6C ) but both methods perform well in determining whether or not recombination has resulted in a topological change between neighboring local trees ( Figure 6C ). Overall, these results suggest that while Espalier may be less sensitive than ARGweaver in detecting recombination events when phylogenetic information is limiting, both methods perform well at \"smoothing\" differences between local trees by eliminating topological changes that are not well supported by sequence data and can accurately reconstruct ARGs when enough sequence diversity is present. Figure 6 . Performance reconstructing simulated ARGs. ARGs were reconstructed using either Espalier or ARGweaver and then local trees in the ARG were compared against the true local tree for each genomic region in simulated ARGs. For comparison, we also consider the maximum likelihood (ML) tree reconstructed by RAxML from sequence data for each genomic region individually.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 98,
+                    "end": 106,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 1181,
+                    "end": 1190,
+                    "text": "Figure 6C",
+                    "ref_id": null
+                },
+                {
+                    "start": 1338,
+                    "end": 1347,
+                    "text": "Figure 6C",
+                    "ref_id": null
+                },
+                {
+                    "start": 1748,
+                    "end": 1756,
+                    "text": "Figure 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "ARG reconstruction performance"
+        },
+        {
+            "text": "Simulations were performed at either low (A-B; \u00b5 = 0.01) or high (C-D; \u00b5 = 0.1) mutation rates. In (A & C), normalized Robinson-Fould (RF) distances were computed between reconstructed and true local trees in the ARG. In (C & D), the subtree-prune-regraft (SPR) distance between neighboring local trees reconstructed by each method is compared. The true SPR distance between neighboring local trees is always either zero or one depending on whether or not a recombination event has caused a topological rearrangement between trees. The sample size in all simulations was 20 with a genome length L = 1,000 base pairs",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ARG reconstruction performance"
+        },
+        {
+            "text": "Espalier allows demographic parameters to be estimated from ARGs while simultaneously reconstructing the ARG using the EM algorithm. Here we focus on estimating the recombination rate r under the coalescent with recombination since r is typically unknown but required for ARG inference. To test the performance of the EM algorithm in estimating r, we simulated ARGs together with mock sequence data and then obtained maximum likelihood estimates for the recombination rate, the number of recombination events, and the ARG. Estimated recombination rates are strongly positively correlated with the true rates (Pearson correlation R = 0.51) but the accuracy of estimates varies widely across simulations and on averages rates are underestimated by about 10.7% ( Figure 7A ). The number of recombination events in the reconstructed ARGs is also slightly underestimated ( Figure 7B ). Error in the estimated number of recombination events is in turn strongly positively correlated with error in the estimated recombination rates ( Figure 7C ), sug-A C B Figure 7 . Performance of the EM algorithm in estimating recombination rates. True ARGs were simulated with recombination rates ranging from 1X (r = 0.1) to 50X (r = 5.0) times the assumed mutation rate (\u00b5 = 0.1; \u03c0 = 2N e \u00b5 = 0.2). (A) True recombination rates versus maximum likelihood estimates obtained from the EM algorithm. R is the Pearson correlation coefficient between true and estimated values and bias is reported as the average error relative to the true value used in each simulation. (B) True versus estimated number of recombination events in the ARGs. (C) Absolute error in the inferred recombination rate is positively correlated with the error in number of recombination events in the reconstructed ARG. The sample size in all simulated ARGs was 20 with a genome length L = 10,000 base pairs. gesting that most of the error in estimated rates is attributable to a difficulty in correctly identifying recombination events. That both the rate and number of recombination events are underestimated is not surprising, as a large fraction of the recombination events (37% of events in our simulations) will not be detectable from sequence data due to the event having no effect on tree topology or the event occurring between genetically identical sequences. Overall, while inferring recombination rates appears inherently difficult, estimated rates are generally within a factor of two of their true values, suggesting that the EM algorithm is suitable for quickly obtaining ballpark estimates of recombination rates.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 760,
+                    "end": 769,
+                    "text": "Figure 7A",
+                    "ref_id": null
+                },
+                {
+                    "start": 868,
+                    "end": 877,
+                    "text": "Figure 7B",
+                    "ref_id": null
+                },
+                {
+                    "start": 1027,
+                    "end": 1036,
+                    "text": "Figure 7C",
+                    "ref_id": null
+                },
+                {
+                    "start": 1050,
+                    "end": 1058,
+                    "text": "Figure 7",
+                    "ref_id": null
+                }
+            ],
+            "section": "Inferring recombination rates using the EM algorithm"
+        },
+        {
+            "text": "Potyviruses are a members of the genus Potyvirus in the family Potyviridae, the largest family of plantinfecting RNA viruses and arguably one of the most agronomically important due to major crop pathogens such as potato virus Y [Moury et al., 2017 , Wylie et al., 2017 . Since the Neolithic agricultural revolution, potyviruses have rapidly radiated and expanded their host range and geographic distribution alongside their host plants [Gibbs et al., 2008, Gibbs and Ohshima, 2010] . Due to this rapid diversification, there is considerable uncertainty surrounding the deep phylogenetic relationships among the potyvirus species. Indeed, using a tanglegram to visualize how species-level phylogenetic relationships vary across the potyvirus genome shows widespread phylogenetic discordance between ML trees reconstructed from different regions of the genome without detected recombination breakpoints (see Figure 8B ). However, potyviruses like other positive stranded RNA viruses frequently recombine, although the extent of interspecific recombination events between species is debated [Tan et al., 2004 , Gibbs et al., 2020 . It is therefore unclear to what extent the discordance visualized in the tanglegrams is attributable to true phylogenetic conflict arising from recombination versus phylogenetic error.",
+            "cite_spans": [
+                {
+                    "start": 229,
+                    "end": 248,
+                    "text": "[Moury et al., 2017",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 249,
+                    "end": 269,
+                    "text": ", Wylie et al., 2017",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 437,
+                    "end": 467,
+                    "text": "[Gibbs et al., 2008, Gibbs and",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 468,
+                    "end": 482,
+                    "text": "Ohshima, 2010]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1089,
+                    "end": 1106,
+                    "text": "[Tan et al., 2004",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 1107,
+                    "end": 1127,
+                    "text": ", Gibbs et al., 2020",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 907,
+                    "end": 916,
+                    "text": "Figure 8B",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Disentangling potyvirus tanglegrams"
+        },
+        {
+            "text": "In order to explore how much discordance between trees is attributable to recombination versus phylogenetic error, we reconstructed an ARG of the potyviruses using the EM algorithm in Espalier. The local trees within the reconstructed ARG produce a disentangled tanglegram in which discordances between local trees not strongly supported by the sequence data have been eliminated ( Figure 8C ). Note for purposes of visualization, only 40 potyvirus species are included in the tanglegrams shown in Figure 8 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 382,
+                    "end": 391,
+                    "text": "Figure 8C",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 498,
+                    "end": 506,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Disentangling potyvirus tanglegrams"
+        },
+        {
+            "text": "The ARG tanglegram shows dramatically less entanglement between trees suggesting that most of the discordance between local ML trees is likely attributable to phylogenetic error. While there remains considerable discordance between local trees in the ARG over the 5' end of the genome, most of the imputed recombination events occur between lineages at the base of tree for which there is likely poor phylogenetic signal due to the combination of deep divergence times and rapid radiation. Thus, some of the putative interspecific recombination events identified in the ARG may still arise from phylogenetic error. However, local trees in the ARG over the 3' end of the genome are largely concordant. For example, members of the potato virus Y clade including sunflower chlorotic mottle virus, bidens mosaic virus, amaranthus leaf mottle virus and pepper severe mosaic virus consistently cluster in a single clade in the six trees spanning the 3' end of the genome. Overall, the potyviruses provide a clear example of how ARGs reconstructed by Espalier can be used to disentangle discordant relationships in order to provide a clearer picture of the evolutionary relationships between taxa.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disentangling potyvirus tanglegrams"
+        },
+        {
+            "text": "Far from a single tree of life, genomic sequence data has revealed a far more complex \"web\" of life that is highly reticulate due to frequent recombination and horizontal transfers of genetic material [Smith et al., 1993 , Soucy et al., 2015 , Worobey and Holmes, 1999 . Indeed, outside of a few asexual or clonally evolving populations, the ancestry of most species can be thought of as a mosaic of phylogenetic histories that vary across the genome [Wiuf and Hein, 1999 , Boni et al., 2007 , Hubisz et al., 2020 . Extensive efforts have therefore been made to develop new phylogenetic methods accounting for recombination. Here, we demonstrate how maximum agreement forests, which have previously received little attention outside of computational phylogenetics [Hein et al., 1996 , Rodrigues et al., 2007 , Whidden and Zeh, 2009 , can be used to build efficient algorithms for reconciling discordant phylogenetic trees and reconstructing ancestral recombination graphs.",
+            "cite_spans": [
+                {
+                    "start": 201,
+                    "end": 220,
+                    "text": "[Smith et al., 1993",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 221,
+                    "end": 241,
+                    "text": ", Soucy et al., 2015",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 242,
+                    "end": 268,
+                    "text": ", Worobey and Holmes, 1999",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 451,
+                    "end": 471,
+                    "text": "[Wiuf and Hein, 1999",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 472,
+                    "end": 491,
+                    "text": ", Boni et al., 2007",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 492,
+                    "end": 513,
+                    "text": ", Hubisz et al., 2020",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 764,
+                    "end": 782,
+                    "text": "[Hein et al., 1996",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 783,
+                    "end": 807,
+                    "text": ", Rodrigues et al., 2007",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 808,
+                    "end": 831,
+                    "text": ", Whidden and Zeh, 2009",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Conceptually, our approach has much in common with other recent ARG reconstruction methods, but tries to strike a delicate balance between computational efficiency and the assumptions made by more approximate methods that limit their generalizibility. Like both ARGweaver [Rasmussen et al., 2014] and Arbores [Heine et al., 2018] , Espalier formulates the ARG inference problem as a hidden Markov model with the goal of selecting a hidden path of trees across the genome under the assumptions of the sequential Markov coalescent [McVean and Cardin, 2005] . ARGweaver in particular appears to be very accurate at reconstructing ARGs but is also limited to small genomic datasets because it employs a computationally demanding MCMC algorithm to sample from the posterior distribution of ARGs. Arbores is similar to Espalier in that it uses SPR moves to search for compatible local trees in a tree path, but is likewise quite computationally expensive in that it considers all possible SPR moves between pairs of local trees, leading to a very large tree space to search. By contrast, the efficiency of Espalier lies in starting with pre-reconstructed local trees for each genomic region and then sampling a set of reconciled trees which are highly supported by the sequence data but have unnecessary topological discordances between trees removed. This greatly reduces the state space of the HMM in terms of the number of trees that need to be considered. However, unlike more approximate programs for inferring sequences of local trees across the genome [Kelleher et al., 2019 , Speidel et al., 2019 , Espalier makes additional advantage of MAFs to identify lineages that have likely recombined and then inserts the additional recombination events required to explain discordances between local trees.",
+            "cite_spans": [
+                {
+                    "start": 272,
+                    "end": 296,
+                    "text": "[Rasmussen et al., 2014]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 309,
+                    "end": 329,
+                    "text": "[Heine et al., 2018]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 529,
+                    "end": 554,
+                    "text": "[McVean and Cardin, 2005]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1553,
+                    "end": 1575,
+                    "text": "[Kelleher et al., 2019",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1576,
+                    "end": 1598,
+                    "text": ", Speidel et al., 2019",
+                    "ref_id": "BIBREF46"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Other than reconstructing initial local trees, most of the computational overhead of running Espalier lies in repeatedly computing MAFs between many pairs of trees. While running the MAF algorithm takes far less than a second even for trees with hundreds of taxa, repeatedly computing MAFs between many pairs of trees accumulates a large computational cost. Fortunately, we expect that the computational efficiency of the MAF algorithm can be greatly improved. For example, in order to choose which edge is cut in each iteration of the algorithm, the current algorithm copies tree objects in memory before making cuts. We therefore expect that operating on trees without copying tree objects will lead to drastic improvements in performance. Performance could be further improved using cluster-reduction algorithms that splits computation of the MAF into smaller sub-problems by clustering taxa into subsets [Linz and Semple, 2011, Whidden et al., 2014] .",
+            "cite_spans": [
+                {
+                    "start": 908,
+                    "end": 917,
+                    "text": "[Linz and",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 918,
+                    "end": 953,
+                    "text": "Semple, 2011, Whidden et al., 2014]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Recombination has also posed a significant challenge to fields such as phylogeography and phylodynamics, which seek to reconstruct evolutionary and demographic processes from reconstructed phylogenies. The ability to reconstruct ARGs in an efficient likelihood-based framework opens the way for performing demographic inference in a recombination-aware manner. In particular, a major advantage of computing ARGs is that they reveal which regions of the genome have unique ancestral histories and which regions provide redundant genealogical information. It may therefore be possible to more accurately and precisely infer demographic parameters like effective population sizes and migration rates from the multiple histories embedded within an ARG than any single gene tree or phylogeny [Li and Durbin, 2011, M\u00fcller et al., 2020] .",
+            "cite_spans": [
+                {
+                    "start": 787,
+                    "end": 794,
+                    "text": "[Li and",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 795,
+                    "end": 829,
+                    "text": "Durbin, 2011, M\u00fcller et al., 2020]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "One current limitation of Espalier for ARG reconstruction is that it does not infer recombination breakpoints and so breakpoints delimiting recombination-free regions of the genome need to be identified a priori. Nevertheless, the strategy we used to reconstruct potyvirus ARGs suggests a pragmatic and scalable computational pipeline for ARG inference. Breakpoints can first be identified using existing recombination detection software, recombination-free regions of the genome can be delimited between these breakpoints, local ML trees can be reconstructed from these recombinant-free regions, and then these local ML trees can be fed into Espalier for reconciliation. This basic strategy has been adopted for other viruses including coronaviruses [Boni et al., 2020 , Jackson et al., 2021 , and may work well for more highly recombining bacterial and eukaryotic organisms as long as there are regions of the genome where the recombination rate is low enough that multiple phylogenetically informative sites (e.g. SNPs) fall between recombination breakpoints.",
+            "cite_spans": [
+                {
+                    "start": 751,
+                    "end": 769,
+                    "text": "[Boni et al., 2020",
+                    "ref_id": null
+                },
+                {
+                    "start": 770,
+                    "end": 792,
+                    "text": ", Jackson et al., 2021",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Beyond reconstructing ARGs, the Espalier package provides a flexible toolkit for working with discordant phylogenetic histories using maximum agreement forests. The package includes methods and a command-line interface for computing MAFs, calculating SPR distances and tree reconciliation using iterative regrafting. The EM algorithm implemented in Espalier further allows for maximum-likelihood estimates of key demographic parameters like recombination rates to be rapidly inferred from ARGs. The package also allows for better visualization of discordant phylogenetic histories by removing unnecessary discordances, creating disentangled tangelgrams. Future work will allow for automated detection of recombination breakpoints and an expanded range of coalescent models for recombination-aware demographic inference.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "In a situation where we are using the iterative regrafting algorithm to reconcile a local tree for a given genomic region against a reference tree, we can consider information about the local tree contained in the sequence data from sites neighboring but outside of the genomic region of interest. However, the phylogenetic history of sites outside of the region will likely increasingly differ with increasing distance from the region.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        },
+        {
+            "text": "We therefore consider a prior p(T i |S 1:L\\i ) on the local tree T i that considers information coming from sequence data outside of region i, denoted here as S 1:L\\i where S 1:L\\i := S 1:L\\ [li:ri] . In particular, we exponentially discount information coming from sites outside of i based on their distance to i:",
+            "cite_spans": [
+                {
+                    "start": 191,
+                    "end": 198,
+                    "text": "[li:ri]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        },
+        {
+            "text": "where d(k) is the genomic distance of site k from region i and \u03b3 determines the rate at which the contribution of sites outside of i decays with distance to i. While including this prior adds another hyperparameter \u03b3 that needs to be tuned, knowing the recombination rate provides a natural way of parameterizing \u03b3. We can set \u03b3 equal to the per site probability of a recombination event occuring anywhere in the ancestry of the sample, such that the prior information decays at a rate proportional to the the rate at which the probability that no recombination events has occurred between region i and site k decays. The per site probability of a recombination event is simply rE(L T ), where r is the recombination rate per individual lineage and E(L T ) is the expected total length of the local tree. Under the standard neutral coalescent, the expected total length for a tree with n samples is:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        },
+        {
+            "text": "We can then use this prior to weight the likelihoods computed in the iterative regrafting algorithm by the likelihood of the sequence data outside of region i evolving under a given tree T : L T = L \u03b8 (S li:ri |T )p(T |S 1:L\\i ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        },
+        {
+            "text": "(7)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        },
+        {
+            "text": "A forward-backward algorithm for sampling tree paths",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        },
+        {
+            "text": "The Viterbi algorithm described in the main text finds the tree path with the most likely sequence of trees given the observed sequence data. Here, we describe a modified version of the forward-backward algorithm that allows us to randomly sample different tree paths from the joint distribution of trees P (T 1:M |S I:M ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        },
+        {
+            "text": "In the forward pass, we compute the probabilities f i,k of being in each tree state k conditional on the sequence data observed up to region i, P (T i |S 1:i ). In the backward pass we then compute \"smoothed\" probabilities that take into account the sequences for all regions. However, we modify the backwards pass of the algorithm to randomly sample a particular tree state at each time. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Iterative regrafting with prior information"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Subtree transfer operations and their induced metrics on evolutionary trees",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Allen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Steel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Annals of Combinatorics",
+            "volume": "5",
+            "issn": "1",
+            "pages": "1--15",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "An exact nonparametric method for inferring mosaic structure in sequence triplets",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Boni",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Posada",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Feldman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Genetics",
+            "volume": "176",
+            "issn": "2",
+            "pages": "1035--1047",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Evolutionary origins of the SARS-CoV-2 sarbecovirus lineage responsible for the COVID-19 pandemic",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Robertson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nature Microbiology",
+            "volume": "5",
+            "issn": "11",
+            "pages": "1408--1417",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "On the computational complexity of the rooted subtree prune and regraft distance",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bordewich",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Semple",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Annals of Combinatorics",
+            "volume": "8",
+            "issn": "4",
+            "pages": "409--423",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Maximum likelihood from incomplete data via the em algorithm",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Dempster",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Laird",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Rubin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1977,
+            "venue": "Journal of the Royal Statistical Society: Series B (Methodological)",
+            "volume": "39",
+            "issn": "1",
+            "pages": "1--22",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "The distribution of waiting distances in ancestral recombination graphs and its applications. bioRxiv",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Nielsen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "The viterbi algorithm",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Forney",
+                    "suffix": ""
+                }
+            ],
+            "year": 1973,
+            "venue": "Proceedings of the IEEE",
+            "volume": "61",
+            "issn": "3",
+            "pages": "268--278",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Hidden Markov models and dynamical systems",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Fraser",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "SIAM",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Aphid transmission of potyvirus: The largest plant-infecting RNA virus genus",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Gadhave",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gautam",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rasmussen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Srinivasan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Viruses",
+            "volume": "12",
+            "issn": "7",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Potyviruses and the digital revolution",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gibbs",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ohshima",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Annual Review of Phytopathology",
+            "volume": "48",
+            "issn": "",
+            "pages": "205--223",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "The prehistory of potyviruses: their initial radiation was during the dawn of agriculture",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Gibbs",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ohshima",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Phillips",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Gibbs",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "PloS One",
+            "volume": "3",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "The potyviruses: an evolutionary synthesis is emerging",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Gibbs",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hajizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ohshima",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Jones",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Viruses",
+            "volume": "12",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "An ancestral recombination graph. Institute for Mathematics and its Applications",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Griffiths",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Marjoram",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "",
+            "volume": "87",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Recombination-aware phylogeographic inference using the structured coalescent with ancestral recombination. Forthcoming",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rasmussen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2022,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "On the complexity of comparing evolutionary trees",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Discrete Applied Mathematics",
+            "volume": "71",
+            "issn": "1-3",
+            "pages": "153--169",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Gene genealogies, variation and evolution: a primer in coalescent theory",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schierup",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wiuf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Bridging trees for posterior inference on ancestral recombination graphs",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Heine",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Beskos",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jasra",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Balding",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Iorio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the Royal Society A",
+            "volume": "474",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Branch and bound algorithms to determine minimal evolutionary trees",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Hendy",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Penny",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "Mathematical Biosciences",
+            "volume": "59",
+            "issn": "2",
+            "pages": "277--290",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Mapping gene flow between ancient hominins through demography-aware inference of the ancestral recombination graph",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hubisz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Siepel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "PLoS Genetics",
+            "volume": "16",
+            "issn": "8",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Properties of a neutral allele model with intragenic recombination",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Hudson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1983,
+            "venue": "Theoretical Population Biology",
+            "volume": "23",
+            "issn": "2",
+            "pages": "183--201",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Statistical properties of the number of recombination events in the history of a sample of dna sequences",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Hudson",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Kaplan",
+                    "suffix": ""
+                }
+            ],
+            "year": 1985,
+            "venue": "Genetics",
+            "volume": "111",
+            "issn": "1",
+            "pages": "147--164",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Gene genealogies and the coalescent process",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Hudson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "Oxford Surveys in Evolutionary Biology",
+            "volume": "7",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "KwARG: Parsimonious reconstruction of ancestral recombination graphs with recurrent mutation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ignatieva",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Lyngs\u00f8",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Jenkins",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2012.09562"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Generation and transmission of interlineage recombinants in the SARS-CoV-2 pandemic",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jackson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Boni",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bull",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Colleran",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Colquhoun",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Darby",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Haldenby",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Hill",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lucaci",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Mccrone",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Cell",
+            "volume": "184",
+            "issn": "20",
+            "pages": "5179--5188",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "MAFFT multiple sequence alignment software version 7: improvements in performance and usability",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Katoh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Standley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Molecular Biology and Evolution",
+            "volume": "30",
+            "issn": "4",
+            "pages": "772--780",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Efficient coalescent simulation and genealogical analysis for large sample sizes",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kelleher",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Etheridge",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Mcvean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "PLoS Computational Biology",
+            "volume": "12",
+            "issn": "5",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Efficient pedigree recording for fast population genetics simulation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kelleher",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Thornton",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ashander",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Ralph",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "PLoS Computational Biology",
+            "volume": "14",
+            "issn": "11",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Inferring whole-genome histories in large population datasets",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kelleher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wong",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Wohns",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fadil",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Albers",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Mcvean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nature Genetics",
+            "volume": "51",
+            "issn": "9",
+            "pages": "1330--1338",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "RAxML-NG: a fast, scalable and user-friendly tool for maximum likelihood phylogenetic inference",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kozlov",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Darriba",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Flouri",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Morel",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Stamatakis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Bioinformatics",
+            "volume": "35",
+            "issn": "21",
+            "pages": "4453--4455",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Maximum likelihood estimation of recombination rates from population data",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Kuhner",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yamato",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Felsenstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Genetics",
+            "volume": "156",
+            "issn": "3",
+            "pages": "1393--1401",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Improved algorithmic complexity for the 3SEQ recombination detection algorithm",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Lam",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ratmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Boni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Molecular Biology and Evolution",
+            "volume": "35",
+            "issn": "1",
+            "pages": "247--251",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Inference of human population history from individual whole-genome sequences",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Durbin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Nature",
+            "volume": "475",
+            "issn": "7357",
+            "pages": "493--496",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "A cluster reduction for computing the subtree distance between phylogenies",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Linz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Semple",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Annals of Combinatorics",
+            "volume": "15",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Minimum recombination histories by branch and bound",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Lyngs\u00f8",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "International Workshop on Algorithms in Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "239--250",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Approximating the coalescent with recombination",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Mcvean",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Cardin",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Philosophical Transactions of the Royal Society B: Biological Sciences",
+            "volume": "360",
+            "issn": "",
+            "pages": "1387--1393",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Host groups of potato virus y: Vanishing barriers",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Moury",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Simon",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faure",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Svanella-Dumas",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Marais",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Candresse",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Potato virus Y: Biodiversity, pathogenicity, epidemiology and management",
+            "volume": "",
+            "issn": "",
+            "pages": "243--261",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Bayesian inference of reassortment networks reveals fitness benefits of reassortment in human influenza viruses",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Stolz",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Dudas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Stadler",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Vaughan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "117",
+            "issn": "29",
+            "pages": "17104--17111",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Genome-wide inference of ancestral recombination graphs",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Rasmussen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hubisz",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gronau",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Siepel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "PLoS Genetics",
+            "volume": "10",
+            "issn": "5",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Comparison of phylogenetic trees",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Robinson",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Foulds",
+                    "suffix": ""
+                }
+            ],
+            "year": 1981,
+            "venue": "Mathematical Biosciences",
+            "volume": "53",
+            "issn": "1-2",
+            "pages": "131--147",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "The maximum agreement forest problem: Approximation algorithms and computational experiments",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Rodrigues",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.-F",
+                    "middle": [],
+                    "last": "Sagot",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wakabayashi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Theoretical Computer Science",
+            "volume": "374",
+            "issn": "1-3",
+            "pages": "91--110",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Consequences of recombination on traditional phylogenetic analysis",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Schierup",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Genetics",
+            "volume": "156",
+            "issn": "2",
+            "pages": "879--891",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Why do RNA viruses recombine?",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Simon-Loriere",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Holmes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Nature Reviews Microbiology",
+            "volume": "9",
+            "issn": "8",
+            "pages": "617--626",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "How clonal are bacteria?",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "O&apos;rourke",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Spratt",
+                    "suffix": ""
+                }
+            ],
+            "year": 1993,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "90",
+            "issn": "10",
+            "pages": "4384--4388",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Parsimonious reconstruction of sequence evolution and haplotype blocks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "International Workshop on Algorithms in Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "287--302",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Horizontal gene transfer: building the web of life",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Soucy",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Gogarten",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nature Reviews Genetics",
+            "volume": "16",
+            "issn": "8",
+            "pages": "472--482",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "A method for genome-wide genealogy estimation for thousands of samples",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Speidel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Forest",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Myers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nature Genetics",
+            "volume": "51",
+            "issn": "9",
+            "pages": "1321--1329",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Pyvolve: a flexible python module for simulating sequences along phylogenies",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Spielman",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Wilke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "PloS One",
+            "volume": "10",
+            "issn": "9",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Estimating recombination rates from population-genetic data",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Stumpf",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Mcvean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Nature Reviews Genetics",
+            "volume": "4",
+            "issn": "12",
+            "pages": "959--968",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "DendroPy: a Python library for phylogenetic computing",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sukumaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Holder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Bioinformatics",
+            "volume": "26",
+            "issn": "12",
+            "pages": "1569--1571",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Inter-and intralineage recombinants are common in natural populations of turnip mosaic virus",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Tan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wada",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ohshima",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Journal of General Virology",
+            "volume": "85",
+            "issn": "9",
+            "pages": "2683--2696",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Fast dating using least-squares criteria and algorithms",
+            "authors": [
+                {
+                    "first": "T.-H",
+                    "middle": [],
+                    "last": "To",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jung",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lycett",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Gascuel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Systematic Biology",
+            "volume": "65",
+            "issn": "1",
+            "pages": "82--97",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Error bounds for convolutional codes and an asymptotically optimum decoding algorithm",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Viterbi",
+                    "suffix": ""
+                }
+            ],
+            "year": 1967,
+            "venue": "IEEE transactions on Information Theory",
+            "volume": "13",
+            "issn": "2",
+            "pages": "260--269",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "A unifying view on approximation and fpt of agreement forests",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Whidden",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Zeh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "International Workshop on Algorithms in Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "390--402",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Supertrees based on the subtree prune-and-regraft distance",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Whidden",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Zeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Beiko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Systematic Biology",
+            "volume": "63",
+            "issn": "4",
+            "pages": "566--581",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "The SMC is a highly accurate approximation to the ancestral recombination graph",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Wilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Carmi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hobolth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Genetics",
+            "volume": "200",
+            "issn": "1",
+            "pages": "343--355",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Recombination as a point process along sequences",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wiuf",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Theoretical Population Biology",
+            "volume": "55",
+            "issn": "3",
+            "pages": "248--259",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Evolutionary aspects of recombination in RNA viruses",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Worobey",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Holmes",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Journal of General Virology",
+            "volume": "80",
+            "issn": "10",
+            "pages": "2535--2543",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "ICTV virus taxonomy profile: Potyviridae",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Wylie",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Adams",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chalam",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kreuze",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "L\u00f3pez-Moya",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ohshima",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Praveen",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Rabenstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Stenger",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "The Journal of General Virology",
+            "volume": "98",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Evidence that DNA-A of a geminivirus associated with severe cassava mosaic disease in Uganda has arisen by interspecific recombination",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Calvert",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Munoz",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Otim-Nape",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Robinson",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Harrison",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Journal of General Virology",
+            "volume": "78",
+            "issn": "8",
+            "pages": "2101--2111",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Computing maximum agreement forests. (A) A pair of discordant trees T 1 and T 2",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "2 while d bipart (T 1 , T 2 ) > 0 do 3 Find the first discordant edge with sibling child edges e a and e c in T 1 4 Find e b , the sibling of e a in T 2 (if it exists) 5 Find e d , the sibling of e c in T 2 (if it exists) 6 for edge e i in E cut = {e a , e b , e c , e d }: do 7 Cut e i and prune subtree S i from T 1 and T 2 8",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "The iterative branch-and-bound regrafting algorithm. (A) The algorithm is initialized with a maximum agreement forest (MAF) between a pair of discordant trees T 1 and T 2 . (B)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Add recombination events to T s 1:M to obtain ARG G s 4 Set \u03b8 s+1 = argmax \u03b8 (L(G s |\u03b8)) // Maximization step",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "The recombinant phylogenetic history of the potyviruses. (A) The potyvirus genome consists of 10 protein coding regions translated as a single polyprotein. The histogram shows the number of potential recombination breakpoints per 20bp windows identified using 3SEQ. The 10 longest non-recombinant blocks (NRBs) chosen for phylogenetic analysis are shaded in magenta. (B) Tanglegram showing the discordant phylogenetic relationships of potyvirus species between ML trees reconstructed from each NRB individually. Horizontal lines connect the same species in each tree such that crossing lines indicate discordance. (C) A disentangled tanglegram for the local trees in the ARG reconstructed by Espalier. The tanglegrams shown here have been thinned to only include 40 of the 131 potyspecies species included in our full analysis.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "This research was supported by the USDA through FACT grant 2019-67021-29932. DAR was additionally supported through funding from USDA Hatch project 1016556.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgments"
+        },
+        {
+            "text": "Algorithm 5: The forward-backward tree path sampler 1 Initialize forward probabilities f 1,k = L(S 1 |T 1,k ) for each tree state k.// Forward pass 2 for i = 2 to m do 3 Update f i,k for each tree state k:Randomly choose a tree state k with probability proportional toThis algorithm differs from the standard forward-backward algorithm in that it couples computing the smoothed backward probabilities with a sampling step, such that we only compute the backward probability for the sampled state. Probabilistically sampling a tree state each step returns a tree path T * 1:m sampled from the joint posterior given in (1) and as a byproduct computes the likelihood of the sampled tree path through the backwards probabilities, as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "annex"
+        }
+    ]
+}

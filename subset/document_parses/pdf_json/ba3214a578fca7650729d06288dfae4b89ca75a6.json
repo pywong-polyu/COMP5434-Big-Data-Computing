@@ -1,0 +1,4812 @@
+{
+    "paper_id": "ba3214a578fca7650729d06288dfae4b89ca75a6",
+    "metadata": {
+        "title": "Federated Split Vision Transformer for COVID-19 CXR Diagnosis using Task-Agnostic Training",
+        "authors": [
+            {
+                "first": "Sangjoon",
+                "middle": [],
+                "last": "Park",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Gwanghyun",
+                "middle": [],
+                "last": "Kim",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Jeongsol",
+                "middle": [],
+                "last": "Kim",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Boah",
+                "middle": [],
+                "last": "Kim",
+                "suffix": "",
+                "affiliation": {},
+                "email": "boahkim@kaist.ac.kr"
+            },
+            {
+                "first": "Jong",
+                "middle": [
+                    "Chul"
+                ],
+                "last": "Ye",
+                "suffix": "",
+                "affiliation": {},
+                "email": "jong.ye@kaist.ac.kr"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Federated learning, which shares the weights of the neural network across clients, is gaining attention in the healthcare sector as it enables training on a large corpus of decentralized data while maintaining data privacy. For example, this enables neural network training for COVID-19 diagnosis on chest X-ray (CXR) images without collecting patient CXR data across multiple hospitals. Unfortunately, the exchange of the weights quickly consumes the network bandwidth if highly expressive network architecture is employed. So-called split learning partially solves this problem by dividing a neural network into a client and a server part, so that the client part of the network takes up less extensive computation resources and bandwidth. However, it is not clear how to find the optimal split without sacrificing the overall network performance. To amalgamate these methods and thereby maximize their distinct strengths, here we show that the Vision Transformer, a recently developed deep learning architecture with straightforward decomposable configuration, is ideally suitable for split learning without sacrificing performance. Even under the non-independent and identically distributed data distribution which emulates a real collaboration between hospitals using CXR datasets from multiple sources, the proposed framework was able to attain performance comparable to data-centralized training. In addition, the proposed framework along with heterogeneous multi-task clients also improves individual task performances including the diagnosis of COVID-19, eliminating the need for sharing large weights with innumerable parameters. Our results affirm the suitability of Transformer for collaborative learning in medical imaging and pave the way forward for future real-world implementations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "After its earlier success in many fields, deep neural networks have found a pervasive suite of applications in healthcare research including medical imaging, becoming a new de facto standard [63, 24, 18, 58, 22, 72, 10, 67, 30] . Training these networks requires a vast amount of data to achieve robust performance [12, 16, 56] . Despite the fact that multi-center collaboration is mandatory due to the shortage of labeled data in a single institution, collaboration in healthcare research is heavily impeded by difficulties in data sharing stemming from the privacy issues and limited consent of patients [59, 46, 62] .",
+            "cite_spans": [
+                {
+                    "start": 191,
+                    "end": 195,
+                    "text": "[63,",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "24,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 200,
+                    "end": 203,
+                    "text": "18,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 204,
+                    "end": 207,
+                    "text": "58,",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 208,
+                    "end": 211,
+                    "text": "22,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 212,
+                    "end": 215,
+                    "text": "72,",
+                    "ref_id": "BIBREF69"
+                },
+                {
+                    "start": 216,
+                    "end": 219,
+                    "text": "10,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 220,
+                    "end": 223,
+                    "text": "67,",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 224,
+                    "end": 227,
+                    "text": "30]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 315,
+                    "end": 319,
+                    "text": "[12,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 320,
+                    "end": 323,
+                    "text": "16,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 324,
+                    "end": 327,
+                    "text": "56]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 606,
+                    "end": 610,
+                    "text": "[59,",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 611,
+                    "end": 614,
+                    "text": "46,",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 615,
+                    "end": 618,
+                    "text": "62]",
+                    "ref_id": "BIBREF59"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To alleviate this problem, the distributed machine learning methods, devised to enable the computation on multiple clients and servers leaving data to reside on the source devices, can be effectively leveraged for healthcare research [11, 51] . Federated learning (FL) is one of these methods which enables model training on a large corpus of decentralized data [33, 40, 68] . However, FL still holds several limitations in that it depends on clients' computational resources for its client-side parallel computation strategy for update and is not free from privacy concerns [34, 39, 61] . In contrast to FL, another distributed machine learning method, split learning (SL) offers better privacy and requires lower computational resources of clients by splitting the network between clients and the server [27, 61] , but still possess problems that it shows significant slower convergence than FL and can not learn under non-independent and non-identically distributed (non-IID) data [25] .",
+            "cite_spans": [
+                {
+                    "start": 234,
+                    "end": 238,
+                    "text": "[11,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 239,
+                    "end": 242,
+                    "text": "51]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 362,
+                    "end": 366,
+                    "text": "[33,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 367,
+                    "end": 370,
+                    "text": "40,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 371,
+                    "end": 374,
+                    "text": "68]",
+                    "ref_id": "BIBREF65"
+                },
+                {
+                    "start": 575,
+                    "end": 579,
+                    "text": "[34,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 580,
+                    "end": 583,
+                    "text": "39,",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 584,
+                    "end": 587,
+                    "text": "61]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 806,
+                    "end": 810,
+                    "text": "[27,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 811,
+                    "end": 814,
+                    "text": "61]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 984,
+                    "end": 988,
+                    "text": "[25]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Especially under unprecedented pandemic of an emerging pathogen like COVID-19, under which direct multi-national collaboration is deterred for prevention of epidemics, the collaboration via these distributed machine learning approaches is becoming increasingly important, since these enable to build a model with performance tantamount to data-centralized learning without any direct sharing of raw data between institutions to offer privacy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recently proposed Vision Transformer (ViT) architecture [19] , inspired by astounding results of Transformer-based models on natural language processing (NLP), have demonstrated impeccable performance on many vision tasks by enabling to model long dependencies within images. Besides this strength, the straightforward design of the Transformer allows to easily decompose the entire network into parts: the head for extracting features from the input image, the Transformer body to model the dependency between features, and the tail used for mapping features to task-specific output. One of the important contributions in this paper is the observation that this configuration is optimal for SL where a network should be split into the parts for clients and servers. In addition, as suggested in [13] , the Transformer body with sufficient capacity can be shared between various tasks, being suitable for multi-task learning (MTL) to leverage robust representation from multiple related tasks to enhance the generalization performance of individual tasks.",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 60,
+                    "text": "[19]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 796,
+                    "end": 800,
+                    "text": "[13]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Accordingly, here we propose a novel Federated Split Task-Agnostic (FESTA) framework equipped with a Transformer to simultaneously process multiple chest X-ray (CXR) tasks including diagnosis of COVID-19, emulating a real collaboration between several hospitals. To validate the practicability of FESTA, we also implemented the framework using a friendly federated learning framework (Flower) protocol [5] , confirming seamless integration of various components. Experimental results show that our framework can show stable performance even under non-IID settings which is a frequently faced situation for collaboration between hospitals while offering privacy, by amalgamating FL and SL to maximally exploit their main advantages. In addition, we show that the proposed FESTA Transformer along with MTL improves the performances of individual tasks. In summary, our contributions are two folds:",
+            "cite_spans": [
+                {
+                    "start": 402,
+                    "end": 405,
+                    "text": "[5]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 We proposed a novel FESTA learning framework equipped with the ViT by utilizing its decomposable design to amalgamate the merit of FL and SL.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 We showed that the model trained with the FESTA framework can leverage the robust representations from multiple related tasks to improve the performance of the individual task.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Distributed machine learning. FL is a distributed machine learning approach originally proposed by Google [33] to enable the training of a model via distributed devices and data. It eliminates the need to aggregate the raw data in a centralized way by enabling the model to be updated on the edge devices (e.g. mobile phones, computers in hospitals). Specifically, during the training, the server initializes a global model and sends it to each client. The clients then train the model with their local data in parallel and return the updated model to the server. Then, the server aggregates and distributes those models by a method such as federated averaging (FedAvg) [40] to update the global model. This process (called round) continues repeatedly until the model converges. Though FL enables decentralized training in a privacy-preserving manner, it still holds limitations as it largely depends on the computation resources of clients and is vulnerable to model inversion attacks [65] .",
+            "cite_spans": [
+                {
+                    "start": 106,
+                    "end": 110,
+                    "text": "[33]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 670,
+                    "end": 674,
+                    "text": "[40]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 986,
+                    "end": 990,
+                    "text": "[65]",
+                    "ref_id": "BIBREF62"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Different from FL, SL divides the neural network into several sub-networks, and these separated sub-networks are trained under distributed setting [21] . In detail, the first sub-network is trained on the client-side with local data and then passes the feature to the second sub-network located in the server. The server can access the only feature from the first sub-network, and train the second sub-network to send the subsequent feature to the third sub-network on the client. Finally, the third sub-network is able to provide the output of the overall network. By inserting black-box sub-networks in both client and server sides, it is possible to offer better privacy than FL. Besides the privacy benefit, SL uses less computational resources than FL at the client-side. Nevertheless, since the one cycle of forward and backward passes is finished after data and gradients move back and forth across the sub-networks distributed on multiple sides, the convergence of SL is considerably slower than FL. In addition, it was reported that the convergence is not reached at all under the non-IID setting [25] .",
+            "cite_spans": [
+                {
+                    "start": 147,
+                    "end": 151,
+                    "text": "[21]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1106,
+                    "end": 1110,
+                    "text": "[25]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Multi-task learning. MTL is a learning strategy to improve the generalization performance of a specific task with the help of information from other related tasks. In MTL, models for multiple related tasks are trained simultaneously [9, 21] . In its early era, the motivation of MTL is to mitigate the data insufficiency problem where the number of labeled data is limited for each task to train an accurate learner. MTL helps to reuse knowledge and thereby reduce the requirement for labeled data for each task, exhibiting that the MTL model can achieve better performance than the single-task counterpart in many fields ranging from computer vision [20, 42, 44, 36] to NLP [38, 26, 37, 50] .",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 236,
+                    "text": "[9,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 237,
+                    "end": 240,
+                    "text": "21]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 651,
+                    "end": 655,
+                    "text": "[20,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 656,
+                    "end": 659,
+                    "text": "42,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 660,
+                    "end": 663,
+                    "text": "44,",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 664,
+                    "end": 667,
+                    "text": "36]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 675,
+                    "end": 679,
+                    "text": "[38,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 680,
+                    "end": 683,
+                    "text": "26,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 684,
+                    "end": 687,
+                    "text": "37,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 688,
+                    "end": 691,
+                    "text": "50]",
+                    "ref_id": "BIBREF47"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "With increased data, the MTL model can learn more robust representations via knowledge sharing among multiple tasks, resulting in improved performance and less overfitting for the individual task.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Vision Transformer. Transformer [60] , which was originally developed for NLP, is a deep neural network based on an attention mechanism that utilizes an appreciably large receptive field. After achieving state-of-the-art (SOTA) performance in NLP, it has also inspired the vision community to explore its application on vision tasks to utilize its ability to model long-range dependency within an image [31] . The ViT was one of the successful attempts to apply Transformer directly to images, achieving excellent results compared to the SOTA convolutional neural networks in image classification tasks [19] . Furthermore, in addition to the superb performance, the straightforward modular design of ViT facilitates broad applications in many tasks only with minimal change. Chen et al. [13] proposed image processing transformer, which is one of the successful multi-task model for various computer vision tasks, by splitting ViT into shared body and task-specific heads and tails, suggesting that Transformer body with sufficient capacity can be shared across relevant tasks. However, they leveraged encoder-decoder design and the usefulness of the multi-task ViT model was not evaluated along with the distributed learning methods.",
+            "cite_spans": [
+                {
+                    "start": 32,
+                    "end": 36,
+                    "text": "[60]",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 403,
+                    "end": 407,
+                    "text": "[31]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 603,
+                    "end": 607,
+                    "text": "[19]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 787,
+                    "end": 791,
+                    "text": "[13]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Recently, ViT was successfully used for diagnosis and severity prediction of COVID-19, showing the SOTA performance [43] . Specifically, to alleviate the overfitting problem with limited data available, the overall framework is decomposed into two steps: the pre-trained backbone network to classify common low-level CXR features, which was leveraged in the second step by Transformer for high-level diagnosis and severity prediction of COVID-19. By maximally utilizing the merit of the large-scale database containing more than 220,000 CXR images, the model has attained stable generalization performance as well as SOTA performance in a variety of external test data from different institutions, even with the limited number of labeled cases for COVID-19.",
+            "cite_spans": [
+                {
+                    "start": 116,
+                    "end": 120,
+                    "text": "[43]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Inspired by these works, here we are interested in utilizing ViT for distributed learning in COVID-19 CXR diagnosis, where the collaboration via these distributed machine learning approaches is becoming increasingly important by offering privacy and still allowing similar performance to the data-centralized learning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Split Task-Agnostic Transformer for CXR COVID-19 Diagnosis"
+        },
+        {
+            "text": "The reason we are interested in ViT architecture for this purpose is that the natural configuration of ViT may be optimal for MTL as well as SL where the easily decomposable modular design of the network is preferred, suggesting a possibility to maximally reconcile the merits of MTL and SL through ViT architecture. Specifically, the clients just train the head and tail parts of the network, whereas the Transformer body is shared across multiple clients. Then, the embedded features from the head network from multiple clients can be leveraged in the second step by Transformer to process individual tasks including diagnosis of COVID-19. Furthermore, by maximally utilizing the merit of the large-scale database from CXR for various tasks, our goal is to demonstrate stable generalization performance as well as SOTA performance in the external test dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Split Task-Agnostic Transformer for CXR COVID-19 Diagnosis"
+        },
+        {
+            "text": "The concept of the proposed Federated Split Task-Agnostic (FESTA) learning process is illustrated in Fig 1(a) and (b). Let C = K k=1 C k be a group of client sets with different CXR tasks, where K denotes the number of tasks and C k has one or more clients with different datasets each other for the k-th task, i.e. C k = {c k 1 , c k 2 , . . . , c k N k : N k \u2265 1}. Each client c \u2208 C k has its own task-specific network architecture for a head H c and a tail T c , which are connected to Transformer B in the server.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 101,
+                    "end": 109,
+                    "text": "Fig 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "In our FeSTA framework, the server first initializes the weights of the Transformer body and taskspecific heads, tails for each task k. Then, it distributes the initialized weights of heads and tails to each client c \u2208 C k . For round i = 1, 2, . . . R, each client (e.g. hospital) perform the forward propagation on their task-specific head and pass their intermediate feature to the server. Specifically, using the local training data {(x ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "Resulting smashed features from the Transformer are allocated to task-specific tail to produce the final prediction\u0177",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "c ) according to each task, and the forward path finishes. Subsequently, the loss for each client can be calculated as c (y",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "c )))) where c (y,\u0177) refers to the c client-specific loss between the target y and the estimate\u0177. By minimizing the loss with respect to the tail weight, the gradients of the local tails are passed reversely to the server. After receiving the gradients, the server performs the back-propagation on the server-side body model, sends the gradients back to the clients. Specifically, for the task-agnostic body update, the following optimization problem is solved:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "For the task-specific fine-tuning, the following optimization problem is solved:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "Finally, the server aggregates and averages the weights of local heads and tails from the clients to update the global heads and tails among the clients for the same tasks via FedAvg, and distributes back the updated global weights of heads and tails for each task k to the clients. The algorithm is formally presented in Algorithm 1. 16 Function ClientHead(c):",
+            "cite_spans": [
+                {
+                    "start": 335,
+                    "end": 337,
+                    "text": "16",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "x c \u2190 Current batch of input from client c ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FESTA: Federated Split Task-Agnostic Learning"
+        },
+        {
+            "text": "For synergistic performance improvement, we explore the following three tasks that are commonly used for CXR: classification, segmentation, and object detection. These three tasks were separately trained for the individual model, while used simultaneously to train and to evaluate the task-agnostic model for multiple related tasks. The details of each task and dataset are as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-task CXR learning"
+        },
+        {
+            "text": "COVID-19 classification. This is the main task we want to achieve through FESTA. Since we initialized the weights of classification heads to be the robust feature extractor trained on prebuilt large data corpus containing common CXR findings, the classification heads were initialized with the pre-trained weights from CheXpert [29] dataset containing 10 CXR findings (no finding, cardiomegaly, opacity, edema, consolidation, pneumonia, atelectasis, pneumothorax, pleural effusion, support device) labeled by experts. From pre-training on the CheXpert dataset, we excluded 32,387 lateral view images, and 29,420 posterior-anterior (PA) and 161,427 anterior-posterior (AP) view data were finally used. Table 1 summarizes dataset resources and partitioning for the classification task. We used both public datasets containing labels of infectious disease (Valencian Region Medical Image Bank [BIMCV] [17] , Brixia [53, 7] , National Institutes of Health [NIH] [64] ), and CXR data deliberately collected from four hospitals labeled by board-certified radiologists. We put one hospital data aside as an external test dataset to evaluate the classification performance for real-world applications. Overall, 17,183 PA view CXR images were used for training/validation and 365 PA view CXR images for the test. In addition, we performed the experiments in the view-agnostic setting by adding AP view CXRs, to further extend real-world applicability as provided in Appendix C.1. By adding AP view data, the total amounts of CXRs were increased from 17,183 to 24,180 for training/validation and 365 to 556 for external test datasets. Notably, the number of COVID-19 cases was increased from six to 81 in the external test dataset. We modeled data from different sources as individual clients, emulating the real-world collaboration between hospitals. This setting is important to validate our method in non-IID data distribution. The study was ethically approved by the Institutional Review Board at each participating hospital and the requirement for informed consent was waived.",
+            "cite_spans": [
+                {
+                    "start": 328,
+                    "end": 332,
+                    "text": "[29]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 898,
+                    "end": 902,
+                    "text": "[17]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 912,
+                    "end": 916,
+                    "text": "[53,",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 917,
+                    "end": 919,
+                    "text": "7]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 958,
+                    "end": 962,
+                    "text": "[64]",
+                    "ref_id": "BIBREF61"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 701,
+                    "end": 708,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Multi-task CXR learning"
+        },
+        {
+            "text": "Segmentation. For the segmentation task, we have used the Society for Imaging Informatics in Medicine and the American College of Radiology Pneumothorax Segmentation Challenge dataset [54] consisting of 12,047 CXR images for training, 3,205 images for testing. The training dataset was divided randomly with a 4:1 ratio into training and validation datasets, and we developed and finetuned the model for pneumothorax segmentation with these datasets. Afterward, the segmentation performance of the model was evaluated in testing datasets. Since the data for segmentation was anonymized, it was not possible to divide the dataset according to the sources of acquisition. Instead, we randomly divided the entire dataset into the two clients, emulating the collaboration between two hospitals.",
+            "cite_spans": [
+                {
+                    "start": 184,
+                    "end": 188,
+                    "text": "[54]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Multi-task CXR learning"
+        },
+        {
+            "text": "Object detection. For the object detection task, the model was constructed to detect lung opacities in CXR with the Radiological Society of North America (RSNA) Pneumonia Detection Challenge dataset [49] that consists of CXR images and labels with bounding boxes and detailed class information of 26,684 subjects. We randomly divided the entire dataset with a 3:1 ratio into training and testing datasets, with which model was trained and evaluated. Similar to the segmentation task, as the data contains no information about the sources of acquisition, the dataset was randomly divided into two clients to simulate the collaboration between hospitals.",
+            "cite_spans": [
+                {
+                    "start": 199,
+                    "end": 203,
+                    "text": "[49]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Multi-task CXR learning"
+        },
+        {
+            "text": "For the head and tail parts of our model, the networks specialized for each task were utilized. For classification, we used the modified version of the network proposed by Ye et al. [69] , which comprises DenseNet combined with Probabilistic Class Activation Map (PCAM) operations for the classification task, since it achieved outstanding performance in the CXR classification competition. For segmentation, we adopt TransUNet [14] tthat inserts a Transformer between the convolutional neural network (CNN) encoder and decoder of UNet [48] to take advantage of both architectures. Similarly, the 2nd place solution in the RSNA pneumonia detection challenge, which is a modified version of RetinaNet for object detection, was utilized. After splitting these models into head and tail, the feature maps between head and tail were mapped to the feature maps with the same dimension of 16 \u00d7 16 \u00d7 768, and used as input of Transformer body. The Transformer body, equipped with 12 layers of standard Transformer encoder with 12 attention heads, transforms the feature maps to embed better representation. Then, the resulting feature maps from the body were passed to tails to yield the outcomes.",
+            "cite_spans": [
+                {
+                    "start": 182,
+                    "end": 186,
+                    "text": "[69]",
+                    "ref_id": "BIBREF66"
+                },
+                {
+                    "start": 428,
+                    "end": 432,
+                    "text": "[14]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 536,
+                    "end": 540,
+                    "text": "[48]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation details"
+        },
+        {
+            "text": "As suggested in Park et al. [43] , the head for classification was first initialized with pre-trained weights from the CheXpert dataset. We minimized the cross-entropy loss for the classification task. For the segmentation model, we minimized the binary cross-entropy loss combined with dice and focal loss. Finally, for the detection task, we minimized the sum of box classification, box regression, and image classification losses as suggested by Gabruseva et al. [23] . For all tasks, the batch size was 2 per client, and the warm-up step was 500. We set the number of total rounds to 12,000, and the weights of each clients' head and tail underwent FedAvg per 100 rounds by the server. To simulate single-task learning (STL) in Fig. 2 (b), we considered each six data sources as different clients for the classification task. On the other hand, for MTL shown in Fig. 2 (c), 10 clients were simultaneously used, with six clients for classification and two clients for segmentation and detection tasks, respectively. For the segmentation and detection tasks, the training data set was randomly split into two subsets, whereas non-IID distribution was used for the classification task. To adjust the loss scale, the customized weights of 1:2:2 were applied for classification, segmentation, and detection tasks to update the common body weights. We divided the MTL into two steps, jointly training the task-specific heads, tails, and the task-agnostic body (6,000 rounds), and fine-tuning only the task-specific heads, tails with the body weights fixed (6,000 rounds). By fixing the parameters of the shared Transformer body during the second step, the best models can be selected for different tasks according to the performance evaluation metrics of each task, even at the different rounds. Performance metrics. We used the area under the receiver operating characteristic curve (AUC) to evaluate the diagnostic performance in the classification task. To evaluate the accuracy of segmentation, the Dice coefficient was used to quantitatively measure the overlap between the segmentation results by model and the ground truths. The detection results were evaluated by calculating the mean average precision (mAP) at the different intersection over union, with a threshold range from 0.4 to 0.75 with a step size of 0.05 as suggested in RSNA [49] . All experiments have been run and evaluated with three different random seeds for the weight initialization to prevent the chance of confusing the results.",
+            "cite_spans": [
+                {
+                    "start": 28,
+                    "end": 32,
+                    "text": "[43]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 466,
+                    "end": 470,
+                    "text": "[23]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 2343,
+                    "end": 2347,
+                    "text": "[49]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 732,
+                    "end": 738,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 866,
+                    "end": 872,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Implementation details"
+        },
+        {
+            "text": "FESTA vs. Other strategies. We compared the performance of classification model trained with FESTA with a data-centralized setting and other distributed learning strategies for COVID-19 classification task under the non-IID setting. To simulate data-centralized training, the whole network with connected head, body, and tail was trained with the integrated dataset of all six sources.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "To simulate FL, the whole network was aggregated and distributed by the server with FedAvg as suggested by McMahan et al. [40] . On the other hand, for SL, the split sub-networks reside in the clients and server-side, and the client-side sub-networks were not aggregated as in [61] . The same experimental settings and hyperparameters were applied for a fair comparison. For more details of the data-centralized learning and other distributed learning methods, refer to Appendix B.",
+            "cite_spans": [
+                {
+                    "start": 122,
+                    "end": 126,
+                    "text": "[40]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 277,
+                    "end": 281,
+                    "text": "[61]",
+                    "ref_id": "BIBREF58"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "As shown in Table 2 , our method achieved comparable performance to the data-centralized learning method as well as outperformed the existing distributed learning methods, suggesting the superiority of our method over other methods. Of note, the performance could be further enhanced with MTL, which is a distinct strength of the proposed method.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 12,
+                    "end": 19,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "In our additional experiments after adding AP view data, the model showed even better performance with the increased number of cases (Appendix C.1). This remarkable view-agnostic behavior of the model incentivizes the real-world application of computer-aided diagnosis of COVID-19, as the recent review on artificial intelligence models for COVID-19 diagnosis claims that the AI model, which has been pouring out a lot recently, are not helpful at all from the viewpoint of clinical application [66] , in which the performances were substantially unstable by the factors like the view of CXR images [45] . Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation.",
+            "cite_spans": [
+                {
+                    "start": 495,
+                    "end": 499,
+                    "text": "[66]",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 599,
+                    "end": 603,
+                    "text": "[45]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "For evaluation of split learning, the average metric between clients are calculated.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Multi-task learning vs. Single-task learning. We evaluate whether the task-agnostic Transformer body contributes to improving the performance of the entire model by leveraging better representation from the MTL with several related tasks, namely classification, segmentation, and object detection in this work. As provided in Table 3 , the models trained with the MTL approach showed at least comparable or even better performance compared with STL counterparts without the need to create an individual body model for each task or sharing a large body model between clients, which suggest the distinct merit of MTL approach with our framework.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 326,
+                    "end": 333,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "In addition to the STL models, the MTL models trained with our framework outperformed taskspecific expert models and provided comparable or even better performances to Kaggle's winning solution for the same tasks. Of note, when we substitute the shared layers of the Transformer body with CNN architecture with similar complexity, the performance gain was no longer maintained, suggesting the suitability of Transformer architecture in learning shared representation between the related tasks as provided in the additional experiments in Appendix C.2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Model sizes and communicative benefit. Table 4 shows the numbers of parameters and the sizes of sub-networks. The task-agnostic body is the largest among sub-networks in terms of both the number of parameters and model size. This suggests that the largest part of the model does not need to be aggregated and distributed between client-client and client-server, which offers substantial Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 39,
+                    "end": 46,
+                    "text": "Table 4",
+                    "ref_id": "TABREF4"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "communicative benefit. In all tasks, the size of the body is more than half of the entire network. Therefore, not having to share this huge part means the total training time can be reduced considerably.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "In our experiments, the training time with the proposed method was four times shorter than the FL approach in which the entire network is shared and distributed. In addition, the proposed method offers another benefit of saving the computational resources of the server by processing multiple tasks with a single body model to enable the server to efficiently handle the requests for various tasks from many clients simultaneously.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Nonetheless, there remains a concern of communicative heavy load between the server and clients caused by the frequent transmission of features and gradients. Our further analysis of communication costs including features and gradients transmission are provided in the additional experiments, which suggests that the communication costs of the proposed FESTA framework was substantially lower than those of FL, although higher than SL. For detailed results of the computation for communication costs, refer to Appendix C.3. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Role of Transformer body. As provided in Table 5 , we first performed the ablation study to verify the contribution of the Transformer body on the server. The model without the server-side Transformer body, which is identical to the DenseNet-121 model equipped with PCAM operation [69] , was built and trained with the same setting, and compared with the proposed model containing the Transformer body. The AUC values were higher with the Transformer body either for STL or MTL compared to those without the Transformer body with the statistical significance, implying the advantageous role of the server-side Transformer body as in Appendix C.4.",
+            "cite_spans": [
+                {
+                    "start": 281,
+                    "end": 285,
+                    "text": "[69]",
+                    "ref_id": "BIBREF66"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 41,
+                    "end": 48,
+                    "text": "Table 5",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Ablation study"
+        },
+        {
+            "text": "Numbers of round for averaging. Determining the optimal number of rounds for averaging is important. If the aggregation, averaging, and distribution, namely FESTA is performed too frequently, the cost and required resources for communication increases, which can interfere or even preclude the learning process. On the contrary, if averaged too rarely, naive averaging of the learned model parameters of local learners can be devastating, resulting in nonsensical parameters in some layers [70] . Therefore, we performed the ablation to determine the optimal number of rounds to conduct FESTA. As shown in Table 5 , the averaging per 100 rounds showed the comparable or better performance to less or more frequent counterparts.",
+            "cite_spans": [
+                {
+                    "start": 490,
+                    "end": 494,
+                    "text": "[70]",
+                    "ref_id": "BIBREF67"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 606,
+                    "end": 613,
+                    "text": "Table 5",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Ablation study"
+        },
+        {
+            "text": "More results of ablation studies are provided in Appendix D.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ablation study"
+        },
+        {
+            "text": "In this paper, we proposed a novel Federated Split Task-Agnostic (FESTA) framework suitable to leverage the formidable benefit of ViT to simultaneously process multiple CXR tasks including the Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation. Note: * denotes statistically significant difference.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "diagnosis of COVID-19. With the optimal configuration of ViT for modulation, it was possible to surpass the existing methods for distributed learning and achieve the performance comparable to data-centralized learning with our framework, even under the skewed data distribution. Moreover, our framework alongside clients to process multiple related tasks also improves the performances of individual tasks, while eliminating the need to share the data and large weights of the body network. These results suggest the suitability of the Transformer for collaborative learning in medical imaging and pave the way forward for future real-world applications.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        },
+        {
+            "text": "This work is more like a proof-of-the-concept study, rather than a ready-to-use solution for the industry. Therefore, it holds some limitations which may occur in a real-world application. Recent works on privacy attacks in the FL setting have implied that the belief that \"Privacy can be protected by the decentralized nature of the FL\" is not true [4, 65, 71] . In this work, however, the experimental results regarding the privacy issue such as threatening privacy via inversion attack are not suggested. Secondly, although the unique challenges of FL have been suggested by previous work including the problems of significant bottleneck in communication, stragglers, and fault tolerance which is exacerbated than in typical data-centralized learning [55, 34] , we have not conducted the experiments to evaluate the robustness of our method against these unique challenges.",
+            "cite_spans": [
+                {
+                    "start": 350,
+                    "end": 353,
+                    "text": "[4,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 354,
+                    "end": 357,
+                    "text": "65,",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 358,
+                    "end": 361,
+                    "text": "71]",
+                    "ref_id": "BIBREF68"
+                },
+                {
+                    "start": 754,
+                    "end": 758,
+                    "text": "[55,",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 759,
+                    "end": 762,
+                    "text": "34]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Limitation and Potential Negative Societal Impacts"
+        },
+        {
+            "text": "Although distributed learning-enabled learning without sharing data, decentralization is not a panacea against the privacy problem. Similar to the previously distributed learning methods, a potential risk arises from these limitations that our algorithm may not be free from privacy issues via model inversion attack against the server, since the server retains the parameters of the entire network in process of FedAvg of the heads and tails despite the split design of the sub-networks upon both client and server-sides. Although the risk could be mitigated to some degree with the specific settings (e.g. small gradient due to pre-trained backbone, deeper network, more pooling layer, a mixture of multiple tasks), the privacy problem should not be ignored since we aim to use this method in collaboration with hospitals where the patient privacy is a matter of the highest priority. Therefore, the methods to enhance the security such as differential privacy [41] , secure multi-party computation [6] , data compression [73] and authenticated encryption [47] as well as the recent method to prevent gradient inversion attack without sacrificing FL performance [57] should be utilized along with the proposed method to further reduce the risk of privacy leakage in a real-world application.",
+            "cite_spans": [
+                {
+                    "start": 963,
+                    "end": 967,
+                    "text": "[41]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 1001,
+                    "end": 1004,
+                    "text": "[6]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1024,
+                    "end": 1028,
+                    "text": "[73]",
+                    "ref_id": "BIBREF70"
+                },
+                {
+                    "start": 1058,
+                    "end": 1062,
+                    "text": "[47]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1164,
+                    "end": 1168,
+                    "text": "[57]",
+                    "ref_id": "BIBREF54"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Limitation and Potential Negative Societal Impacts"
+        },
+        {
+            "text": "Here we describe the details of the hyperparameters used and their implementation. Our experiments were mainly implemented using Python version 3.7.5 and 3.8.8 with packages Pytorch version 1.7.1 and 1.8.1. We used a friendly federated learning framework (Flower) protocol [5] to implement the distributed learning system, Pytorch to implement the neural network.",
+            "cite_spans": [
+                {
+                    "start": 273,
+                    "end": 276,
+                    "text": "[5]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Implementation Details"
+        },
+        {
+            "text": "We have searched different hyperparameters for each chest X-ray (CXR) task. For the classification task, we used an SGD optimizer with a warm-up cosine learning rate scheduler with a max learning rate of 0.0005. For the segmentation task, we minimized the binary cross-entropy loss combined with dice and focal loss using Adam [32] with a learning rate of 0.0001 and cosine annealing scheduler with the maximum rounds of 2,000 for single-task and 1,000 for multi-task learning. Finally, the Adam optimizer along with the warm-up constant scheduler was used with the max learning rate of 0.00002. Gradient clipping was implemented, where the max gradient norm of 1.0 was chosen to enhance the rate of convergence, and the batch sizes per client were 2 for all tasks. We experimentally determined the optimal hyperparameters for each task. Table 6 and Table 7 provide the detailed hyperparameters used for each task during single-task learning and multi-task learning. The output from the Transformer body corresponding to this CLS token embed the comprehensive feature of the entire CXR image so that it can be used to make the final prediction ( Fig. 3(a) ). On the other hand, for the segmentation task, the features at the deepest level of TransUNet of the dimension 32 \u00d7 32 \u00d7 1024 is used as the input of the Transformer after mapping into the dimension of 16 \u00d7 16 \u00d7 768 and flattened to dimension of 256 \u00d7 768, and the CLS token is not utilized at all though it is prepended as the same way in the classification task to make the same feature size 257 \u00d7 768. The resulting transformed features from the body are mapped into original shape and utilized as the same in standard TransUNet architecture (Fig. 3(b) ). Similarly, the model for the detection task doesn't use the CLS token, and it rather uses a similar approach to that of the segmentation task. The deepest level of the feature pyramid, which has features of the dimension 16 \u00d7 16 \u00d7 1024, is first mapped into dimension of 16 \u00d7 16 \u00d7 768, and is used as the input for the Transformer body after flattening and prepending CLS token to make the same dimension of 257 \u00d7 768 to other tasks. Then, the transformed feature from the body reverts to the original shape and position for the feature pyramid to be combined to yield the final output (Fig.  3(c) ).",
+            "cite_spans": [
+                {
+                    "start": 327,
+                    "end": 331,
+                    "text": "[32]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 838,
+                    "end": 845,
+                    "text": "Table 6",
+                    "ref_id": "TABREF6"
+                },
+                {
+                    "start": 850,
+                    "end": 857,
+                    "text": "Table 7",
+                    "ref_id": "TABREF7"
+                },
+                {
+                    "start": 1146,
+                    "end": 1155,
+                    "text": "Fig. 3(a)",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 1703,
+                    "end": 1713,
+                    "text": "(Fig. 3(b)",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 2303,
+                    "end": 2314,
+                    "text": "(Fig.  3(c)",
+                    "ref_id": "FIGREF8"
+                }
+            ],
+            "section": "A.1 Hyperparameters"
+        },
+        {
+            "text": "From the implementation perspective of this consequential process, the major hurdle for federated learning (FL) research is the paucity of open source frameworks that support scalable FL on multiple edge devices. Several studies performing FL on millions of edge devices have been published [28] , but they are based on a closed industrial system developed by a private corporation and are not publicly available. Meanwhile, even though several open-source frameworks including Tensorflow federated [2], PySyft [1] and LEAF [8] enabled the experiments on FL simulation, they do not support heterogeneous clients, server-side orchestration and are neither scalable between multiple machines, nor language agnostic. Recently, an open-source framework, Flower has been developed to address this problem which supports the heterogeneous environment and scaling to multiple distributed clients. It offers stable, language-and deep learning framework-agnostic implementation. Moreover, it allows rapid adoption of the existing deep learning algorithm to evaluate their learning dynamics and performances in a federated setting. Therefore, we implemented our framework upon this Flower protocol. Fig. 4 illustrates the core components of our framework based on Flower. Since the FL can be considered as an interplay between global (server) and local (client) computations, we implemented the server and client-side components of our framework on top of the Flower server and clients. In Flower clients, task-specific loops of the heads and tails are performed with local data of each client, and the resulting features, gradients, and local parameters are passed toward the RPC client for communication. Then, the remote procedure call (RPC) client communicates with the RPC server in a language-agnostic manner using the bi-directional gRPC stream communication protocol [3] , which offers an efficient binary serialization format. On the server-side, a task-agnostic body loop is performed using the features and gradients received. In addition, the aggregation, distribution of local parameters through a strategy such as federated averaging (FedAvg) are performed per averaging rounds. Finally, the features, gradients, and aggregated global parameters from the server revert to each client.",
+            "cite_spans": [
+                {
+                    "start": 291,
+                    "end": 295,
+                    "text": "[28]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 511,
+                    "end": 514,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 524,
+                    "end": 527,
+                    "text": "[8]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1865,
+                    "end": 1868,
+                    "text": "[3]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1189,
+                    "end": 1195,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF9"
+                }
+            ],
+            "section": "A.3 Implementation of our framework upon Flower protocol"
+        },
+        {
+            "text": "Different from previous studies that reported the result of single-device simulation [15] , our method supports the simulation with multiple machines, which is close to real-world implementation of the system across the edge devices.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 89,
+                    "text": "[15]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A.3 Implementation of our framework upon Flower protocol"
+        },
+        {
+            "text": "We perform the comparison of Federated Split Task-Agnostic (FESTA) with data-centralized and other distributed learning methods on the COVID-19 classification task which is the main task of this study. The details of each learning process are illustrated in Fig. 5 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 258,
+                    "end": 264,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "B Data-centralized and Other Distributed Learning Methods"
+        },
+        {
+            "text": "In data-centralized learning, the local data from six clients are centrally aggregated by the server and the single model is trained on a central server as represented in Fig. 5 (a) . Batch size is set to 12 to match the setting of distributed learning strategies, accounting for batch size two per every six clients. Other settings are used as the same as FESTA for a fair comparison.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 171,
+                    "end": 181,
+                    "text": "Fig. 5 (a)",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "B.1 Details of data-centralized learning"
+        },
+        {
+            "text": "In general, the simulation of the FL can be achieved by repeatedly doing three steps, as illustrated: i) update local parameters of the distributed model with local data on each client, ii) send the updated local parameters back to a server for aggregation, iii) distribute the aggregated model back to the clients for next rounds of local updates. Thus, we trained the entire network consisting of the head, body, and the tail is trained on each client with its local data in parallel without dividing it into sub-networks components as in Fig. 5(b) . This process can be formally written as in Algorithm 2.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 541,
+                    "end": 550,
+                    "text": "Fig. 5(b)",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "B.2 Details of federated learning"
+        },
+        {
+            "text": "Regarding the experimental setting, the same settings to those of the proposed FESTA were used for comparison.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B.2 Details of federated learning"
+        },
+        {
+            "text": "To simulate split learning (SL), we adopted the SL without label sharing as suggested in the original paper of SL [61] . The detailed process of the SL method used in our experiment can be presented as in Algorithm 3. The overall process of SL is similar to FESTA except for the fact that a step of aggregation and distribution by the central server is absent in SL as in Fig. 5(c) . The splitting configuration of head, body, and tail on client and server sides were the same as in the proposed FESTA. Since the local head and tail parameters of individual clients are not unified in SL, the inference results on the external testing dataset can be different between clients. Therefore, we calculated evaluation metrics for every six clients and averaged them to get the final score. The other experiment settings, including batch size and learning rate, remain the same as in the proposed FESTA.",
+            "cite_spans": [
+                {
+                    "start": 114,
+                    "end": 118,
+                    "text": "[61]",
+                    "ref_id": "BIBREF58"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 372,
+                    "end": 381,
+                    "text": "Fig. 5(c)",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "B.3 Details of split learning"
+        },
+        {
+            "text": "In this section, the results of additional experiments to further analyze the proposed FESTA learning method are suggested.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C Additional Experiments"
+        },
+        {
+            "text": "To provide more robust results using the larger corpus of data especially in terms of the number of COVID-19 cases, additional experiments were performed as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C.1 Performances with increased number of COVID-19 cases"
+        },
+        {
+            "text": "We first swapped the hospital 1 data (containing 6 COVID-19 cases), which was originally used as the external test dataset, with the hospital 3 data (containing 80 COVID-19 cases), and repeated the experiments with the same setting. As suggested in Table 8 , the proposed model retained stable performance in hospital 3 data with 80 COVID-19 cases.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 249,
+                    "end": 256,
+                    "text": "Table 8",
+                    "ref_id": "TABREF9"
+                }
+            ],
+            "section": "C.1 Performances with increased number of COVID-19 cases"
+        },
+        {
+            "text": "Secondly, the additional analysis was performed by holding out all four hospital data (private) from the training set and by using them for external validation. Here, the label system had to be simplified into two categories, COVID-19 and non-COVID-19, as public datasets do not contain any label data for the \"other infection\" class. The proposed model presented stable performance even after excluding all private CXR data from the training set, dispelling the worry of data leakage problems. Although the performances were slightly decreased, it should be taken into consideration that the Distribute the global weight to client W c \u2190W for each client c \u2208 C 9 Function ClientUpdate(c): total amount of training data decreased to less than half of the original training data by removing the hospital 4 data (Table 9 ). Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation.",
+            "cite_spans": [
+                {
+                    "start": 661,
+                    "end": 662,
+                    "text": "9",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 809,
+                    "end": 817,
+                    "text": "(Table 9",
+                    "ref_id": "TABREF10"
+                }
+            ],
+            "section": "C.1 Performances with increased number of COVID-19 cases"
+        },
+        {
+            "text": "Finally, we gathered additional anterior-posterior (AP) view CXR data labeled by the experts and combined them with the original posterior-anterior (PA) view data as shown in Table 10 . The total amount of COVID-19 data has doubled, and COVID-19 cases in hospital 1 increased 6 to 81 CXRs. When adding the additional AP view CXRs and evaluating the performances in hospital 1 data, the performances of the proposed model were not compromised and rather increased especially for the diagnosis of COVID-19 as in Table 11 . Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 175,
+                    "end": 183,
+                    "text": "Table 10",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 510,
+                    "end": 518,
+                    "text": "Table 11",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "C.1 Performances with increased number of COVID-19 cases"
+        },
+        {
+            "text": "C.2 Comparison with task-specific expert and CNN-based multi-task learning models Table 12 shows a comparison of the performances of each task between the proposed Transformerbased multi-task learning model trained with FESTA method and others. First, we compared the proposed MTL model with single task experts, defined as following for each task. As provided in Table 12 , the proposed MTL model outperformed the task-specific experts for each specific task. Of note, when the shared Transformer body was substituted with the shared convolutional neural network (CNN) layer for MTL, the performance was substantially dropped in the detection task. Combined together, the results demonstrated the value of the Transformer architecture leveraging global attention as well as local attention, which is suitable for MTL and cannot be substituted by other architecture like shared CNN layers. Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 82,
+                    "end": 90,
+                    "text": "Table 12",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 364,
+                    "end": 372,
+                    "text": "Table 12",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "C.1 Performances with increased number of COVID-19 cases"
+        },
+        {
+            "text": "In addition, when compared with Kaggle's winning solutions available for the segmentation [54] and detection tasks [49] , the proposed MTL model showed comparable performances as shown in Table 13 , suggesting that the Transformer body do not deface the performances of the individual tasks. Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation.",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 94,
+                    "text": "[54]",
+                    "ref_id": null
+                },
+                {
+                    "start": 115,
+                    "end": 119,
+                    "text": "[49]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 188,
+                    "end": 196,
+                    "text": "Table 13",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "C.1 Performances with increased number of COVID-19 cases"
+        },
+        {
+            "text": "With the intrinsic property of FESTA learning, a high computational burden is imposed on the server-side device, and this configuration is what we intended. Suppose, if most of the computation is performed on client-sides, all participating hospitals should have devices with high computational capacity. Forcing to prepare high computational resources for participants will obviously hinder the widespread adoption in a real-world application, and preparing a powerful server-side device with better security is rather practical. Nevertheless, there still remains a problem of computational costs between the server and clients. The communication costs between the server as the client can be estimated as follow.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C.3 Estimates of communication costs"
+        },
+        {
+            "text": "When the period between averaging is k and transmission of features, gradients, and network parameters are F , G and P respectively, total transmission from Server to Client T can be represented as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C.3 Estimates of communication costs"
+        },
+        {
+            "text": "When parameter numbers of head, body, and tail are P h , P b and P t respectively and k is 100, T for each distributed learning strategy can be formulated as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C.3 Estimates of communication costs"
+        },
+        {
+            "text": "If the transmission from Server to Client T and that from Client to Server T C\u2192S are assumed to be equal (T C\u2192S = T ), total transmission T is as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C.3 Estimates of communication costs"
+        },
+        {
+            "text": "We then calculated the communication costs for feature/gradient transmission and parameter transmission per 1 averaging (=100 rounds) for each task as shown in Table 14 . Despite the fact that the communication cost of the proposed FESTA framework was larger than that of SL, it was substantially lower than that of FL.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 160,
+                    "end": 168,
+                    "text": "Table 14",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "C.3 Estimates of communication costs"
+        },
+        {
+            "text": "We also performed whether or not the performance gains with the Transformer architecture are statistically significant. As provided in Table 15 , the proposed MTL model outperformed the model without the Transformer body with statistical significance, and the performance increase was more prominent in the MTL model. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 135,
+                    "end": 143,
+                    "text": "Table 15",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "C.4 Statistical analysis"
+        },
+        {
+            "text": "Additional ablation studies have been performed to examine the effect of Transformer body capacity and different training schemes, as shown in Table 16 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 143,
+                    "end": 151,
+                    "text": "Table 16",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "D Additional Ablation Studies in Multi-Task Learning Setting."
+        },
+        {
+            "text": "Effect of Transformer body capacity We first evaluated the effect of the network capacity of the task-agnostic body model on the performances of individual tasks. Since the Transformer processes the task-agnostic modeling between features in a multi-task setting, there exists a possibility that the performance can further increase with the use of a dedicated server system with higher computational resources, once the model shows the performance proportional to the capacity of the Transformer body. As suggested in Table 16 , the model equipped with a smaller body showed lower performance than that of a standard Transformer body equipped with 12 heads and 12 layers, suggesting the possibility of further improvement in performance with a Transformer with higher capacity.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 519,
+                    "end": 527,
+                    "text": "Table 16",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "D Additional Ablation Studies in Multi-Task Learning Setting."
+        },
+        {
+            "text": "Training scheme Since our framework consists of the server-side and client-side sub-networks, it is possible to train only part of these sub-networks or train this sub-network after fixing the others. Thus, we experimented with various training schemes to evaluate their effect on the performance in multi-task settings. For the one-step learning approach, we trained the model after having all sub-networks, namely head, body, and tail, learnable for the entire training round. For the alternating approach, we alternately fixed and unfixed the parameters of the body and head/tail per 100 rounds. As shown in Table 16 , both of these approaches show lower performance than the proposed two-step learning approach. This suggests that the simultaneous or alternating approach to train these subnetwork components makes training unstable. Fixing the body for multi-task processing after certain rounds and fine-tuning the task-specific components may help to reach the better local minimum for the head and tail for each task, resulting in better generalization performance. Note: Experiments were performed repeatedly with three random seeds to report mean and standard deviation. Table 17 describes the details about the CXR and clinical characteristics of four hospital data deliberately collected for this study. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 611,
+                    "end": 619,
+                    "text": "Table 16",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 1181,
+                    "end": 1189,
+                    "text": "Table 17",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "D Additional Ablation Studies in Multi-Task Learning Setting."
+        },
+        {
+            "text": "Ethic Committee Approval and Permission Information The four hospital data deliberately collected for COVID-19 classification were ethically approved by the Institutional Review Board of each hospital. According to their terms of use, the public datasets for the classification task (CheXpert [29] , Valencian Region Medical Image Bank [BIMCV] [17] , Brixia [53, 7] , National Institutes of Health [NIH] [64] ) can be used for research purposes. Likewise, the datasets for the segmentation",
+            "cite_spans": [
+                {
+                    "start": 293,
+                    "end": 297,
+                    "text": "[29]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 344,
+                    "end": 348,
+                    "text": "[17]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 358,
+                    "end": 362,
+                    "text": "[53,",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 363,
+                    "end": 365,
+                    "text": "7]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 404,
+                    "end": 408,
+                    "text": "[64]",
+                    "ref_id": "BIBREF61"
+                }
+            ],
+            "ref_spans": [],
+            "section": "F Ethic Committee Approval and Permission Information."
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Openmined/pysyft: A library for answering questions using data you cannot see",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Privacy-preserving deep learning: Revisited and enhanced",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Aono",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hayashi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Moriai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Applications and Techniques in Information Security",
+            "volume": "",
+            "issn": "",
+            "pages": "100--110",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Flower: A friendly federated learning research framework",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Beutel",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Topal",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mathur",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Qiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Parcollet",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "De Gusm\u00e3o",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Lane",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2007.14390"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Practical secure aggregation for privacy-preserving machine learning",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Bonawitz",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Ivanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Kreuter",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Marcedone",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Patel",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramage",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Segal",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Seth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "proceedings of the 2017 ACM SIGSAC Conference on Computer and Communications Security",
+            "volume": "",
+            "issn": "",
+            "pages": "1175--1191",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Covid-19 outbreak in italy: experimental chest x-ray scoring system for quantifying and monitoring disease progression",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Borghesi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Maroldi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "La radiologia medica",
+            "volume": "125",
+            "issn": "",
+            "pages": "509--513",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Leaf: A benchmark for federated settings",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Caldas",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M K"
+                    ],
+                    "last": "Duddu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kone\u010dn\u1ef3",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Talwalkar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1812.01097"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Multitask learning",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Learning to learn",
+            "volume": "",
+            "issn": "",
+            "pages": "95--133",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Maximizing a deep submodular function optimization with a weighted max-sat problem for trajectory clustering and motion segmentation",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Chandriah",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Naraganahalli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Applied Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "1--20",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Distributed deep learning networks among institutions for medical imaging",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Balachandar",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lam",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Yi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Brown",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Beers",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Rosen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Rubin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kalpathy-Cramer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "25",
+            "issn": "8",
+            "pages": "945--954",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Deep learning: a primer for radiologists",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Chartrand",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Vorontsov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Drozdzal",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Turcotte",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Pal",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kadoury",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Radiographics",
+            "volume": "37",
+            "issn": "7",
+            "pages": "2113--2131",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Pre-trained image processing transformer",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2012.00364"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Transunet: Transformers make strong encoders for medical image segmentation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Adeli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Yuille",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2102.04306"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Variational federated multi-task learning",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Corinzia",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Beuret",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Buhmann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1906.06268"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Clinically applicable deep learning for diagnosis and referral in retinal disease",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "De Fauw",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Ledsam",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Romera-Paredes",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Nikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tomasev",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Blackwell",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Askham",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Glorot",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "O&apos;donoghue",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Visentin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Nature medicine",
+            "volume": "24",
+            "issn": "9",
+            "pages": "1342--1350",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Bimcv COVID-19+: a large annotated dataset of rx and ct images from COVID-19 patients",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De La Iglesia",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Vay\u00e1",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Saborit",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Montell",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pertusa",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bustos",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Cazorla",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Galant",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Barber",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Orozco-Beltr\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Garc\u00eda-Garc\u00eda",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2006.01174"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Deepharmony: a deep learning approach to contrast harmonization across scanner changes",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Dewey",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Reinhold",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Carass",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Fitzgerald",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Sotirchos",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Saidha",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Oh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Pham",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Calabresi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Magnetic resonance imaging",
+            "volume": "64",
+            "issn": "",
+            "pages": "160--170",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "An image is worth 16x16 words: Transformers for image recognition at scale",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Dosovitskiy",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Beyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kolesnikov",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Weissenborn",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Unterthiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Dehghani",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Minderer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Heigold",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gelly",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2010.11929"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Predicting depth, surface normals and semantic labels with a common multi-scale convolutional architecture",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Eigen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Fergus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the IEEE international conference on computer vision",
+            "volume": "",
+            "issn": "",
+            "pages": "2650--2658",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Regularized multi-task learning",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Evgeniou",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pontil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the tenth ACM SIGKDD international conference on Knowledge discovery and data mining",
+            "volume": "",
+            "issn": "",
+            "pages": "109--117",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Deep learning in medical image registration: a review",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Curran",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Physics in Medicine & Biology",
+            "volume": "65",
+            "issn": "20",
+            "pages": "20--21",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Deep learning for automatic pneumonia detection",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gabruseva",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Poplavskiy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kalinin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "350--351",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Joint reconstruction and bias field correction for undersampled mr imaging",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gaillochet",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Tezcan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Konukoglu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "44--52",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "End-to-end evaluation of federated learning and split learning for internet of things",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Abuadbba",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Thapa",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Camtepe",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Nepal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2003.13376"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Soft layer-specific multi-task summarization with entailment and question generation",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pasunuru",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bansal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1805.11004"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Distributed learning of deep neural network over multiple agents",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Raskar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Journal of Network and Computer Applications",
+            "volume": "116",
+            "issn": "",
+            "pages": "1--8",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Federated learning for mobile keyboard prediction",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hard",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Rao",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mathews",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ramaswamy",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Beaufays",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Augenstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Eichner",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kiddon",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramage",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1811.03604"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Chexpert: A large chest radiograph dataset with uncertainty labels and expert comparison",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Irvin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rajpurkar",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ko",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ciurea-Ilcus",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chute",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Marklund",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Haghgoo",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ball",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shpanskaya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+            "volume": "33",
+            "issn": "",
+            "pages": "590--597",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "On the automatic generation of medical imaging reports",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jing",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1711.08195"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Transformers in vision: A survey",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Khan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Naseer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hayat",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Zamir",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Khan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shah",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2101.01169"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Adam: A method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.6980"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Federated learning: Strategies for improving communication efficiency",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kone\u010dn\u1ef3",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "X"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Richt\u00e1rik",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Suresh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bacon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1610.05492"
+                ]
+            }
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Federated learning: Challenges, methods, and future directions",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Sahu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Talwalkar",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Signal Processing Magazine",
+            "volume": "37",
+            "issn": "3",
+            "pages": "50--60",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Focal loss for dense object detection",
+            "authors": [
+                {
+                    "first": "T.-Y",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Doll\u00e1r",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the IEEE international conference on computer vision",
+            "volume": "",
+            "issn": "",
+            "pages": "2980--2988",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "End-to-end multi-task learning with attention",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Johns",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Davison",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "1871--1880",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Multi-task deep neural networks for natural language understanding",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1901.11504"
+                ]
+            }
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Multi-task sequence to sequence learning",
+            "authors": [
+                {
+                    "first": "M.-T",
+                    "middle": [],
+                    "last": "Luong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Kaiser",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1511.06114"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Federated learning: Opportunities and challenges",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Mammen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2101.05428"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Communication-efficient learning of deep networks from decentralized data",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Moore",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramage",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hampson",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Arcas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Artificial Intelligence and Statistics",
+            "volume": "",
+            "issn": "",
+            "pages": "1273--1282",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Learning differentially private recurrent language models",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramage",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Talwar",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1710.06963"
+                ]
+            }
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Cross-stitch networks for multi-task learning",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Misra",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shrivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hebert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3994--4003",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Vision transformer using low-level chest x-ray feature corpus for covid-19 diagnosis and severity quantification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Oh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Seo",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Moon",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.-K",
+                    "middle": [],
+                    "last": "Lim",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Ye",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2104.07235"
+                ]
+            }
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Learning multiple visual domains with residual adapters",
+            "authors": [
+                {
+                    "first": "S.-A",
+                    "middle": [],
+                    "last": "Rebuffi",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Bilen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vedaldi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1705.08045"
+                ]
+            }
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Common pitfalls and recommendations for using machine learning to detect and prognosticate for COVID-19 using chest radiographs and CT scans",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Driggs",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Thorpe",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gilbey",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yeung",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ursprung",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Aviles-Rivero",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Etmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Mccague",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Beer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Nature Machine Intelligence",
+            "volume": "3",
+            "issn": "3",
+            "pages": "199--217",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Estimating the success of re-identifications in incomplete datasets using generative models",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Rocher",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hendrickx",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.-A",
+                    "middle": [],
+                    "last": "De Montjoye",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nature communications",
+            "volume": "10",
+            "issn": "1",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Authenticated-encryption with associated-data",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rogaway",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the 9th ACM Conference on Computer and Communications Security",
+            "volume": "",
+            "issn": "",
+            "pages": "98--107",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "U-net: Convolutional networks for biomedical image segmentation",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ronneberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fischer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Conference on Medical image computing and computer-assisted intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "234--241",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Latent multi-task architecture learning",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ruder",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bingel",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Augenstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "S\u00f8gaard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+            "volume": "33",
+            "issn": "",
+            "pages": "4822--4829",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Multi-institutional deep learning modeling without sharing patient data: A feasibility study on brain tumor segmentation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Sheller",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Reina",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Edwards",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Martin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bakas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International MICCAI Brainlesion Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "92--104",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Automatic instrument segmentation in robot-assisted surgery using deep learning",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Shvets",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rakhlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Kalinin",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Iglovikov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "17th IEEE International Conference on Machine Learning and Applications (ICMLA)",
+            "volume": "",
+            "issn": "",
+            "pages": "624--628",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Bs-net: learning covid-19 pneumonia severity on a large chest x-ray dataset",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Signoroni",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Savardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Benini",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Adami",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Leonardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Gibellini",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Vaccher",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ravanelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Borghesi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Maroldi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Farina",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Medical Image Analysis",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.media.2021.102046"
+                ]
+            }
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Federated multi-task learning",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-K",
+                    "middle": [],
+                    "last": "Chiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sanjabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Talwalkar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1705.10467"
+                ]
+            }
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Revisiting unreasonable effectiveness of data in deep learning era",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shrivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the IEEE international conference on computer vision",
+            "volume": "",
+            "issn": "",
+            "pages": "843--852",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Soteria: Provable defense against privacy leakage in federated learning from representation perspective",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "9311--9319",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Embracing imperfect datasets: A review of deep learning solutions for medical image segmentation",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tajbakhsh",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jeyaseelan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Chiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Medical Image Analysis",
+            "volume": "63",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "A systematic review of barriers to data sharing in public health",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Van Panhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Paul",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Emerson",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Grefenstette",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wilder",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Herbst",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Heymann",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Burke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "BMC public health",
+            "volume": "14",
+            "issn": "1",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Shazeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Parmar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Uszkoreit",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Gomez",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Kaiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Polosukhin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1706.03762"
+                ]
+            }
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Split learning for health: Distributed deep learning without sharing raw patient data",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vepakomma",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Swedish",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Raskar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1812.00564"
+                ]
+            }
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Brainprint: A discriminative characterization of brain morphology",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wachinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Golland",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Kremen",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Fischl",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Reuter",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "D N"
+                    ],
+                    "last": "Initiative",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "NeuroImage",
+            "volume": "109",
+            "issn": "",
+            "pages": "232--248",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Deep learning for tomographic image reconstruction",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Ye",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "De Man",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nature Machine Intelligence",
+            "volume": "2",
+            "issn": "12",
+            "pages": "737--748",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Chestx-ray8: Hospital-scale chest x-ray database and benchmarks on weakly-supervised classification and localization of common thorax diseases",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bagheri",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Summers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "2097--2106",
+            "other_ids": {}
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Beyond inferring class representatives: User-level privacy leakage from federated learning",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE INFOCOM 2019-IEEE Conference on Computer Communications",
+            "volume": "",
+            "issn": "",
+            "pages": "2512--2520",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Prediction models for diagnosis and prognosis of covid-19: systematic review and critical appraisal",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wynants",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Van Calster",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Collins",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Riley",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Heinze",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Schuit",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bonten",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Dahly",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Damen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Debray",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "Less is more: Simultaneous view classification and landmark detection for abdominal ultrasound images",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Huo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Landman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Milkowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Grbic",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Medical Image Computing and Computer-Assisted Intervention",
+            "volume": "",
+            "issn": "",
+            "pages": "711--719",
+            "other_ids": {}
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "Federated machine learning: Concept and applications",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ACM Transactions on Intelligent Systems and Technology (TIST)",
+            "volume": "10",
+            "issn": "2",
+            "pages": "1--19",
+            "other_ids": {}
+        },
+        "BIBREF66": {
+            "ref_id": "b66",
+            "title": "Weakly supervised lesion localization with probabilistic-cam pooling",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Xue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2005.14480"
+                ]
+            }
+        },
+        "BIBREF67": {
+            "ref_id": "b67",
+            "title": "Probabilistic federated neural matching",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yurochkin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Agarwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Greenewald",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Hoang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Khazaeni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF68": {
+            "ref_id": "b68",
+            "title": "idlg: Improved deep leakage from gradients",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Mopuri",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Bilen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2001.02610"
+                ]
+            }
+        },
+        "BIBREF69": {
+            "ref_id": "b69",
+            "title": "A review of deep learning in medical imaging: Imaging traits, technology trends, case studies with progress highlights, and future promises",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Greenspan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Davatzikos",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Duncan",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Van Ginneken",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Madabhushi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Prince",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rueckert",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Summers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the IEEE",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF70": {
+            "ref_id": "b70",
+            "title": "):e0236621, 2020. tasks (SIIM-ACR pneumothorax segmentation challenge [54]) and the detection (RSNA pneumonia detection challenge",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Abbasi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hoshmand-Kochi",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Duong",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "PloS one",
+            "volume": "15",
+            "issn": "7",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Overall framework of the proposed method. (a) Split task-agnostic CXR Transformer for multi-task learning and (b) the concept of FESTA learning process.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Nc i=1 , the head network H c encodes the smashed feature maps h (i) c and sent it to the server: h (i) c = H c (x (i) c ). Then, the server-side Transformer body B receives the feature from the all clients and generate the features b (i) c for c in parallel: b (i)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "and client head/tail weights (w H,k ,w T ,k ) for each task k \u2208 {1, ..., K} in server 3 for rounds i = 1, 2, . . . R do4 for tasks k \u2208 {1, 2, . . . K} do in parallel5 for clients c \u2208 C k do in parallel6 if i = 1 or (i \u2212 1)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "H c (x c )19 Function ClientTail(c, b c ):",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "20 y c \u2190 Current batch of label from client c 21 L c \u2190 c (y c , T c (b c )) & Backprop.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": ". & (w Hc , w Tc ) \u2190 (w Hc \u2212 \u03b7 \u2202Lc \u2202w Hc , w Tc \u2212 \u03b7 \u2202Lc \u2202w Tc )25 return (w Hc , w Tc )",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Implementation details of the proposed method. (a) Detailed experimental setting for multi-task learning (MTL) with three different tasks composed of 10 clients (six for classification, two for segmentation, two for detection. Training scheme for (b) single-task learning, and (c) MTL.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "illustrates the implementation details and the experimental settings of the proposed method.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "depicts the details of network configurations of the proposed method for each task. For classification, the embedded feature of dimension 16 \u00d7 16 \u00d7 768 from the head is first flattened into the dimension of 256 \u00d7 768, and used as the input after prepending a CLS token with the same hidden dimension to yield the input of dimension 257 \u00d7 768.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "Implementation of our framework on top of Flower protocol.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Detailed description for (a) data-centralized learning, (b) federated learning, (c) split learning, (d) FESTA learning strategies.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "and client head/tail weights (w H ,w T ) in server 3 for rounds i = 1, 2, . . .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "Current batch of input from client c 14 return H c (x c ) 15 Function ClientTail(c, b c ): 16 y c \u2190 Current batch of label from client c 17 L c \u2190 c (y c , T c (b c )) & Backprop. . & (w Hc , w Tc ) \u2190 (w Hc \u2212 \u03b7 \u2202Lc \u2202w Hc , w Tc \u2212 \u03b7 \u2202Lc \u2202w Tc )",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "L = 4, D hidden = 256 0.916 \u00b1 0.011 0.809 + 0.030 0.200 \u00b1 0.007 H = 8, L = 8, D hidden = 512 0.916 \u00b1 0.013 0.826 + 0.001 0.191 \u00b1 0.016 H = 12, L = 12, D hidden = 768 0.931 \u00b1 0.004 0.821 \u00b1 0.003 0.204 \u00b1 0",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Datasets and sources for COVID-19 diagnosis",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "The FESTA, FL, and SL simulation was performed on the modified version of Flower (licensed under an Apache-2.0 license)[5] FL framework. All experiments were performed with Python version 3.8 and Pytorch version 1.7 on Nvidia RTX 3090, 2080 Ti, and 1080 Ti. For more details of implementation, refer to Appendix A.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Comparison for the performance of the proposed method with other strategies",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Comparison of the performances between single-task and multi-task learning",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Parameter numbers and model sizes of the sub-networks",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Role of Transformer body and round number for FESTA",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "Hyperparameters used for single-task learning",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Hyperparameters used for multi-task learning",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF9": {
+            "text": "Number of COVID-19 cases with the different external set and the classification performances (AUC).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF10": {
+            "text": "Classification performances (AUC) of the proposed model using all four hospital datasets as an external testset.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF11": {
+            "text": "Increased dataset and sources for COVID-19 diagnosis.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF12": {
+            "text": "Number of COVID-19 cases after adding AP view CXRs and the classification performances (AUC).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF13": {
+            "text": "Detection: RetinaNet [35] model with SE-ResNext-50 encoder (2nd place model in Kaggle RSNA pneumonia detection challenge [49])",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF14": {
+            "text": "Comparison of performances with task-specific experts and CNN-based MTL modelsTasksMetrics Task-specific experts CNN-based MTL Transformer-based MTL",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF15": {
+            "text": "Comparison with Kaggle winning solutions for segmentation and detection tasks",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF16": {
+            "text": "Communication costs of the distributed learning methods during training per 1 averaging (=100 rounds)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF17": {
+            "text": "Statistical comparison of performances between the model with and without the transformer.Note: For statistical comparison, p-values and Confidence Intervals (CIs) were calculated using DeLong's test.Note: To evaluate the statistical significance, the models with medium performance were compared.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF18": {
+            "text": "Additional ablations in multi-task setting Effect of Transformer body capacity",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF19": {
+            "text": "Details of CXR and patient characteristics of hospital datasets.Abbreviations: CXR, chest X-ray; CR, computed radiography; DX, digital x-ray; M, male; F, female.Note: Values are presented as mean \u00b1 standard deviation or median (range).",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

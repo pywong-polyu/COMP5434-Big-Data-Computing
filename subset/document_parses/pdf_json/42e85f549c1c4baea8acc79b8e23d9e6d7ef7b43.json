@@ -1,0 +1,1635 @@
+{
+    "paper_id": "42e85f549c1c4baea8acc79b8e23d9e6d7ef7b43",
+    "metadata": {
+        "title": "Estimating Descriptors for Large Graphs",
+        "authors": [
+            {
+                "first": "Zohair",
+                "middle": [],
+                "last": "Raza",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Information Technology University of the Punjab",
+                    "location": {
+                        "settlement": "Lahore",
+                        "country": "Pakistan"
+                    }
+                },
+                "email": "zohair.raza@itu.edu.pk"
+            },
+            {
+                "first": "Hassan",
+                "middle": [],
+                "last": "",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Mudassir",
+                "middle": [],
+                "last": "Shabbir",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Information Technology University of the Punjab",
+                    "location": {
+                        "settlement": "Lahore",
+                        "country": "Pakistan"
+                    }
+                },
+                "email": "mudassir.shabbir@itu.edu.pk"
+            },
+            {
+                "first": "Imdadullah",
+                "middle": [],
+                "last": "Khan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Lahore University of Management Sciences",
+                    "location": {
+                        "settlement": "Lahore",
+                        "country": "Pakistan"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Waseem",
+                "middle": [],
+                "last": "Abbas",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Vanderbilt University",
+                    "location": {
+                        "settlement": "Nashville",
+                        "country": "USA"
+                    }
+                },
+                "email": "waseem.abbas@vanderbilt.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Embedding networks into a fixed dimensional feature space, while preserving its essential structural properties is a fundamental task in graph analytics. These feature vectors (graph descriptors) are used to measure the pairwise similarity between graphs. This enables applying data mining algorithms (e.g classification, clustering, or anomaly detection) on graph-structured data which have numerous applications in multiple domains. State-of-the-art algorithms for computing descriptors require the entire graph to be in memory, entailing a huge memory footprint, and thus do not scale well to increasing sizes of real-world networks. In this work, we propose streaming algorithms to efficiently approximate descriptors by estimating counts of sub-graphs of order k \u2264 4, and thereby devise extensions of two existing graph comparison paradigms: the Graphlet Kernel and NetSimile. Our algorithms require a single scan over the edge stream, have space complexity that is a fraction of the input size, and approximate embeddings via a simple sampling scheme. Our design exploits the trade-off between available memory and estimation accuracy to provide a method that works well for limited memory requirements. We perform extensive experiments on real-world networks and demonstrate that our algorithms scale well to massive graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Evaluating similarity or distance between a pair of graphs is a building block of many fundamental data analysis tasks on graphs such as classification and clustering. These tasks have numerous applications in social network analysis,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The first two authors have been supported by the grant received to establish CIPL and the third author has been supported the grant received to establish SEIL, both associated with the National Center in Big Data and Cloud Computing, funded by the Planning Commission of Pakistan. bioinformatics, computational chemistry, and graph theory in general. Unfortunately, large orders (number of vertices) and massive sizes (number of edges) prove to be challenging when applying general-purpose data mining techniques on graphs. Moreover, in many real-world scenarios, graphs in a dataset have varying orders and sizes, hindering the application of data mining algorithms devised for vector spaces. Thus, devising a framework to compare graphs with different orders and sizes would allow for rich analysis and knowledge discovery in many practical domains.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "However, graph comparison is a difficult task; the best-known solution for determining whether two graphs are structurally the same takes quasipolynomial time [1] , and determining the minimum number of steps to convert one graph to another is NP-Hard [16] . In a more practical approach, graphs are first mapped into fixed dimensional feature vectors, where vector space-based algorithms are then employed. In a supervised setting, these feature vectors are learned through neural networks [14, 25, 26] . In unsupervised settings, the feature vectors are descriptive statistics of the graph such as average degree, the eigenspectrum, or spectra of sub-graphs of order at most k contained in the graph [7, 11, 17, 18, 22, 23] .",
+            "cite_spans": [
+                {
+                    "start": 159,
+                    "end": 162,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 252,
+                    "end": 256,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 491,
+                    "end": 495,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 496,
+                    "end": 499,
+                    "text": "25,",
+                    "ref_id": null
+                },
+                {
+                    "start": 500,
+                    "end": 503,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 702,
+                    "end": 705,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 706,
+                    "end": 709,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 710,
+                    "end": 713,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 714,
+                    "end": 717,
+                    "text": "18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 718,
+                    "end": 721,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 722,
+                    "end": 725,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The runtimes and memory costs of these methods depend directly on the magnitude (order and size) of the graphs and the dimensionality (dependent on the number of statistics) of the feature-space. While computing a larger number of statistics would result in richer representations, these algorithms do not scale well to the increasing magnitudes of a real-world graphs [9] .",
+            "cite_spans": [
+                {
+                    "start": 369,
+                    "end": 372,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A promising approach is to process graphs as streams -one edge at a time, without storing the whole graph in memory. In this setting, the graph descriptors are approximated from a representative sample achieving practical time and space complexity [6, 15, [19] [20] [21] .",
+            "cite_spans": [
+                {
+                    "start": 248,
+                    "end": 251,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 252,
+                    "end": 255,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 256,
+                    "end": 260,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 261,
+                    "end": 265,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 266,
+                    "end": 270,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work we propose gabe (Graphlet Amounts via Budgeted Estimates), and maeve (Moments of Attributes Estimated on Vertices Efficiently), streambased extensions of the Graphlet Kernel [17] , and NetSimile [3] , respectively. Our contributions can be summarised as follows:",
+            "cite_spans": [
+                {
+                    "start": 187,
+                    "end": 191,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 208,
+                    "end": 211,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We propose two simple and intuitive descriptors for graph comparisons that run in the streaming setting. -We provide analytical bounds on the time and space complexity of our feature vectors generation; for a fixed budget, the runtime and space cost of our algorithms are linear. -We perform extensive empirical analysis on benchmark graph classification datasets of varying magnitudes. We demonstrate that gabe and maeve are comparable to the state-of-the-art in terms of classification accuracy, and scale to networks with millions of nodes and edges.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The rest of the paper is organized as follows. We discuss the related work in Sect. 2. Section 3 discusses all preliminaries required to read the text. We present gabe and maeve in Sect. 4. We report our experimental findings in Sect. 5 and finally conclude the paper in Sect. 6.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Methods for comparing a pair of graphs can broadly be categorized into direct approaches, kernel methods, descriptors, and neural models. Direct approaches for evaluating the similarity/distance between a pair of graphs preserve the entire structure of both graphs. The most prominent method under this approach is the Graph Edit Distance (ged), which counts the number of edit operations (insertion/deletion of vertices/edges) required to convert a given graph to another [16] . Although intuitive, ged is stymied by its computational intractability. Computing distance based on the vertex permutation that minimizes the \"error\" between the adjacency representations of two graphs is a difficult task [1] , and proposed relaxations of these distances are not robust to permutation [2] . An efficient algorithm for large network comparison DeltaCon, is proposed in [9] but it is only feasible when there is a valid one-to-one correspondence between vertices of the two graphs.",
+            "cite_spans": [
+                {
+                    "start": 473,
+                    "end": 477,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 702,
+                    "end": 705,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 782,
+                    "end": 785,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 865,
+                    "end": 868,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In the kernel-based approach, graphs are mapped to a fixed dimensional vector space based on various substructures in the graphs. A kernel function is then defined, which serves as a pairwise similarity measure that takes as input a pair of graphs and outputs a non-negative real number. Typically, the kernel value is the inner-product between two feature vectors corresponding to the two graphs. This so-called kernel trick has been used successfully to evaluate pairwise of other structures such as images and sequences [4, 10, 12] . Several graph kernels based on sub-structural patterns have been proposed, such as the Shortest-Path [5] and Graphlet [17] kernels. More recently, a hierarchical kernel based on propagating spectral information within the graph [11] was introduced. The WL-Kernel [18] that is based on the Weisfeller-Lehman isomorphism test has been shown to provide excellent results for classification and is used as a benchmark in the graph representation learning literature. Kernels require expensive computation and typically necessitate storing the adjacency matrices, making them infeasible for massive graphs.",
+            "cite_spans": [
+                {
+                    "start": 523,
+                    "end": 526,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 527,
+                    "end": 530,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 531,
+                    "end": 534,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 638,
+                    "end": 641,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 655,
+                    "end": 659,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 765,
+                    "end": 769,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 800,
+                    "end": 804,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Graph Neural Networks (gnns) learn graph level embeddings by aggregating node representations learned via convolving neighborhood information throughout the neural network's layers. This idea has been the basis of many popular neural networks and is as powerful as WL-Kernels for classification [14, 26] . We refer interested readers to a comprehensive survey of these models [25] . Unfortunately, these models also require expensive computation and storing large matrices, hindering scalability to real-world graphs.",
+            "cite_spans": [
+                {
+                    "start": 295,
+                    "end": 299,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 300,
+                    "end": 303,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 376,
+                    "end": 380,
+                    "text": "[25]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Graph descriptors, like the above two paradigms, attempt to map graphs to a vector space such that similar graphs are mapped to closely in the Euclidean space. Generally, the dimensionality of these vectors is small, allowing efficient algorithms for graph embeddings. NetSimile [3] describes graphs by computing moments of vertex features, while SGE [7] uses random walks and hashing to capture the presence of different sub-structures in a graph. State of the art descriptors are based on spectral information; [23] proposed a family of graph spectral distances and embedding the information as histograms on the multiset of distances in a graph, and NetLSD [22] computes the heat (or wave) trace over the eigenvalues of a graph's normalized Laplacian to construct embeddings.",
+            "cite_spans": [
+                {
+                    "start": 279,
+                    "end": 282,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 351,
+                    "end": 354,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 513,
+                    "end": 517,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 660,
+                    "end": 664,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The fundamental limitation of all the above approaches is the requirement that the entire graph is available in memory. This limits the applicability of the methods to a graph of small magnitude. To the best of our knowledge, this work is the first graph comparison method that does not assume this.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Streaming algorithms assume an online setting; the input is streamed one element at a time, and the amount of space we are allowed is limited. This allows one to design scalable approximation algorithms to solve the underlying problems. There has been extensive work on estimating triangles (cycles of length three) in graphs [19, 21] , butterflies (cycles of length four) in bipartite graphs [15] , and anomaly detection [8] when the graph is input as a stream of edges. A framework for estimating the number of connected induced sub-graphs on three and four vertices is presented in [6] .",
+            "cite_spans": [
+                {
+                    "start": 326,
+                    "end": 330,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 331,
+                    "end": 334,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 393,
+                    "end": 397,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 422,
+                    "end": 425,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 585,
+                    "end": 588,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Let G = (V G , E G ) be an undirected, unweighted, simple graph, where V G is the set of vertices and E G is the set of edges.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation and Terminology"
+        },
+        {
+            "text": "For",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation and Terminology"
+        },
+        {
+            "text": "If equality holds (E G contains all edges from the original graph), then G is called an induced sub-graph of G.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "graph is connected if and only if there exists a path between all pairs in"
+        },
+        {
+            "text": "Two graphs, G 1 and G 2 , are isomorphic if and only if there exists a per-",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "graph is connected if and only if there exists a path between all pairs in"
+        },
+        {
+            "text": "be the set of sub-graphs (resp. induced sub-graphs) of G that are isomorphic to F . We assume vertices in V G are denoted by integers in the range [0, |V G | \u2212 1]. Let S = e 1 , e 2 , . . . , e |EG| be a sequence of edges in an arbitrary but fixed order, i.e. e t = (u t , v t ) is the t th edge. Let b be the maximum number of edges (budget) one can store in our sample, referred to as E G .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "graph is connected if and only if there exists a path between all pairs in"
+        },
+        {
+            "text": "We now formally define the graph descriptor problem:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Definition"
+        },
+        {
+            "text": "Problem 1 (Constructing Graph Descriptors). Let G be the set of all possible undirected, unweighted, simple graphs. We wish to find a function, \u03d5 : G \u2192 R d , that can map any given graph to a d-dimensional vector.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Definition"
+        },
+        {
+            "text": "Existing work [3, 22] on graph descriptors asserts that the underlying algorithms should be able to run on any graph, regardless of order or size, and should output the same representation for different vertex permutations. Moreover, the descriptors should capture features that can be compared across graphs of varying orders; directly comparing sub-graph counts is illogical as bigger graphs will naturally have more sub-graphs. The descriptors we propose are based on graph comparison methods that meet these requirements due to their graphtheoretic nature and feature scaling based on the graph's magnitude. We consider an online setting and model the input graph as a stream of edges. We impose the following constraints on our algorithms: C1: Single Pass: The algorithm is only allowed to receive the stream once. C2: Limited Space: The algorithm can store a maximum of b edges at once. C3: Linear Complexity: Space and time complexity of the algorithms should be linear (for fixed b) with respect to the order and size of the graph.",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 17,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 18,
+                    "end": 21,
+                    "text": "22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Problem Definition"
+        },
+        {
+            "text": "Problem 2 (Connected Sub-graph Estimation on Streams). Let S be a stream of edges, e 1 , e 2 , . . . , e |EG| for some graph Based on previous works on sub-graph estimation [6, [19] [20] [21] the underlying recipe for algorithms that solve Problem 2 consists of the following steps:",
+            "cite_spans": [
+                {
+                    "start": 173,
+                    "end": 176,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 177,
+                    "end": 181,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 182,
+                    "end": 186,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 187,
+                    "end": 191,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Estimating Connected Sub-graph Counts on Streams"
+        },
+        {
+            "text": "-For each edge e t \u2208 S, counting the instances of F incident on e t . For example, if F is a triangle, then it amounts to counting the number of triangles an edge e t is part of. -A sampling scheme through which we can compute the probability of detecting F in our sample, denoted by p F t , at the arrival of the t th edge.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Estimating Connected Sub-graph Counts on Streams"
+        },
+        {
+            "text": "At the arrival of e t , we increment our estimate of |H F G | by 1/p F t for all instances of F in our sample E G that e t belongs to. The pseudocode is provided in Algorithm 1. This simple methodology allows one to compute estimates whose expected values are equal to |H F G |:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Estimating Connected Sub-graph Counts on Streams"
+        },
+        {
+            "text": "Proof. For a sub-graph h \u2208 H G F , let X h be a random variable such that X h = 1/p F t if h is detected at the arrival of its last edge in the stream e t , and 0 otherwise. Clearly,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Estimating Connected Sub-graph Counts on Streams"
+        },
+        {
+            "text": "At the arrival of e t , counting only the sub-graphs that e t belongs to ensures that we do count the same sub-graph twice. In this work, we employ reservoir sampling [24] , which has been shown to be effective for sub-graph estimation [6, 20, 21] . Using reservoir sampling, the probability of detecting an F that e t belongs to at the arrival of e t is equivalent to the probability that |E F |\u22121 particular edges are present in the sample after t \u2212 1 time-steps: p F t = min 1,",
+            "cite_spans": [
+                {
+                    "start": 167,
+                    "end": 171,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 236,
+                    "end": 239,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 240,
+                    "end": 243,
+                    "text": "20,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 244,
+                    "end": 247,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Estimating Connected Sub-graph Counts on Streams"
+        },
+        {
+            "text": "We now derive an upper bound for the variance. Note that while the bound is loose, it is sufficient to show that we obtain better results with greater b, and applies to any connected graph, F .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Estimating Connected Sub-graph Counts on Streams"
+        },
+        {
+            "text": "Proof. The theorem is trivially true when b \u2265 |E G | \u2212 1. We now explore the case when b < |E G | \u2212 1. Let X h be a random variable as defined in the proof for",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 2. When using reservoir sampling, the variance of N F G in Algorithm 1 is bounded as follows: Var[N"
+        },
+        {
+            "text": "We bound the total variance using the Cauchy-Schwarz inequality:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 2. When using reservoir sampling, the variance of N F G in Algorithm 1 is bounded as follows: Var[N"
+        },
+        {
+            "text": "Note that this methodology is also applicable for estimating the number of subgraphs that each vertex is incident in, and simple modifications to the proofs for Theorems 1 and 2 will prove the same results for estimations on vertex counts.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 2. When using reservoir sampling, the variance of N F G in Algorithm 1 is bounded as follows: Var[N"
+        },
+        {
+            "text": "In this section discuss our two proposed descriptors: Graphlet Amounts via Budgeted Estimates (gabe), which is based on the Graphlet Kernel, and Moments of Attributes Estimated on Vertices Efficiently (maeve), based on NetSimile.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "GABE and MAEVE"
+        },
+        {
+            "text": "Let F k be the set of graphs with order k. For two given graphs, G 1 and G 2 , Shervashidze et al. [17] propose counting all graphlets (induced sub-graphs) of order k in both graphs, and computing similarity based on the inner product \u03c6 k (G 1 ), \u03c6 k (G 2 ) , where, for a given k, and graphs F i \u2208 F k :",
+            "cite_spans": [
+                {
+                    "start": 99,
+                    "end": 103,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graphlet Amounts via Budgeted Estimates"
+        },
+        {
+            "text": ", 4, 5}, and uses adjacency matrices. We use the methodology of [6] , to estimate the subgraph counts as in Sect. 3.3, then compute induced sub-graph counts based on the overlap of graphs of the same order. We follow this procedure for estimating subgraph counts of order k \u2208 {2, 3, 4}, then concatenate the resultant \u03c6 k (G)'s into a vector. The 17 graphs we enumerate are shown in Fig. 1 . Note that unlike [6] , we also estimate the counts of disconnected induced sub-graphs. While processing the stream, we store the degree of each vertex, by incrementing the degree for u t , v t when e t = (u t , v t ) arrives. We use edge-centric algorithms (as described in Sect. 3.3) to compute estimates for F 6 , F 13 , . . . , F 17 , and use intuitive combinatorial formulas, listed in Table 1 , to compute the remaining 11 sub-graphs. We can compute |E G | and |V G | by keeping track of how many edges have been received, and the maximum vertex label received, respectively.",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 67,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 409,
+                    "end": 412,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 383,
+                    "end": 389,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 782,
+                    "end": 789,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Graphlet Amounts via Budgeted Estimates"
+        },
+        {
+            "text": "Complexity. An array of size |V G | is used to store degrees, which can be accessed in O(1) time, and hence the counts for F 5 and F 12 can be incremented each time an edge arrives in O (1) . Let G denote the graph represented by E G , stored as an adjacency list. Determining if two vertices are adjacent takes O(log b) time when using a tree data-structure within the stored ",
+            "cite_spans": [
+                {
+                    "start": 186,
+                    "end": 189,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Time and Space"
+        },
+        {
+            "text": "adjacency list. At the arrival of e t = (u t , v t ), we need to visit only the vertices two hops away from u t (resp. v t ), then perform at most three adjacency checks. Thereby, we perform 2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Time and Space"
+        },
+        {
+            "text": "Storing an adjacency list with b edges, and an array for degrees takes O(b + |V G |) space.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Time and Space"
+        },
+        {
+            "text": "NetSimile [3] propose extracting features for each vertex and aggregating them by taking moments over their distribution. Similarly, we propose extracting a subset of those features, listed in Table 2 , and computing four moments for each feature: mean, standard deviation, skewness, and kurtosis.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 13,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 193,
+                    "end": 200,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Moments of Attributes Estimated on Vertices Efficiently"
+        },
+        {
+            "text": "Extracting Vertex Features. For a graph G, and a vertex v \u2208 V G , we use I G (v) to denote the induced sub-graph of G formed by v and its neighbors. Let T G (v) be the set of triangles that v belongs to, and P G (v) be the set of three-paths (paths on three vertices) where v is an end-point. We compute the features in Table 2 Proof. The first two are already expressed in terms of d v G and |T G (v)|. Average Degree of Neighbors: For each u \u2208 N G (v), there is exactly one edge connected to v, accounting for d v G edges. The remaining edges are part of threepaths on which v is an end-point. Therefore, u\u2208NG(v) ",
+            "cite_spans": [
+                {
+                    "start": 596,
+                    "end": 614,
+                    "text": "Therefore, u\u2208NG(v)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 320,
+                    "end": 327,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Moments of Attributes Estimated on Vertices Efficiently"
+        },
+        {
+            "text": "Edges in I G (v): There are two types of edges in E IG(v) : (1) edges incident on v, of which there are d v G , and (2) edges not incident on v. The latter must belong to a pair of vertices which form a triangle with v. For each such edge, there is exactly one triangle. Therefore,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Moments of Attributes Estimated on Vertices Efficiently"
+        },
+        {
+            "text": "Edges leaving I G (v): Consider a sub-graph h \u2208 P G (v). Let u be the other endpoint of h, and w be the center vertex. When u \u2208 N G (v), it belongs to a threepath that is not in N G (v), and is thereby an edge leaving the induced sub-graph of v. Now, consider u \u2208 N G (v). Clearly, the edge (u, w) forms a triangle, and is incident in exactly two three-paths: {(v, u), (u, w)} and {(v, w), (u, w)}. Therefore, if we account for the three-paths that lie within N G (v), we can formulate the number of edges leaving",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Moments of Attributes Estimated on Vertices Efficiently"
+        },
+        {
+            "text": "Time and Space Complexity. As in Sect. 4.1, we assume an adjacency list with an underlying tree structure and refer to the sampled graph as G . At the arrival of an edge e t = (u t , v t ), one can traverse the neighborhoods to obtain the triangle and three-path count in (",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Moments of Attributes Estimated on Vertices Efficiently"
+        },
+        {
+            "text": "We store three arrays of size |V G | to store degrees, triangle counts, and three-path counts. We can compute the moments in at most two passes over these arrays, giving us a total of O(b|E G | + |V G |) time. Storing an adjacency list of size b and arrays of size |V G | gives us O(b + |V G |) space.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Moments of Attributes Estimated on Vertices Efficiently"
+        },
+        {
+            "text": "Multiple worker machines can be used in parallel to independently estimate triangle counts before aggregating them [20] . Using W worker machines decreases the variances by a factor of 1/W . Their methodology can be adopted mutatis mutandis in our algorithms to improve the estimation quality.",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 119,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Improving Estimation Quality with Multiple Workers."
+        },
+        {
+            "text": "In this section, we perform experiments to show how the approximation quality changes with respect to b, explore how the descriptors perform on classification tasks, and showcase the scalability of the algorithms. As in [3] , from extensive experiments, we found that Canberra distance d(x,",
+            "cite_spans": [
+                {
+                    "start": 220,
+                    "end": 223,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Evaluation"
+        },
+        {
+            "text": "performs best when comparing the descriptors. We refer to the approximation error as the distance between the true vectors and their approximations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Evaluation"
+        },
+        {
+            "text": "All experiments were performed on a machine with 48 Intel Xeon E5-2680 v3 @ 2.50GHz Processors, and 125 GB RAM. The algorithms are implemented 1 in C++ using MPICH 3.2 on the base code provided by the authors of Tri-Fly [20] . We use 25 processes to simulate 1 Master and 24 workers. Each descriptor is computed exactly once under this setting.",
+            "cite_spans": [
+                {
+                    "start": 220,
+                    "end": 224,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation."
+        },
+        {
+            "text": "We evaluate our models on randomly sampled REDDIT graphs 2 , five benchmark classification datasets with large graphs: D&D, COLLAB, REDDIT-BINARY, REDDIT-MULTI-5K, and REDDIT-MULTI-12K [27] (Table 3) , and massive networks from KONECT [13] (Table 4) . For each graph, we remove duplicated edges and self-loops, convert to edge-list format with vertex labels in the range [0, |V G | \u2212 1], and randomly shuffle the list.",
+            "cite_spans": [
+                {
+                    "start": 185,
+                    "end": 189,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 235,
+                    "end": 239,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 190,
+                    "end": 199,
+                    "text": "(Table 3)",
+                    "ref_id": "TABREF4"
+                },
+                {
+                    "start": 240,
+                    "end": 249,
+                    "text": "(Table 4)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Datasets."
+        },
+        {
+            "text": "We uniformly sampled 1000 graphs of size 10,000 to 50,000 from REDDIT, representing interactions in various \"sub-reddits\". In Fig. 2(a) we show how the average approximation error taken over all the sampled graphs decreases as b (a fraction of the number of edges) increases. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 126,
+                    "end": 135,
+                    "text": "Fig. 2(a)",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Approximation Quality"
+        },
+        {
+            "text": "We computed descriptors for graphs in Table 3 from samples of 25% and 50% of all the edges and examined their classification accuracy. We used the state-ofthe-art descriptor, NetLSD [22] , as a benchmark, despite the fact that our models have no direct competitors. As in [22] , we used a simple 1-Nearest Neighbour classifier. We performed 10-fold cross-validation for 10 different random splits of the dataset (i.e. 100 different folds are tested on), and report the average accuracy in Table 5 . Note that despite using only a fraction of edges, gabe and maeve give results competitive to the state of the art.",
+            "cite_spans": [
+                {
+                    "start": 182,
+                    "end": 186,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 272,
+                    "end": 276,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 38,
+                    "end": 45,
+                    "text": "Table 3",
+                    "ref_id": "TABREF4"
+                },
+                {
+                    "start": 489,
+                    "end": 496,
+                    "text": "Table 5",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Graph Classification"
+        },
+        {
+            "text": "We run our algorithms on massive networks (Table 4 ) and estimated descriptors by setting b to 100, 000 and 500, 000. In Figs. 2(b) and (c), we show the scatter plots for wall-clock time taken vs. the distance between the real vectors and their approximations (values nearer to the origin are better). We are able to process a graph with \u2248260 million edges under 20 min, with relatively low error. Note that when b = 500, 000, gabe takes 102 min to compute the descriptor for Flickr, implying that we must take the density of the graph into account for efficient computation when setting the value of b.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 42,
+                    "end": 50,
+                    "text": "(Table 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 121,
+                    "end": 131,
+                    "text": "Figs. 2(b)",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Scaling to Large Real-World Networks"
+        },
+        {
+            "text": "In this work, we present single-pass streaming algorithms to construct graph descriptors using a fixed amount of memory. We show that these descriptors provide better approximations with increasing b, are comparable with the stateof-the-art known descriptors in terms of classification accuracy, and scale well to networks with millions of vertices and edges.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Graph isomorphism in quasipolynomial time",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Babai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "STOC",
+            "volume": "",
+            "issn": "",
+            "pages": "684--697",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "A family of tractable graph distances",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bento",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ioannidis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "SDM",
+            "volume": "",
+            "issn": "",
+            "pages": "333--341",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Network similarity via multiple social theories",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Berlingerio",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Koutra",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Eliassi-Rad",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1439--1440",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Kernel descriptors for visual recognition",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bo",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Fox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "244--252",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Shortest-path kernels on graphs",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Borgwardt",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kriegel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "ICDM",
+            "volume": "",
+            "issn": "",
+            "pages": "74--81",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A unified framework to estimate global and local graphlet counts for streaming graphs",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lui",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "131--138",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Stochastic graphlet embedding",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Dutta",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Sahbi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE Trans. Neural Netw. Learn. Syst",
+            "volume": "30",
+            "issn": "8",
+            "pages": "2369--2382",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "SedanSpot: detecting anomalies in edge streams",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Eswaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ICDM",
+            "volume": "",
+            "issn": "",
+            "pages": "953--958",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "DeltaCon: a principled massive-graph similarity function",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Koutra",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Vogelstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "SDM",
+            "volume": "",
+            "issn": "",
+            "pages": "162--170",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Efficient approximation algorithms for strings kernel based sequence classification",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Farhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tariq",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shabbir",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Khan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "6935--6945",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "The multiscale laplacian graph kernel",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kondor",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "NeurIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "2982--2990",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Generalized similarity kernels for efficient sequence classification",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kuksa",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Khan",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Pavlovic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "SDM",
+            "volume": "",
+            "issn": "",
+            "pages": "873--882",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "KONECT: the Koblenz network collection",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kunegis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1343--1350",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Weisfeiler and Leman go neural: higher-order graph neural networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Morris",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "4602--4609",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "FLEET: butterfly estimation from a bipartite graph stream",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sanei-Mehri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Sariy\u00fcce",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Tirthapura",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "1201--1210",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "A distance measure between attributed relational graphs for pattern recognition",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sanfeliu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                }
+            ],
+            "year": 1983,
+            "venue": "IEEE Trans. Syst. Man Cybern",
+            "volume": "13",
+            "issn": "3",
+            "pages": "353--362",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Efficient graphlet kernels for large graph comparison",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Shervashidze",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Vishwanathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Petri",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mehlhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Borgwardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "488--495",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Weisfeiler-Lehman graph kernels",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Shervashidze",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "12",
+            "issn": "",
+            "pages": "2539--2561",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "WRS: waiting room sampling for accurate triangle counting in real graph streams",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ICDM",
+            "volume": "",
+            "issn": "",
+            "pages": "1087--1092",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Tri-fly: distributed estimation of global and local triangle counts in graph streams",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "651--663",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "TRI\u00c8ST: counting local and global triangles in fully dynamic streams with fixed memory size",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Stefani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "TKDD",
+            "volume": "11",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "NetLSD: hearing the shape of a graph",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tsitsulin",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Mottin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Karras",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bronstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "KDD",
+            "volume": "",
+            "issn": "",
+            "pages": "2347--2356",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Hunt for the unique, stable, sparse and fast feature learning on graphs",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Verma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "NeurIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "88--98",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Random sampling with a reservoir",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Vitter",
+                    "suffix": ""
+                }
+            ],
+            "year": 1985,
+            "venue": "ACM Trans. Math. Softw",
+            "volume": "11",
+            "issn": "1",
+            "pages": "37--57",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "How powerful are graph neural networks? In: ICLR",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jegelka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Deep graph kernels",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Yanardag",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Vishwanathan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "KDD",
+            "volume": "",
+            "issn": "",
+            "pages": "1365--1374",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "storing a maximum of b edges at any given instant.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "The graphs counted by gabe, and their corresponding overlap matrix O (best viewed when zoomed in). Zeros have been omitted for readability.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "by using their formulas on estimates of |T G (v)|, |P G (v)|, and d v G computed for each v \u2208 V as in Sects. 3.3 and 4.1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "For a vertex v \u2208 V G , all vertex features used in maeve can be expressed in terms of d v G , |T G (v)|, and |P G (v)|.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Approximation error and runtime of gabe and maeve (best viewed in color).",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Sub-graph Estimation on Streams",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "F = {F 1 , F 2 , . . . , F 17 } be the set of graphs we enumerate. Let H F Let O be a |F| \u00d7 |F| matrix such that O(i, j) is the number of sub-graphs of F j , isomorphic to F i , when |V Fi | = |V Fj |, and 0 otherwise. One can clearly see that H F G = O H F G , as we account for the sub-graph counts that are disregarded when only considering induced sub-graphs. Since O is an upper triangular matrix, it is invertible. Thereby, given H F G , one can retrieve the induced sub-graph counts by computing O \u22121 H F G . By linearity of expectation, Theorem 1 implies that the induced sub-graph counts are unbiased as well.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Graphs and their corresponding sub-graph count formulas.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Features extracted for each vertex, v \u2208 VG for maeve, their formulae, and a figure highlighting the relevant edges. The filled in vertex depicts v.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Details of classification datasets. The number of graphs, classes, and minimum/maximum number of vertices/edges in a graph have been provided.Table 4. Massive networks with their order, size, and what they represent.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Classification accuracy on the datasets described inTable 3. Results within 1% of the best have been boldfaced.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

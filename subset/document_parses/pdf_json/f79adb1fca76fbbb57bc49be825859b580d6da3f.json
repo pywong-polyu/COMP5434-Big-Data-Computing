@@ -1,0 +1,2627 @@
+{
+    "paper_id": "f79adb1fca76fbbb57bc49be825859b580d6da3f",
+    "metadata": {
+        "title": "Long-Term Anticipation of Activities with Cycle Consistency",
+        "authors": [
+            {
+                "first": "Yazan",
+                "middle": [
+                    "Abu"
+                ],
+                "last": "Farha",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Bonn",
+                    "location": {
+                        "settlement": "Bonn",
+                        "country": "Germany"
+                    }
+                },
+                "email": "abufarha@iai.uni-bonn.de"
+            },
+            {
+                "first": "Qiuhong",
+                "middle": [],
+                "last": "Ke",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Melbourne",
+                    "location": {
+                        "settlement": "Melbourne",
+                        "country": "Australia"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Bernt",
+                "middle": [],
+                "last": "Schiele",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "MPI Informatics",
+                    "location": {
+                        "settlement": "Saarbr\u00fccken",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Juergen",
+                "middle": [],
+                "last": "Gall",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Bonn",
+                    "location": {
+                        "settlement": "Bonn",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "With the success of deep learning methods in analyzing activities in videos, more attention has recently been focused towards anticipating future activities. However, most of the work on anticipation either analyzes a partially observed activity or predicts the next action class. Recently, new approaches have been proposed to extend the prediction horizon up to several minutes in the future and that anticipate a sequence of future activities including their durations. While these works decouple the semantic interpretation of the observed sequence from the anticipation task, we propose a framework for anticipating future activities directly from the features of the observed frames and train it in an end-to-end fashion. Furthermore, we introduce a cycle consistency loss over time by predicting the past activities given the predicted future. Our framework achieves state-of-the-art results on two datasets: the Breakfast dataset and 50Salads.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "The online version of this chapter (https://",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Humans spend a significant time of their life thinking about the future. Whether thinking about their future dream job, or planning for the next research project. Even unconsciously, people tend to anticipate future trajectories of moving agents in the surrounding environment and the activities that they will be doing in the near future. Such anticipation capability is considered a sign of intelligence and an important factor in determining how we interact with the environment and how we make decisions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Since anticipation is an important intrinsic capability of human beings, researchers have recently tried to model this capability and embed it in intelligent and robotic systems. For example, several approaches have been proposed to anticipate future trajectories of pedestrians [4, 18] , or semantic segmentation of future frames in video [5, 25] . These approaches have many applications in Without the cycle consistency, the network anticipates actions that are plausible based on the previous actions. However, in some cases an essential action is missing. In this example pour oil. By using the cycle consistency, we enforce the network to verify if all required actions have been done before. For the action fry pancake, pouring oil into the pan is required and the cycle consistency resolves this issue.",
+            "cite_spans": [
+                {
+                    "start": 279,
+                    "end": 282,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 283,
+                    "end": 286,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 340,
+                    "end": 343,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 344,
+                    "end": 347,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "autonomous driving and navigation. Another line of research focuses on anticipating future activities [19, 21, 44] , which has potential applications in surveillance and human-robot interaction.",
+            "cite_spans": [
+                {
+                    "start": 102,
+                    "end": 106,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 107,
+                    "end": 110,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 111,
+                    "end": 114,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "While anticipating the next action a few seconds in the future has been addressed in [11, 44, 46] , such short time horizon is insufficient for many applications. Service robots, for example, where a robot is continuously interacting with a human, require anticipating a longer time horizon, which rather includes a sequence of future activities than only predicting the next action. By anticipating longer in the future, such robots can plan ahead and accomplish their tasks more efficiently. Recent approaches, therefore, focused on increasing the prediction horizon up to several minutes and predict multiple action segments in the future [3, 10, 16] . While these approaches successfully predict future activities and their duration, they decouple the semantic interpretation of the observed sequence from the anticipation task using a two-step approach.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 89,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 90,
+                    "end": 93,
+                    "text": "44,",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 94,
+                    "end": 97,
+                    "text": "46]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 642,
+                    "end": 645,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 646,
+                    "end": 649,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 650,
+                    "end": 653,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Separating the understanding of the past and the anticipation of future has several disadvantages. First, the model is not trained end-to-end, which means that the approach for temporal action segmentation is not optimized for the anticipation task. Second, if there are any mistakes in the temporal action segmentation, these mistakes will be propagated and effect the anticipated activities. Finally, the action labels do not represent all information in the observed video that is relevant for anticipating the future. In contrast to these approaches, we propose a sequence-to-sequence model that directly maps the sequence of observed frames to a sequence of future activities and their duration. We then cast the understanding of the past as an auxiliary task by proposing a recognition module, which consists of a temporal convolutional neural network and a recognition loss, that is combined with the encoder.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Furthermore, as we humans can reason about the past given the future, previous works only aim to predict the future, and it is intuitive that forcing the network to predict the past as well is helpful. To this end, we propose a cycle consistency module that predicts the past activities given the predicted future. This module verifies if, for the predicted future actions, all required actions have been done before as illustrated in Fig. 1 . In this example, the actions pour dough to pan and fry pancake are plausible given the previous actions, but the action pour oil has been missed. The cycle consistency module then predicts from the anticipated actions, the observed actions. Since pour dough to pan and fry pancake are the inputs for the cycle consistency module, it will predict all the required preceding actions such as pour milk, stir dough and pour oil. However, as pour oil is not part of the observations, the cycle consistency module will have a high error, which steers the network to predict pour oil in the future actions.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 435,
+                    "end": 441,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our contribution is thus three folded: First, we propose an end-to-end model for anticipating a sequence of future activities and their durations. Second, we show that the proposed recognition module improves the sequence-to-sequence model. Third, we propose a cycle consistency module that verifies the predictions. We evaluate our model on two datasets with untrimmed videos containing many action segments: the Breakfast dataset [20] and 50Salads [41] . Our model is able to predict the future activities and their duration accurately achieving superior results compared to the state-of-the-art methods.",
+            "cite_spans": [
+                {
+                    "start": 432,
+                    "end": 436,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 450,
+                    "end": 454,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Early Action Detection: The early action detection task tries to recognize an ongoing activity given only a partial observation of that activity. An initial work addressing this task by Ryoo [36] is based on a probabilistic formulation using dynamic bag-of-words of spatio-temporal features. Hoai and De la Torre [14] used a max-margin formulation. More recent approaches use recurrent neural networks with special loss functions to encourage early activity detection [26, 37] . In contrast to these approaches, we anticipate future activities without even any partial observations. Future Prediction: Predicting the future has become one of the main research topics in computer vision. Many approaches have been proposed to predict future frames [24, 30] , future human trajectories [4, 18] , future human poses [15, 29, 35] , image semantic segmentation [5, 25] , or even full sentences describing future frames or steps in recipes [27, 38] . However, low level representations like pixels of frames or very high level natural language sentences cannot be used directly. A complementary research direction is concentrated on anticipating activity labels. Lan et al . [21] predicted future actions using hierarchical representations in a max-margin framework. Koppula and Saxena [19] used a spatio-temporal graph representation to encode the observed activities and then predict object affordances, trajectories, and sub-activities. Instead of directly predicting the future action labels, several approaches were proposed to predict future visual representations and then a classifier is trained on top of the predicted representations to predict the future labels [11, 12, 34, 39, 44, 46] . Predicting future representations has also been used in the literature for unsupervised representations learning [40] . Other approaches use multi-task learning to predict the future activity and its starting time [28, 31] , or the future activity and its location [23, 42] . Miech et al . [32] modeled the transition probabilities between actions and combine it with a predictive model to anticipate future action labels. There is a parallel line of research addressing the anticipation task in egocentric videos [8, 9] . However, these approaches are limited to very few seconds in the future. In contrast to these approaches, we address the anticipation task for a longer time horizon.",
+            "cite_spans": [
+                {
+                    "start": 191,
+                    "end": 195,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 313,
+                    "end": 317,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 468,
+                    "end": 472,
+                    "text": "[26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 473,
+                    "end": 476,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 747,
+                    "end": 751,
+                    "text": "[24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 752,
+                    "end": 755,
+                    "text": "30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 784,
+                    "end": 787,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 788,
+                    "end": 791,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 813,
+                    "end": 817,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 818,
+                    "end": 821,
+                    "text": "29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 822,
+                    "end": 825,
+                    "text": "35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 856,
+                    "end": 859,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 860,
+                    "end": 863,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 934,
+                    "end": 938,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 939,
+                    "end": 942,
+                    "text": "38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 1169,
+                    "end": 1173,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1280,
+                    "end": 1284,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1667,
+                    "end": 1671,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1672,
+                    "end": 1675,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1676,
+                    "end": 1679,
+                    "text": "34,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1680,
+                    "end": 1683,
+                    "text": "39,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 1684,
+                    "end": 1687,
+                    "text": "44,",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 1688,
+                    "end": 1691,
+                    "text": "46]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 1807,
+                    "end": 1811,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1908,
+                    "end": 1912,
+                    "text": "[28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1913,
+                    "end": 1916,
+                    "text": "31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1959,
+                    "end": 1963,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1964,
+                    "end": 1967,
+                    "text": "42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 1984,
+                    "end": 1988,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 2208,
+                    "end": 2211,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 2212,
+                    "end": 2214,
+                    "text": "9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Recently, more effort has been dedicated to increase the anticipation horizon. Several methods have been proposed to anticipate activities several minutes in the future using RNNs [2, 3] , temporal convolutions with time-variable [16] , or memory networks [10] . While these approaches manage to anticipate activities for a longer time horizon, their performance is limited. The approach of [10] relies on the ground-truth action labels of the observations, whereas the methods in [2, 3, 16] follow a two-step approach. I.e. they first infer the activities in the observed part, then anticipate the future activities with their corresponding duration. These two steps are trained separately, which prevents the model from utilizing the visual cues in the observed frames. In contrast to these approaches, our model is trained in one step in an end-to-end fashion.",
+            "cite_spans": [
+                {
+                    "start": 180,
+                    "end": 183,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 184,
+                    "end": 186,
+                    "text": "3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 230,
+                    "end": 234,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 256,
+                    "end": 260,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 391,
+                    "end": 395,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 481,
+                    "end": 484,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 485,
+                    "end": 487,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 488,
+                    "end": 491,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Cycle Consistency: Cycle consistency has been widely used in computer vision. It was used to learn dense correspondence [47] , image-to-image translation [48] , and depth estimation [13] . Recent approaches used cycle consistency in the temporal dimension [7, 45] . Dwibedi et al . [7] introduced an approach to learn representations using video alignment as a proxy task and cycle consistency for training. In [13] , the appearance consistency between consecutive video frames is used to learn representations that generalize to different tasks. Motivated by the success of cycle consistency in various applications, we apply it as an additional supervisory signal to predict the future activities.",
+            "cite_spans": [
+                {
+                    "start": 120,
+                    "end": 124,
+                    "text": "[47]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 154,
+                    "end": 158,
+                    "text": "[48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 182,
+                    "end": 186,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 256,
+                    "end": 259,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 260,
+                    "end": 263,
+                    "text": "45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 282,
+                    "end": 285,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 411,
+                    "end": 415,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Given a partially observed video with many activities, we want to predict all the activities that will be happening in the remainder of that video with their corresponding duration. Assuming that the observed part consists of t o frames X 1:to = (x 1 , . . . , x to ) corresponding to n activities A 1:n = (A 1 , . . . , A n ), our goal is to predict the future activities A n+1:N = (A n+1 , . . . , A N ) and their corresponding duration n+1:N = ( n+1 , . . . , N ), where N is the total number of activities in that video. In contrast to the previous approaches that use only the action labels of the observed frames for anticipating the future, we propose to anticipate the future activities directly from the observed frames. First, we propose a sequence-to-sequence model that maps the sequence of features from the observations to a sequence of future activities and their duration. Then, we introduce a cycle consistency module that predicts the past activities given the predicted future. The motivation of this module is to force the sequence-tosequence module to encode all the relevant information in the observed frames Overview of the anticipation framework. The observed frames are passed through a TCN-based recognition module which produces discriminative features for the sequence-to-sequence model. The sequence-to-sequence model predicts the future activities with their duration. In addition, we enforce cycle consistency over time by predicting the past activities given the predicted future. and verify if the predictions are plausible. Finally, we extend the sequence-tosequence model with a recognition module that generates discriminative features that capture the relevant information for anticipating the future. An overview of the proposed model is illustrated in Fig. 2 . Our framework is hence trained using an anticipation loss, a recognition loss, and a cycle consistency loss. In the following sections, we describe in detail these modules.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1792,
+                    "end": 1798,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "The Anticipation Framework"
+        },
+        {
+            "text": "The sequence-to-sequence model maps the sequence of observed frames to a sequence of future activities and their duration. For this model, we use a recurrent encoder-decoder architecture based on gated recurrent units (GRUs).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequence-to-Sequence Model"
+        },
+        {
+            "text": "The purpose of the recurrent encoder is to encode the observed frames in a single vector which will be used to decode the future activities. Given the input features X, the recurrent encoder passes these features through a single layer with a gated recurrent unit (GRU)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recurrent Encoder."
+        },
+        {
+            "text": "where x t is the input feature for frame t, and h e t\u22121 is the hidden state at the previous time step. The hidden state at the last time step h e to encodes the observed frames and will be used as an initial state for the decoder.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recurrent Encoder."
+        },
+        {
+            "text": "Given the output of the encoder h e to , the recurrent decoder predicts the future activities and their relative duration. The decoder also consists of a single layer with a gated recurrent unit (GRU). The hidden state at each step is updated using the GRU update rules",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recurrent Decoder."
+        },
+        {
+            "text": "where the input at each time step A m\u22121 is the predicted activity label for the previous step. At training time, the ground-truth label is used as input. Whereas the predicted label is used during inference time. For the first time step, a special start-of-sequence (SOS) symbol is used as input. Given the hidden state h d m at each time step, the future activity label A m and its relative duration m are predicted using a fully connected layer, i.e.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recurrent Decoder."
+        },
+        {
+            "text": "where\u00c3 m is the predicted logits for the future activity, and\u02c6 m is the predicted duration in log space. To get the relative duration, we apply softmax over the time steps\u02dc",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recurrent Decoder."
+        },
+        {
+            "text": "The decoder keeps predicting future activity labels and the corresponding duration until a special end-of-sequence (EOS) symbol is predicted. As a loss function, we use a combination of a cross entropy loss for the activity label and a mean squared error (MSE) for the predicted relative duration",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recurrent Decoder."
+        },
+        {
+            "text": "where L A is the anticipation loss,\u00e3 m,A is the the predicted probability for the ground truth activity label at step m, n is the number of observed action segments and N is the total number of action segments in the video.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recurrent Decoder."
+        },
+        {
+            "text": "Since the input to the encoder are frame-wise features which might be very long, the output of the encoder h e to might not be able to capture all the relevant information. To alleviate this problem we combine the decoder with an attention mechanism using a multi-head attention module [43] . Additional details are given in the supplementary material.",
+            "cite_spans": [
+                {
+                    "start": 286,
+                    "end": 290,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Recurrent Decoder."
+        },
+        {
+            "text": "Since predicting the future from the past and the past from the future should be consistent, we propose an additional cycle consistency loss. Given the predicted future activities, we want to predict the past activities and their duration. This requires the predicted future to be good enough to predict the past. The cycle consistency loss has two benefits. First, it verifies if, for the predicted future actions, the actions that have been previously observed are plausible. Second, it encourages the recurrent decoder to keep the most important information of the observed sequence until the end, instead of storing only the information of the previous anticipated activity. In this way, a wrong prediction does not necessary propagate since the observed sequence is kept in memory.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cycle Consistency"
+        },
+        {
+            "text": "The cycle consistency module is similar to the recurrent decoder and consists of a single layer with GRU, however, it predicts the past instead of the future. The hidden state of this GRU is initialized with the last hidden state of the recurrent decoder and at each step the hidden state is updated as follows",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cycle Consistency"
+        },
+        {
+            "text": "Given the hidden state h cyc m at step m, an activity label of the observations and its relative duration are predicted using a fully connected layer. The loss function is also similar to the recurrent decoder",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cycle Consistency"
+        },
+        {
+            "text": "where L cyc is the cycle consistency loss, L CE and L MSE are the cross entropy loss and MSE loss applied on the past activity labels and their relative duration. While the mapping from past to future can be multi-modal, this does not limit the applicability of the cycle consistency module. Since the cycle consistency module is conditioned on the predicted future, no matter what mode is predicted, the cycle consistency makes sure it is plausible. This also applies to the inverse mapping. As there is a path from the observed frames to the cycle consistency module through the sequence-to-sequence model, there is no ambiguity in which past activities have been observed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cycle Consistency"
+        },
+        {
+            "text": "In the sequence-to-sequence model, the input of the recurrent encoder are the frame-wise features. However, directly passing the features to the encoder is sub-optimal as the encoder might struggle to capture all the relevant information for anticipating the future activities. As past activities provide a strong signal for anticipating future activities, we use a recognition module that learns discriminative features of the observed frames. These features will then serve as an input for the sequence-to-sequence model to anticipate the future activities. Given the success of temporal convolutional networks (TCNs) in analyzing activities in videos [1, 22] , we use a similar network for our recognition module. Besides being a strong model for analyzing videos, TCNs are fully differentiable and can be integrated in our framework without preventing end-to-end training. For our module, we use a TCN similar to the one proposed in [1] . The TCN consists of several layers of dilated 1D convolutions where the dilation factor is doubled at each layer. The operations at each layer can be formally described as followsF",
+            "cite_spans": [
+                {
+                    "start": 654,
+                    "end": 657,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 658,
+                    "end": 661,
+                    "text": "22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 937,
+                    "end": 940,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Recognition Module"
+        },
+        {
+            "text": "where F l is the output of layer l, * is the convolution operator, W 1 \u2208 R 3\u00d7K\u00d7K are the weights of the dilated convolutional filters with kernel size 3 and K is the number of the filters, W 2 \u2208 R 1\u00d7K\u00d7K are the weights of a 1 \u00d7 1 convolution, and b 1 , b 2 \u2208 R K are bias vectors. The input of the first layer F 0 is obtained by applying a 1 \u00d7 1 convolution over the input features X. The output of the last dilated convolutional layer serves as input to the subsequent modules. To make sure that these features are discriminative enough, we add a classification layer that predicts the action label at each observed fram\u1ebd",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recognition Module"
+        },
+        {
+            "text": "where\u1ef8 t contains the class probabilities at time t, f L,t \u2208 R K is the output of the last dilated convolutional layer at time t, W \u2208 R C\u00d7K and b \u2208 R C are the weights and bias for the 1 \u00d7 1 convolutional layer, where C is the number of action classes. To train this module we use a cross entropy loss",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recognition Module"
+        },
+        {
+            "text": "where\u1ef9 t,c is the predicted probability for the ground truth label c at time t, and t o is the number of observed frames.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Recognition Module"
+        },
+        {
+            "text": "To train our framework, we sum up all the three mentioned losses",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Loss Function"
+        },
+        {
+            "text": "where L A is the anticipation loss, L R is the recognition loss, and L cyc is the cycle consistency loss. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Loss Function"
+        },
+        {
+            "text": "We evaluate the proposed model on two datasets: the Breakfast dataset [20] and 50Salads [41] . In all experiments, we report the average of three runs. The Breakfast dataset is a collection of 1, 712 videos with overall 66.7 hours and roughly 3.6 million frames. Each video belongs to one out of ten breakfast related activities, such as make tea or pancakes. The video frames are annotated with fine-grained action labels like pour milk or fry egg. Overall, there are 48 different actions. On average, each video contains 6 action instances and is 2.3 minutes long. For evaluation, we use the standard 4 splits as proposed in [20] and report the average.",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 74,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 88,
+                    "end": 92,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 627,
+                    "end": 631,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "The 50Salads dataset contains 50 videos showing people preparing different kinds of salad. These videos are relatively long with an average of 6.4 minutes and 20 action instances per video. The video frames are annotated with 17 finegrained action labels like cut tomato or peel cucumber. For evaluation, we use five-fold cross-validation and report the average as in [41] .",
+            "cite_spans": [
+                {
+                    "start": 368,
+                    "end": 372,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We follow the state-of-the-art evaluation protocol and report the mean over classes (MoC) accuracy for different observation/prediction percentages [3, 16] . Implementation Details. For the recognition module, we used a TCN with 10 layers and 64 filters in each layer. The number of units in the GRU cells is set to 512. For each training video, we generate two training examples with 20% and 30% observation percentage. The prediction percentage is always set to 50%. All the models are trained for 80 epochs using Adam optimizer [17] . We set the learning rate to 0.001 and reduce it every 20 epochs with a factor of 0.8. For both datasets, we extract I3D [6] features for the video frames using both RGB and flow streams and sub-sample them at 5 frames per second.",
+            "cite_spans": [
+                {
+                    "start": 148,
+                    "end": 151,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 152,
+                    "end": 155,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 531,
+                    "end": 535,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 658,
+                    "end": 661,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "In this section, we analyze the impact of the different modules in our framework on the anticipation performance. This analysis is conducted on the Breakfast dataset and the results are shown in Table 1 . Additional ablation experiments to study the impact of the input to the recurrent encoder and decoder are provided in the supplementary material.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 195,
+                    "end": 202,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Ablation Analysis"
+        },
+        {
+            "text": "The recognition module consists of two parts: a TCN and a recognition loss L R . Starting from only the sequence-to-sequence module (S2S), we can achieve a good accuracy in the range 20% \u2212 27%. By combining the sequence-to-sequence module with the recognition module (S2S + TCN + L R ), we gain an improvement of 1%\u22122% for each observation-prediction percentage. This indicates that recognition helps the anticipation task. We also evaluate the performance when the TCN is combined with the sequence-tosequence module without the recognition loss (S2S + TCN). As shown in Table 1 , the results are worse than using only the sequence-to-sequence module if we do not apply the recognition loss. This can be explained by the structure of the network. The recurrent encoder maps the features extracted by the TCN from all frames to a single vector. Without additional loss for the recognition module, the gradient vanishes and the parameters of the TCN are not well estimated. Nevertheless, by just applying the recognition loss, we get enough supervisory signal to train the TCN and improve the overall anticipation accuracy. This also highlights that the improvements from the recognition module are due to the additional recognition task and not because of having more parameters.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 572,
+                    "end": 579,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Impact of the Recognition Module:"
+        },
+        {
+            "text": "The cycle consistency module predicts the past activities from the predicted future. The intuition is that to be able to predict the past activities, the predicted future activities have to be correct. As shown in Table 1 , using the cycle consistency loss gives an additional improvement on the anticipation accuracy. The cycle consistency loss verifies if, for the predicted future actions, all required actions have been done before and no essential action is missing. For example in Fig. 3(a) , the model observes spoon flour, crack egg, pour milk, and stir dough. Without the cycle consistency the network did not predict the action pour oil, which is required to fry pancake. By using cycle consistency this issue is resolved. Cycle consistency also forces the decoder to remember all observed activities. As illustrated in Fig. 3 (b) , the model observes spoon flour, crack egg, pour milk, butter pan, and stir dough.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 214,
+                    "end": 221,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 487,
+                    "end": 496,
+                    "text": "Fig. 3(a)",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 830,
+                    "end": 840,
+                    "text": "Fig. 3 (b)",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Impact of the Cycle Consistency Loss:"
+        },
+        {
+            "text": "Without the cycle consistency, the network predicts the action stirfry egg, which would have been plausible if spoon flour and pour milk were not part of the observations. Since the cycle consistency encourages the decoder to use all observed actions for anticipation, the activity fry pancake is correctly anticipated.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Impact of the Cycle Consistency Loss:"
+        },
+        {
+            "text": "Finally, using the full model by combining the recurrent decoder with the multi-head attention module further improves the results by roughly 1%. As shown in Table 1 , the gain from using the attention module is higher when the observation percentage is 30%. This is mainly because of the encoder module. Given the observed frames, the encoder tries to encode them in a single vector. This means that the encoder has to throw away more information from the long sequences compared to shorter sequences. In this case, the attention module can help in capturing some of the lost information in the encoder output by attending on the relevant information in the observations.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 158,
+                    "end": 165,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Impact of the Attention Module:"
+        },
+        {
+            "text": "To illustrate the benefits of end-to-end learning over two-step approaches, we compare our framework with its two-step counterpart. For this comparison, we first train the recognition module from our framework and then fix the weights of the TCN and train the remaining components of our model with the anticipation loss and the cycle consistency loss. Table 2 shows the results of our framework compared to the two-step approach on the Breakfast dataset with different observation and prediction percentages. As shown in the table, our framework outperforms the two-step approach with a large margin of up to 2.3%. This highlights the benefits of end-to-end approaches where the model can capture the relevant information in the observed frames to anticipate the future. On the contrary, two-step approaches can only utilize the label information of the observed frames that are not optimized for the anticipation task which is sub-optimal. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 353,
+                    "end": 360,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "End-to-End vs. Two-Step Approach"
+        },
+        {
+            "text": "In this section, we compare our framework with the state-of-the-art methods on both the Breakfast dataset and 50Salads. We follow the same protocol and report results for different observation and prediction percentages. Table 3 shows the results on both datasets. All the previous approaches follow the two-step approach by inferring the action labels of the observed frames first and then use these labels to anticipate the future activities. As shown in Table 3 , our framework outperforms all the state-of-the-art methods by a large margin of roughly 5% \u2212 8% for each observation-prediction percentage pair on the Breakfast dataset. An interesting observation is that all the previous approaches achieve comparable results despite the fact that they are using different network architectures based on RNNs [2, 3] , CNNs [3] , or even temporal convolution [16] . On the contrary, our framework clearly outperforms these approaches with the advantage that it was trained in an end-to-end fashion.",
+            "cite_spans": [
+                {
+                    "start": 810,
+                    "end": 813,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 814,
+                    "end": 816,
+                    "text": "3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 824,
+                    "end": 827,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 859,
+                    "end": 863,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 221,
+                    "end": 228,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 457,
+                    "end": 464,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Comparison with the State-of-the-Art"
+        },
+        {
+            "text": "For 50Salads, our model outperforms the state-of-the-art in 50% of the cases. This is mainly because 50Salads is a small dataset. Since our model is trained end-to-end, it requires more data to show the benefits over two-step approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison with the State-of-the-Art"
+        },
+        {
+            "text": "Since the state-of-the-art methods like [3] use an RNN-HMM model [33] for recognition, we also report the results of [3] with our TCN as a recognition model. The results are shown in Table 3 This highlights that the improvements in our model are not only due to the TCN, but mainly because of the joint optimization of all modules for the anticipation task in an end-to-end fashion and the introduced cycle consistency loss.",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 43,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 65,
+                    "end": 69,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 117,
+                    "end": 120,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 183,
+                    "end": 190,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Comparison with the State-of-the-Art"
+        },
+        {
+            "text": "Qualitative results for our model on both datasets are illustrated in Fig. 4 . As shown in the figure, our model can generate accurate predictions of the future activities and their duration. We also show the results of the sequence-tosequence (S2S) and the two-step baselines. Our model anticipates the activities better.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 70,
+                    "end": 76,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Comparison with the State-of-the-Art"
+        },
+        {
+            "text": "In this paper, we introduced a model for anticipating future activities from a partially observed video. In contrast to the state-of-the-art methods which rely on the action labels of the observations, our model directly predicts the future activities from the observed frames. We train the proposed model in an end-to-end fashion and show a superior performance compared to the previous approaches. Additionally, we introduced a cycle consistency loss for the anticipation task which further boosts the performance. Our framework achieves state-of-the-art results on two publicly available datasets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "MS-TCN: multi-stage temporal convolutional network for action segmentation",
+            "authors": [
+                {
+                    "first": "Abu",
+                    "middle": [],
+                    "last": "Farha",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gall",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Uncertainty-aware anticipation of activities",
+            "authors": [
+                {
+                    "first": "Abu",
+                    "middle": [],
+                    "last": "Farha",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gall",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ICCV Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "When will you do what?-Anticipating temporal occurrences of activities",
+            "authors": [
+                {
+                    "first": "Abu",
+                    "middle": [],
+                    "last": "Farha",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Richard",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gall",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Social LSTM: human trajectory prediction in crowded spaces",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Alahi",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Goel",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Ramanathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Robicquet",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fei-Fei",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Savarese",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Bayesian prediction of future street scenes using synthetic likelihoods",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bhattacharyya",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fritz",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schiele",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Quo vadis, action recognition? A new model and the kinetics dataset",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Carreira",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zisserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Temporal cycleconsistency learning",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dwibedi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Aytar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tompson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sermanet",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zisserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Leveraging uncertainty to rethink loss functions and evaluation measures for egocentric action anticipation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Furnari",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Battiato",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Farinella",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ECCV 2018",
+            "volume": "11133",
+            "issn": "",
+            "pages": "389--405",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-11021-5_24"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "What would you expect? Anticipating egocentric actions with rolling-unrolling LSTMs and modality attention",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Furnari",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Farinella",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Forecasting future action sequences with neural memory networks",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Gammulle",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Denman",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sridharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fookes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Predicting the future: A jointly learnt model for action anticipation",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Gammulle",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Denman",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sridharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fookes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "RED: reinforced encoder-decoder networks for action anticipation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Nevatia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Unsupervised monocular depth estimation with left-right consistency",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Godard",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Mac Aodha",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Brostow",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Max-margin early event detectors",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hoai",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "De La Torre",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IJCV",
+            "volume": "107",
+            "issn": "2",
+            "pages": "191--202",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s11263-013-0683-3"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Structural-RNN: deep learning on spatio-temporal graphs",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Zamir",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Savarese",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Saxena",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Time-conditioned action anticipation in one shot",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ke",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fritz",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schiele",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Activity forecasting",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kitani",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Ziebart",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Bagnell",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hebert",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fitzgibbon",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lazebnik",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Perona",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Sato",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "ECCV 2012",
+            "volume": "7575",
+            "issn": "",
+            "pages": "201--214",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-33765-9_15"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Anticipating human activities using object affordances for reactive robotic response",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Koppula",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Saxena",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "TPAMI",
+            "volume": "38",
+            "issn": "1",
+            "pages": "14--29",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "The language of actions: recovering the syntax and semantics of goal-directed human activities",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kuehne",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Arslan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Serre",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A hierarchical representation for future action prediction",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.-C",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Savarese",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "ECCV 2014",
+            "volume": "8691",
+            "issn": "",
+            "pages": "689--704",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-10578-9_45"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Temporal convolutional networks for action segmentation and detection",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lea",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Flynn",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Vidal",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Reiter",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Hager",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Peeking into the future: predicting future person activities and locations in videos",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Niebles",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Hauptmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fei-Fei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Dual motion GAN for future-flow embedded video prediction",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Predicting deeper into the future of semantic segmentation",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Luc",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Neverova",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Couprie",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Verbeek",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Learning activity progression in LSTMs for activity detection and early detection",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Sigal",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sclaroff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Captioning near-future activity sequences. arXiv",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mahmud",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Billah",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hasan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Roy-Chowdhury",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Joint prediction of activity labels and starting times in untrimmed videos",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mahmud",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hasan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Roy-Chowdhury",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "On human motion prediction using recurrent neural networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Martinez",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Black",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Romero",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Deep multi-scale video prediction beyond mean square error",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mathieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Couprie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "A variational auto-encoder model for stochastic point processes",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Mehrasa",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Jyothi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Durand",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Sigal",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Mori",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Leveraging the present to anticipate the future in videos",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Miech",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Laptev",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sivic",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Torresani",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CVPR Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Weakly supervised action learning with RNN based fine-to-coarse modeling",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Richard",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kuehne",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gall",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Action anticipation by predicting future dynamic images",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Rodriguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Fernando",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ECCV Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Human motion prediction via spatiotemporal inpainting",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Ruiz",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gall",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Moreno-Noguer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Human activity prediction: early recognition of ongoing activities from streaming videos",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Ryoo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Encouraging LSTMs to anticipate actions very early",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sadegh Aliakbarian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Zero-shot anticipation for instructional activities",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Sener",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Action anticipation with RBF kernelized feature mapping RNN",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Fernando",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Hartley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Unsupervised learning of video representations using LSTMs",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Mansimov",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhudinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "843--852",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Combining embedded accelerometers with computer vision for recognizing food preparation activities",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mckenna",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Relational action forecasting",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shrivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Vondrick",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sukthankar",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Murphy",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Schmid",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Anticipating visual representations from unlabeled video",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Vondrick",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Pirsiavash",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Torralba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Learning correspondence from the cycleconsistency of time",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jabri",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Visual forecasting by imitating dynamics in natural sequences",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Carlos Niebles",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Learning dense correspondence via 3d-guided cycle consistency",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Krahenbuhl",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Aubry",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Unpaired image-to-image translation using cycle-consistent adversarial networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Isola",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(Left) Overview of the proposed approach, which is trained end-to-end and includes a cycle consistency module. (Right) Effect of the cycle consistency module.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Fig. 2. Overview of the anticipation framework. The observed frames are passed through a TCN-based recognition module which produces discriminative features for the sequence-to-sequence model. The sequence-to-sequence model predicts the future activities with their duration. In addition, we enforce cycle consistency over time by predicting the past activities given the predicted future.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Impact of the cycle consistency loss. Cycle consistency verifies if, for the predicted future actions, all required actions have been done before and no essential action is missing (a), and it further encourages the decoder to keep the important information from the observations until the end, which results in better predictions (b).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "(RNN [3] + TCN and CNN [3] + TCN). Our model outperforms these methods even when they are combined with TCN.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Qualitative results for anticipating future activities. (a) An example from the Breakfast dataset for the case of observing 20% of the video and predicting the activities in the following 50%. (b) An example from the 50Salads dataset for the case of observing 20% of the video and predicting the activities in the following 20%.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Ablation study on the Breakfast dataset. Numbers represent mean over classes (MoC) accuracy.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Comparison with the state-of-the-art. Numbers represent MoC accuracy. ] + TCN 05.93 05.68 05.52 05.11 08.87 08.90 07.62 07.69 CNN [3] + TCN 09.85 09.17 09.06 08.87 17.59 17.13 16.13 14.42 UAAA (mode) [2] 16.71 15.40 14.47 14.20 20.73 18.27 18.42 16.86 Time-Cond. [16] 18.41 17.21 16.42 15.84 22.75 20.44 19.64 19.75 ] + TCN 32.31 25.51 19.10 14.15 26.14 17.69 16.33 12.97 CNN [3] + TCN 16.02 14.68 12.09 09.89 19.23 14.68 13.18 11.20 UAAA (mode) [2] 24.86 22.37 19.88 12.82 29.10 20.50 15.28 12.31 Time-Cond. [16] 32.51 27.61 21.26 15.99 35.12 27.05 22.05 15.59 Ours 34.76 28.41 21.82 15.25 34.39 23.70 18.95 15.89",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

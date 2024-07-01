@@ -1,0 +1,1040 @@
+{
+    "paper_id": "0963272fe205730a08824eb92254d3ba949d0e97",
+    "metadata": {
+        "title": "In the Danger Zone: U-Net Driven Quantile Regression can Predict High-risk SARS-CoV-2 Regions via Pollutant Particulate Matter and Satellite Imagery",
+        "authors": [
+            {
+                "first": "Jacquelyn",
+                "middle": [
+                    "A"
+                ],
+                "last": "Shelton",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Przemyslaw",
+                "middle": [],
+                "last": "Polewski",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Wei",
+                "middle": [],
+                "last": "Yao",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Since the outbreak of COVID-19 policy makers have been relying upon non-pharmacological interventions to control the outbreak. With air pollution as a potential transmission vector there is need to include it in intervention strategies. We propose a U-net driven quantile regression model to predict P M 2.5 air pollution based on easily obtainable satellite imagery. We demonstrate that our approach can reconstruct P M 2.5 concentrations on ground-truth data and predict reasonable P M 2.5 values with their spatial distribution, even for locations where pollution data is unavailable. Such predictions of P M 2.5 characteristics could crucially advise public policy strategies geared to reduce the transmission of and lethality of COVID-19.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Since the outbreak of the Severe Acute Respiratory Syndrome Corona Virus 2 (SARS-CoV-2), popularly referred to as COVID-19, many questions have been asked around the disease. Of particular interest are the questions of transmission methods, and characteristics that identify vulnerable populations. Studies into these properties are made more complex by the lack of information around the behavior of the virus, E.g. the percent of cases that are asymptomatic. However, as indicated by the inclusion in the CDC's vulnerable Population index, asthma and chronic lung disease seem to be a major factor in the severity of the cases. For example, in (Conticini et al., 2020) the connections between the lethality rate in Lombardy and Emilia Romagna, areas with high level of atmospheric pollution, are explored. In particular, the paper studies the correlation between pollution, which is a known instigator of chronic lung disease even in young and other wise healthy subjects, and the lethality of SARS-CoV-2. A similar result for the lethality in the United States (Wu et al., 2020) using county level fatality rate, and county level long term air pollution, shows that, after adjusting for other known factors, that there is a strong correlation between the concentration of particulate matter 2.5 micrometers or less in diameter, or P M 2.5 , and the county level lethality. Specifically, a 1 \u00b5g m 3 increase in P M 2.5 corresponds to an 8% increase in the fatality rate.",
+            "cite_spans": [
+                {
+                    "start": 646,
+                    "end": 670,
+                    "text": "(Conticini et al., 2020)",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1064,
+                    "end": 1081,
+                    "text": "(Wu et al., 2020)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "However, as observed in (Coccia, 2020) , there is also a correlation between particulate matter (P M ) air pollution and the number of reported cases. This suggests that pollutionto-human may serve as another transmission dynamic for SARS-CoV-2. These two results suggest a two factor vulnerability to SARS-CoV-2 caused by increased particulate matter in the air: On one hand it increases the likelihood of having a more sever reaction to infection, and the other it serves a transmission vector.",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 38,
+                    "text": "(Coccia, 2020)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Traditionally, P M 2.5 concentration data can be obtained from ground sensors and measurement stations. However, the spatial resolution of these measurements is greatly limited by the sparsity of sensor networks. Thus, detailed pollution maps have been developed that integrate heterogeneous data sources (see e.g. van Donkelaar et al. (2019)), to create a database of estimated monthly pollutant concentrations over several countries. This data was used by Wu et al. (2020) linking P M 2.5 concentrations to COVID-19 mortality rates. Although this historical data helped establish this causality relationship, up-to-date/live pollution information is still needed to monitor pollutant P M 2.5 . By knowing where pollution is we can better understand the impacts of social segregation policy on subpopulations in order to e.g. allocate medical funds to the most vulnerable populaces. The health needs for a population often require very granular data about their circumstances, and air pollution is one such measure that is only sporadically known in poorer areas and thus is insufficiently represented in modeling the health situation. In order to properly control COVID-19 hotspots there is a need to predict the spread and intensity of COVID-19. While contact tracing and non- pharmacological interventions (NPIs) have shown value, there is mounting evidence that there are other transmission vectors, including via pollution particles, as discussed earlier. Therefore there is mounting need to understand local pollution dynamics in order to correctly deal with the pandemic. In order to properly understand the effectiveness of a given NPI it is essential we understand the main transmission vectors. It is, therefore, vital we gain understanding of the strength of air pollution as a transmission vector in order to understand and design NPIs efficiently.",
+            "cite_spans": [
+                {
+                    "start": 458,
+                    "end": 474,
+                    "text": "Wu et al. (2020)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The goal of the present work is to model air pollution P M 2.5 concentrations using readily available satellite imagery. The aim is to aid in any planning for efficacious COVID-19 geared strategies. The paper is organized as follows: Sec. 2 introduces the proposed U-net model, Sec. 3 presents the data, Sec. 4 describes the experiments and results, and finally Sec. 5 provides a summary and outlook.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We build upon the well known U-net architecture (Ronneberger et al., 2015) to predict dense (per-pixel) P M 2.5 concentrations from multispectral satellite imagery. Since its introduction in 2015, the U-net has been successfully applied to various semantic segmentation tasks, E.g. in medical imaging (Dong et al., 2017) and astronomy (Akeret et al., 2017) . The U-net consists of two symmetrical parts. The encoder path downsamples the original image into meaningful features by means of convolutional filters and pooling operations, whereas the upsampling path aims at decoding these features into a full-sized output map using transposed convolution operations, driven by an appropriate loss function. Moreover, upsampling layers are augmented with feature maps from the downsampling path at the corresponding resolution, to provide more context information. The original U-net was meant for classification and featured a softmax layer after the top-level upsampling layer's output, trained using a cross-entropy objective with discrete ground-truth labels. Yet the U-net has also been used for dense regression by removing the softmax layer and optimizing the squared difference between the upsampled output and a continuous target variable (Yao et al., 2018; Payer et al., 2016) .",
+            "cite_spans": [
+                {
+                    "start": 48,
+                    "end": 74,
+                    "text": "(Ronneberger et al., 2015)",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 301,
+                    "end": 320,
+                    "text": "(Dong et al., 2017)",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 335,
+                    "end": 356,
+                    "text": "(Akeret et al., 2017)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1245,
+                    "end": 1263,
+                    "text": "(Yao et al., 2018;",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1264,
+                    "end": 1283,
+                    "text": "Payer et al., 2016)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "U-net model for pollutant particulate matter"
+        },
+        {
+            "text": "It is well known that least squares regression estimates the conditional mean of the response variable given the predictors, and is therefore sensitive to outliers. Alternatively, Quantile regression (Koenker, 2005) is more robust to out-",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 215,
+                    "text": "(Koenker, 2005)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "U-net model for pollutant particulate matter"
+        },
+        {
+            "text": "variable vectors x and matching continuous response variables y sampled from their respective distributions X , Y. Let f (x|\u03b8) indicate the prediction function parameterized by \u03b8, and let 0 < q < 1 refer to the quantile level. In this work, we consider losses of the form:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "U-net model for pollutant particulate matter"
+        },
+        {
+            "text": "In the above, [a] denotes the indicator function for event a, whereas the term \u03c1 q (r) is the check function (Koenker, 2005) . To better quantify the approximated distribution, we learn 3 quantiles q l < q m = 0.5 < q u simultaneously, which allows us to obtain both a point-wise estimate from the median q m and a (q u \u2212 q l )\u2212confidence interval for the value. We cast the aggregate loss function as a linear combination of partial L q terms with coefficients \u03b3 l , \u03b3 u , in a simple multi-task learning setting (Gong et al., 2019):",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 124,
+                    "text": "(Koenker, 2005)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "U-net model for pollutant particulate matter"
+        },
+        {
+            "text": "To mirror the structure of the loss function, the U-net architecture was extended to include a separate sequence of convolutional filters at the top level of the upsampling path per quantile loss term (see Fig. 1 ). One disadvantage of using the loss L q (Eq. 1) is the fact that the check function \u03c1 q is not differentiable at zero. Moreover, the derivative is piecewise constant on R + , R \u2212 . This might pose a challenge to gradient-based optimization schemes (E.g. back propagation in neural networks) because the gradient norm does not get smaller as the optimization converges to a local minimum. To alleviate that, some approximations of the check function have been proposed. The Huber loss (Hastie et al., 2001) combines quadratic behavior within a \u03b4\u2212neighborhood of 0 with linear behavior on R \\ [\u2212\u03b4; \u03b4]. This can be used to approximate \u03c1 0.5 . Recently, Gupta et al. (2020) introduced an asymmetric version of the Huber loss:",
+            "cite_spans": [
+                {
+                    "start": 699,
+                    "end": 720,
+                    "text": "(Hastie et al., 2001)",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 865,
+                    "end": 884,
+                    "text": "Gupta et al. (2020)",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 206,
+                    "end": 212,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "U-net model for pollutant particulate matter"
+        },
+        {
+            "text": "This loss function is differentiable everywhere. The parameters \u03b4 l , \u03b4 u control both the slope of the linear functions on their respective sides of the real axis, and the locations where the function starts to show quadratic behavior. We propose to approximate \u03c1 q with R \u03b1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "U-net model for pollutant particulate matter"
+        },
+        {
+            "text": "where \u03b1 is a parameter which controls the location of the change from linear to quadratic characteristics. See Fig. 2 for a comparison of loss functions.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 111,
+                    "end": 117,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "U-net model for pollutant particulate matter"
+        },
+        {
+            "text": "In order to address this problem, we use satellite imagery as a source of predictor variables, and approximate P Satellite data. Our work used Landsat 8 satellite imagery published by the United States Geological Survey (Lan, 2016). Landsat 8 is the latest in a series of Earth observation missions containing a total of 11 spectral bands, ranging in wavelengths from 0.435\u00b5m to 12.51\u00b5m, with spatial resolution between 15 to 100m depending on the band.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "Pollution data. We downloaded monthly P M 2.5 concentration maps for North America from (Don). Readily available, these maps contain 0.01 degrees per pixel and use a standard WGS84 coordinate reference system. We used the data made available immediately after Landsat 8 mission launched, namely from March 2013 to December 2018.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "Preprocessing. The Landsat imagery was first reprojected to the WGS84 coordinate system, and downsampled to the ground-truth resolution of 0.01 degrees (the panchromatic band was dropped). To match the temporal resolution of the ground-truth, we computed per-band average images grouped by month of acquisition. Next, we derived a perpixel mask of regions within the image covered by cirrus clouds and hence not suitable for analysis, based on the estimated cloud cover percentage (Foga et al., 2017) . Finally, we combined the cloud cover mask with the data availability mask from the ground-truth P M 2.5 maps. Also, pixels corresponding to the top and bottom 1% of ground-truth values were masked out as outliers. All input imagery bands were normalized to the interval [0; 1] individually per band.",
+            "cite_spans": [
+                {
+                    "start": 481,
+                    "end": 500,
+                    "text": "(Foga et al., 2017)",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "We selected an initial number N = 133 Landsat images, spanning March 2013 to December 2018, of 24 major cities from representative regions of the United States (see Fig. 3 , green boxes) and preprocessed them as described in Sec. 3. Next, we defined our ground-truth data as these images paired with corresponding P M 2.5 images from which we use an 80:20% random split to create training/testing set of 106:27 images. A U-net based on adapting the implementation by Akeret et al. (2017) was trained using an ADAM optimized over 1000 epochs with minibatch size of 15 and 100 internal iterations, with the following parameterization: dropout ratio was 0.5, learning rate 0.00005, regression quantiles q l = 0.1, q r = 0.9. For the Huber loss function (3), all aggregates (2) contributed in equal proportion and the parameter controlling the function shape was \u03b1 = 2. 4.1: Sanity check with ground-truth. The network converged to a state which produced a mean absolute error of \u2248 1\u00b5g/m 3 between predicted and ground-truth values on the training set (see Fig. 4 ). The median width of the predicted confidence intervals (upper bound -lower bound) for training data was 1.94\u00b5g/m 3 , and 70% of ground-truth values fell into the predicted interval. The number of groundtruth values above the lower bound and below the upper bound was respectively 88% and 82%. This demonstrates that the model was able to approximate the 0.1 and 0.9 quantiles well, and also to provide quality point-estimates. Correspondingly, our approach can predict P M 2.5 pollution where the U-net was generalized to cities at times not present in the training data but locations it has been trained on. Error with the GT data converges to M AE \u2248 1 and the error with validation data converges to M AE \u2248 2. This shows that the U-net can generalize well to temporally novel data. maps that match the structure and approximate concentrations of ground-truth reconstructions. See Fig. 5 for some examples.",
+            "cite_spans": [
+                {
+                    "start": 467,
+                    "end": 487,
+                    "text": "Akeret et al. (2017)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 165,
+                    "end": 171,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1053,
+                    "end": 1059,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 1945,
+                    "end": 1951,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "4.2: Generalizability to temporally novel data. To assess the ability of our model to generalize in the temporal domain, we utilized 27 previously unseen images that overlapped with the training set spatially but not temporally. The test set contained images from 15 of the 24 cities. The mean absolute validation error followed the same trend as Exp. 4.1 with GT training data, however it converged to about 2\u00b5g/m 3 (see Fig. 4 ). The performance of the predicted confidence intervals degraded to 40% of contained ground-truth values, whereas the median interval width remained low at 2.06\u00b5g/m 3 . This indicates a degree of overfitting, however the predicted P M 2.5 concentrations are still within reasonable distance of the ground-truth.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 422,
+                    "end": 428,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Cities with similar pollution profile. We selected 28 new images at 20 additional locations within the United States, showing visually similar distributions of groundtruth P M 2.5 within the Landsat image frames to the original training cities, in order to evaluate the performance of predicting the P M 2.5 concentrations at locations unseen during training. The obtained mean absolute error was 2.81\u00b5g/m 3 , and the predicted confidence intervals contained 31% of ground-truth values. This shows that it is harder to generalize in the spatial than in the temporal domain.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "4.3:"
+        },
+        {
+            "text": "The goal of the fourth experiment is to verify that our model can predict expected P M 2.5 concentration trends at time points before and after the government mandated lock-down in March 2020 intended to hinder the spread of SARS-CoV-2 (which consequently e.g. drastically reduced industrial emissions). We applied the U-net learned in Exp. 4.3 to satellite images of Los Angeles, CA from 2018, 2019, and early 2020. The results, shown in Fig. 6 , illustrate that the U-net was able to learn P M 2.5 concentrations consistent with world events at the time. Namely, the pollution is inferred to be notably higher before the lock-down than after the lock-down, shown by the considerable shift of the predicted P M 2.5 distribution's 0.9 quantile between October 2019 and April 2020 -the quantile shifted from 13.2 to 9.7, respectively. Additionally, our approach was able to successfully isolate regions in LA that are the most densely populated by predicting higher pollutant P M 2.5 values. This suggests that our approach can generalize to new data and reliably predict pollutant P M 2.5 concentrations and their spatial structure, which informs on the presence and lethality of SARS-CoV-2.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 439,
+                    "end": 445,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "4.4: Before and after SARS-CoV-2-induced lock-down."
+        },
+        {
+            "text": "SARS-CoV-2 lethality has been concretely linked to the concentration of pollutant particulate matter, where a slight increase in P M 2.5 can drastically enhance the morbidity rate. We have proposed a means of learning the structure, spatial distribution, and physical concentration of pollutant particulate matter P M 2.5 based solely on global satellite imagery and monthly P M 2.5 values from the years 2013-2018. Our approach proposes a U-net convolutional network with quantile regression loss to learn dense per-pixel P M 2.5 prediction maps. We have demonstrated not only that our approach can successfully reconstruct P M 2.5 concentrations with low error, but it can also generalize to completely unseen locations for which pollutant data is not available. As pollution has been shown to be a main vector of SARS-CoV-2 transmission, this ability to identify regions where it may be particularly transmissible and lethal can provide critical advice to implementable public health strategies, such as the ability to monitor, understand, and design NPIs efficiently.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Given that our approach passes several sanity checks by demonstrating that its P M 2.5 concentration predictions reflect ground-truth values/measurements, it would follow that it can make meaningful predictions for locations for which there has never been recordings of the particulate matter (only satellite imagery available). Additionally, although we currently do not have rigorous methodology to quantify what makes satellite imagery of different cities 'similar', we could address this e.g. with dependence tests such as kernel two-sample tests (Gretton et al., 2012) . Also, data from multiple satellites could be included to provide greater temporal resolution, such as from the Sentinel-2 mission (Drusch et al., 2012) . With larger satellite datasets we can expect an increase in the accuracy of our predictions.",
+            "cite_spans": [
+                {
+                    "start": 551,
+                    "end": 573,
+                    "text": "(Gretton et al., 2012)",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 706,
+                    "end": 727,
+                    "text": "(Drusch et al., 2012)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Landsat-Earth observation satellites",
+            "authors": [],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Radio frequency interference mitigation using deep convolutional neural networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Akeret",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lucchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Refregier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Astronomy and Computing",
+            "volume": "18",
+            "issn": "",
+            "pages": "35--39",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Two mechanisms for accelerated diffusion of COVID-19 outbreaks in regions with high intensity of population and polluting industrialization: the air pollution-to-human and human-to-human transmission dynamics. medRxiv",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Coccia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Can atmospheric pollution be considered a co-factor in extremely high level of SARS-CoV-2 lethality in Northern Italy?",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Conticini",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Frediani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Caro",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Environ. Pollut",
+            "volume": "261",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Automatic Brain Tumor Detection and Segmentation Using U-Net Based Fully Convolutional Networks",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Mo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Medical Image Understanding and Analysis",
+            "volume": "",
+            "issn": "",
+            "pages": "506--517",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Sentinel-2: Esa's optical high-resolution mission for gmes operational services. Remote Sensing of Environment",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Drusch",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Bello",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Carlier",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Colin",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Fernandez",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Gascon",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hoersch",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Isola",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Laberinti",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Martimort",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Meygret",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Spoto",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Sy",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Marchese",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bargellini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "The Sentinel Missions -New Opportunities for Science",
+            "volume": "120",
+            "issn": "",
+            "pages": "25--36",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.rse.2011.11.026.URLhttp:/www.sciencedirect.com/science/article/pii/S0034425712000636"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Cloud detection algorithm comparison and validation Predicting High-risk SARS-CoV-2 Regions with U-Net Driven Quantile Regression for operational landsat data products",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Foga",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Scaramuzza",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Dilley",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Beckman",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dwyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hughes",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Laue",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gong",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Stephenson",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Renduchintala",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Padhy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ndirango",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Keskin",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Elibol",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Comparison of Loss Weighting Strategies for Multi task Learning in Deep Neural Networks. IEEE Access",
+            "volume": "194",
+            "issn": "",
+            "pages": "141627--141632",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "A kernel two-sample test",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gretton",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Borgwardt",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rasch",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schoelkopf",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Smola",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "JMLR",
+            "volume": "13",
+            "issn": "",
+            "pages": "723--773",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Robust regularized extreme learning machine with asymmetric Huber loss function. Neural Computing and Applications",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Hazarika",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Berlin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "The Elements of Statistical Learning. Springer Series in Statistics",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hastie",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tibshirani",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Friedman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Regressing Heatmaps for Multiple Landmark Localization using CNNs",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Payer",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "\u0160tern",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Bischof",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Urschler",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ourselin",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Joskowicz",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Sabuncu",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Unal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Medical Image Computing and Computer-Assisted Intervention -MICCAI 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "230--238",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Regional Estimates of Chemical Composition of Fine Particulate Matter Using a Combined Geoscience-Statistical Method with Information from Satellites, Models, and Monitors",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ronneberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fischer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "U-Net ; Van Donkelaar",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Martin",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Burnett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Convolutional Networks for Biomedical Image Segmentation. CoRR, abs/1505.04597",
+            "volume": "53",
+            "issn": "",
+            "pages": "2595--2611",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Exposure to air pollution and COVID-19 mortality in the United States: A nationwide cross-sectional study. medRxiv",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Nethery",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Sabath",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Braun",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Dominici",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Pixel-wise regression using U-Net and its application on pansharpening",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lian",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Neurocomputing",
+            "volume": "312",
+            "issn": "",
+            "pages": "364--371",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Network structure for predicting P M2.5 concentrations from multispectral imagery, based on the classic U-Net(Ronneberger et al., 2015) architecture up to the top-level upsampling layer, where 3 parallel sequences of convolutional filters and activations branch off the upsampled features, corresponding to the 3 types of outputs predicted by the network (lower/upper bound, median).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Comparison",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "concentrations published by van Donkelaar et al. (2019) for the time period of 2000-2018 in the role of ground-truth.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Locations of US cities chosen as a basis for our study. Rectangles indicate bounding boxes of the downloaded Landsat images. Locations marked with green boxes were used for training and validation, whereas blue boxes represent regions used exclusively for testing. The background color map represents average concentration of P M2.5 in 2018.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "The error of the U-net trained in Exp. 4.1 shown with the mean absolute error (MAE). Red curve: error predicting P M2.5 concentrations of data with ground-truth. Blue curve: error predicting P M2.5 of validation data in Exp. 4.2,",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "The U-net trained on groundtruth satellite images was able to successfully reconstruct the P M2.5 concentrations, corresponding to the low error shown inFig. 4. Shown here are a few examples.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Density of predicted P M2.5 concentrations in Los Angeles for time periods before and during the COVID-19 outbreak (top left), corresponding Landsat images with their predicted P M2.5 pollution maps (bottom left). As expected, we see a significant reduction in the 0.9-quantile of the predicted P M2.5 pollution distributions between April 2020 (immediately after the lock-down began) and the previous years. The predicted P M2.5 maps match this trend, showing relatively less pollution in 2020 (darker pixels). Interestingly, yet unsurprisingly, the most densely populated counties, Los Angeles and Orange County, (encircled in red on the map) are predicted to have higher P M2.5 concentrations for all of the years, as shown in the P M2.5 pollution maps. The 2010 population map shows this dense region had a joint population of 12.8 million (top right), and between October 2019 and April 2020, this region showed the greatest shift in predicted P M2.5 concentrations (bottom right). The scatter plot of a sample of predictions from October 2019 versus April 2020 (teal line represents identity mapping) from 2010 (bottom right) illustrates this P M2.5 shift, where points are color-coded by originating county (black points correspond to the ocean). The most significant drop in predicted P M2.5 concentration occurs in Los Angeles (red points) and Orange County (peach).",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": []
+}

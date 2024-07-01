@@ -1,0 +1,1800 @@
+{
+    "paper_id": "126f74e122aa24ec3f19c3ce51b8f2688d358b68",
+    "metadata": {
+        "title": "Combining exogenous and endogenous signals with a semi-supervised co-attention network for early detection of COVID-19 fake tweets",
+        "authors": [
+            {
+                "first": "Rachit",
+                "middle": [],
+                "last": "Bansal",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Delhi Technological University",
+                    "location": {}
+                },
+                "email": ""
+            },
+            {
+                "first": "William",
+                "middle": [
+                    "Scott"
+                ],
+                "last": "Paka",
+                "suffix": "",
+                "affiliation": {},
+                "email": "william18026@iiitd.ac.in"
+            },
+            {
+                "first": "Nidhi",
+                "middle": [],
+                "last": "",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Shubhashis",
+                "middle": [],
+                "last": "Sengupta",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Accenture Labs",
+                    "institution": "",
+                    "location": {
+                        "country": "India"
+                    }
+                },
+                "email": "shubhashis.sengupta@accenture.com"
+            },
+            {
+                "first": "Tanmoy",
+                "middle": [],
+                "last": "Chakraborty",
+                "suffix": "",
+                "affiliation": {},
+                "email": "tanmoy@iiitd.ac.in"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Fake tweets are observed to be ever-increasing, demanding immediate countermeasures to combat their spread. During COVID-19, tweets with misinformation should be flagged and neutralised in their early stages to mitigate the damages. Most of the existing methods for early detection of fake news assume to have enough propagation information for large labelled tweets -which may not be an ideal setting for cases like COVID-19 where both aspects are largely absent. In this work, we present ENDEMIC, a novel early detection model which leverages exogenous and endogenous signals related to tweets, while learning on limited labelled data. We first develop a novel dataset, called ECTF for early COVID-19 Twitter fake news, with additional behavioural test-sets to validate early detection. We build a heterogeneous graph with follower-followee, usertweet, and tweet-retweet connections and train a graph embedding model to aggregate propagation information. Graph embeddings and contextual features constitute endogenous, while time-relative web-scraped information constitutes exogenous signals. ENDEMIC is trained in a semi-supervised fashion, overcoming the challenge of limited labelled data. We propose a co-attention mechanism to fuse signal representations optimally. Experimental results on ECTF, PolitiFact, and GossipCop show that ENDEMIC is highly reliable in detecting early fake tweets, outperforming nine state-of-the-art methods significantly.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Over the past couple of years, several social networking platforms have seen drastic increase in the number of users and their activities online [1] . Due to the lockdown situations and work from home conditions during COVID-19 pandemic, the screen time on social media platforms is at an all time high. Twitter is one such micro-blogging platform where users share opinions and even rely on news updates. Twitter users exposed to unverified information and opinions of others often get influenced and become contributors to further spreading. The characteristics of fake news spreading faster farther and deeper than genuine news is well-studied [12] . Fake news on health during COVID-19 might endanger people's lives as a few of them call for action. Although our Equal Contribution. The work was done when Rachit was an intern at IIIT-Delhi. arXiv:2104.05321v1 [cs.CL] 12 Apr 2021 proposed method is highly generalised, we choose to specifically focus on the ongoing pandemic situation of COVID-19 as it is timely and needs scaleable solutions.",
+            "cite_spans": [
+                {
+                    "start": 145,
+                    "end": 148,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 647,
+                    "end": 651,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "State-of-the-art fake news detection models for Twitter have proved useful when trained on a sufficient amounts of labelled data. Any emerging fake news in its initial stages could not be detected by such models due to the lack of corresponding labelled data. Moreover, these models tend to fail when the fake news is not represented largely in the training set. By the time the fake news is detected, it has spread and caused damages to a wide range of users. Detecting a fake news in an early stage of its spread gives us the advantage of flagging it early. A few state-of-the-art models for early fake news detection use propagation based methods [9] , i.e., they are based on how a particular news event (fake/genuine) spreads (both wider and deeper); retweet chain in Twitter is one such example. These models work with the propagation chains and require sufficient historical data (retweet/reply cascade) of each tweet, which are very hard to collect within limited time.",
+            "cite_spans": [
+                {
+                    "start": 650,
+                    "end": 653,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we design ENDEMIC, a novel approach to detect fake news in its early stage. To this end, we developed an Early COVID-19 Twitter Fake news dataset, called ECTF with additional test set (early-test) for early detection. We collected vast amount of COVID-19 tweets and label them using trusted information, transformer models and human annotation. We finally curate a standard training dataset, composed of numerous rumour clusters, while simulating a scenario of emerging fake news through early-test set. Next, we extract exogenous signals in form of most suitable stances from relevant external web domains, relative to the time the tweet is posted. Unlike existing studies which extract propagation paths per tweet, we create a massive heterogeneous graph with follower-followee, tweet-retweet and tweet-user connections and obtain the node representations in an unsupervised manner. The graph embeddings (both users and tweets) constitute the major component of the endogenous signals (within Twitter). The time-variant contextual tweet and user features are used to provide additional context, and a few of them are masked to validate the model for early detection. Lastly, to overcome the challenge of limited labelled dataset, we setup the whole model in a semi-supervised fashion, learning in an adversarial setting to utilise the vast unlabelled data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In Summary, fake news on Twitter is an inevitable threat especially during COVID-19 pandemic, where inaccurate or deviating medical information could be harmful. As a result, a timely model which can detect fake news in its early stages is important due to the current conditions of emerging fake news. We propose ENDEMIC, a semisupervised co-attention network which utilises both exogenous and endogenous signals. Experimental results show that ENDEMIC outperforms nine state-of-the-art models in the task of early fake tweet detection. ENDEMIC produces 93.7% accuracy, on ECTF for fake tweet detection and 91.8% accuracy for early detection, outperforming baselines significantly. We also show the generalisation of ENDEMIC by showing its efficacy on two publicly available fake news datasets, PolitiFact and GossipCop; ENDEMIC achieves 91.2% and 84.7& accuracy on the two datasets, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In particular, our major contributions are as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We introduce ECTF, an Early COVID-19 Twitter Fake news dataset with additional early-test set to evaluate the performance of fake tweet detection models for early detection. -As propagation paths for tweets might not be available in all scenarios, we build connections of follower-followee, tweet-retweet and user-tweet network and extract representations upon learning the graph, constituting of our endogenous signals. -We use exogenous signals which informs the model on the realities of information available on the web at tweet time, and helps in learning from weak external signals. -Adding an effort towards early detection, time variant features are masked at test time for further evaluation on early detection. -We further show the generalisation of ENDEMIC by presenting its superior performance on two other general fake news datasets .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The code and the datasets are public at: https://github.com/ LCS2-IIITD/ENDEMIC.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reproducibility:"
+        },
+        {
+            "text": "Our work focuses majorly on early detection of fake tweets. As our model involves techniques such as graphs and semi-supervised learning, we present related studies pertaining to our model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Fake news detection. Proliferation of fake news over the Internet has given rise to many research, and hence there exist an abundance of literature. Early studies on fake news relied on linguistic features of texts to detect if the content is fake [3] . Wang et al. [27] used textual embeddings and weak labels with reinforcement learning to detect fake news. They leveraged an annotator component to obtain fresh and high-quality labelled samples to overcome the challenge of limited labelled data. Recent approaches have started exploring directed graph and Weisfeiler-Lehman Kernel based model for social media dataset that use similarity between different graph kernels [21] . A recent survey [31] shows that there are four approaches to detect fake news: (i) knowledgebased methods, where the content is verified with known facts, (ii) style-based methods, by analysing the writing style of the content, (iii) propagation methods, based on how a particular news event spreads, and (iv) source-based methods, by verification of credibility of sources. As studies show, each of these methods used individually is not enough to build an efficient classifier [16] .",
+            "cite_spans": [
+                {
+                    "start": 248,
+                    "end": 251,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 266,
+                    "end": 270,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 674,
+                    "end": 678,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 697,
+                    "end": 701,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1160,
+                    "end": 1164,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Semi-supervised learning. Semi-supervised models have been used often in the past to leverage vast unlabelled datasets in various fields. Helmstetter et al. [8] explored weakly supervised learning for fake news detection which automatically collects large scale noisy dataset to aid the classification task . Yu et al. [29] used constrained semisupervised learning for social media spammer detection. Tensor embeddings are used to design a semi-supervised model for content based fake news detection [6] . A few studies leveraged variational auto-encoders in the form of sequence-to-sequence modelling on text classification and sequential labelling [7] . Nigam et al. [18] classified the text using a combination of Naive Bayes and Expectation Maximisation algorithms and demonstrated substantial performance improvements. Miyato et al. [15] utilised adversarial and virtual adversarial training to the text domain by applying perturbations to the word embeddings. Chen et al. [4] introduced MixText that combines labelled, unlabelled and augmented data for the task of text classification.",
+            "cite_spans": [
+                {
+                    "start": 157,
+                    "end": 160,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 319,
+                    "end": 323,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 500,
+                    "end": 503,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 650,
+                    "end": 653,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 669,
+                    "end": 673,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 838,
+                    "end": 842,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 978,
+                    "end": 981,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Early detection. Early fake news detection methods detect fake news at an initial stage where the news has not yet been popularised. There exist very limited studies on early detection. Liu et al. [9] built an early detection model using propagation paths of news spreading as a multivariate time series and then training a recurrent and convolution classifier on user features. Rosenfeld et al. used graph kernels on Twitter cascades to capture intricate details of the data-set for fake news detection without feeding user identity and time for an early detection model [21] . Shu et al. used content engagement and cleaned labelled dataset for early detection with deep neural network [24] .",
+            "cite_spans": [
+                {
+                    "start": 197,
+                    "end": 200,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 572,
+                    "end": 576,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 688,
+                    "end": 692,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "As there is no publicly available COVID-19 Twitter dataset particularly for early detection, we attempt to develop our own dataset, ECTF, specifically crafting it for early detection. We expand on CTF, a general COVID-19 Twitter fake news dataset, proposed by Paka et al. [19] . CTF was formed using multiple sources-unlabelled Twitter datasets that are publicly released [2, 22, 26] , hydration of tweets using predefined hashtags, and governmental health organisations and fact checking websites for verified news. They considered statements released by the latter to be true, and applied Sentence-BERT [20] and RoBERTa [11] to convert these tweets and verified news into contextual embeddings, pairwise cosine similarity is then computed to assign a label 'fake' or 'genuine. This way, CTF composes of 72, 578 labelled and 2, 59, 469 unlabelled tweets, partially verified manually. We took a sample of labelled and unlabelled tweets from CTF, forming our train set.",
+            "cite_spans": [
+                {
+                    "start": 272,
+                    "end": 276,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 372,
+                    "end": 375,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 376,
+                    "end": 379,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "26]",
+                    "ref_id": null
+                },
+                {
+                    "start": 605,
+                    "end": 609,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 622,
+                    "end": 626,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Our Proposed Dataset: ECTF"
+        },
+        {
+            "text": "A 'general-test' set is created by randomly sampling from the remaining labelled and unlabelled tweets. The training dataset, which contains a wide variety of rumour clusters, is kept constant. We identified small rumour clusters in the labelled dataset and use those to form additional test set, called 'early-test' set, to perform behavioural analysis of our algorithm for early detection. These small rumour clusters contain the fake news that are not popularised yet (having chance of getting popular), simulating early stages of fake news events. We extracted more tweets belonging to these rumour clusters, while keeping an upper limit on the time since they were posted. This ensures that the tweets belonging to this early-test set are in their early stages. We refer to the complete dataset composed of the train and test sets as ECTF, Early COVID-19 Twitter Fake news dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our Proposed Dataset: ECTF"
+        },
+        {
+            "text": "Here we present our model, called ENDEMIC (Exogenous and eNDogenous signals with sEMI-supervised Co-attention network). Figure 1 represents the model architecture. Here we show various input features, each of which passes through separate modules before being concatenated. Our approach towards early detection relies on simulating the early stages of the news event testing with time invariant features.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 120,
+                    "end": 128,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Our Proposed Methodology: ENDEMIC"
+        },
+        {
+            "text": "Traditional supervised fake news detection methods are bounded by the knowledge present in the data they are trained on [30] . This makes them incapable of classifying ) , tweet text (d T T ), contextual features (d T U ), and tweet (d T G ) and user node embeddings (d U G ) are shown. \u00b7 represents an output from co-attention.",
+            "cite_spans": [
+                {
+                    "start": 120,
+                    "end": 124,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 168,
+                    "end": 169,
+                    "text": ")",
+                    "ref_id": null
+                }
+            ],
+            "section": "Exogenous signals"
+        },
+        {
+            "text": "tweets on information the model is not trained on. This is particularly challenging for domains where large amount of new theories and their consequent studies arrive rapidly within small duration. Very often, the general stance of such news also changes radically over time. Just as a human expert, classification models too need to be well-aware of current information in a domain in order to be reliable and efficient. To address this problem, we make use of exogenous signals through external knowledge.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Exogenous signals"
+        },
+        {
+            "text": "We curate exogenous content using web-scraped articles from various sources. In order to simulate the early stages of detection, this knowledge base is collected differently for training and testing instances. We build the external knowledge for training as a static knowledge base composed of various sources for each input. We hypothesise that collecting this external knowledge in accordance with the time the post was made simulates an early detection scenario, consequently making the model adapt to such scenarios better where the information about an emerging fake news will be limited. Using this, the model learns the weak signals that are present to perform a classification. In case of testing, the external knowledge is scraped for every test instance at the time of testing itself. The dynamic nature of building the external knowledge base during testing ensures that the model makes use of latest sources to make the prediction.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Exogenous signals"
+        },
+        {
+            "text": "We perform a web scraping with tweets as queries using Google Web API. Since a large amount of information in form of web pages are available per query, and the content per page could also be excessively large, selecting the right content is vital. We do so by firstly tokenizing each web page x EK,i into sentences. The j th sentence of x EK,i , denoted by x EK,i j , is encoded using Sentence-BERT [20] to obtain its contextual representation, d EK,i j \u2208 R K , where K is the dimension of the encoding. This represen-tation is then compared with the representation of the tweet text, x T T \u2192 d T T x \u2208 R K , encoded using the same Sentence-BERT model. This comparison is made using cosine similarity. If the cosine similarity between these two encodings, cos(d EK,i j ||d T T x ), is greater than a threshold (set as 0.8), then the sentence x EK,i j is added to the set of input external knowledge for that particular tweet. The same representation, d EK,i j is used as the corresponding input to the model for all sentences belonging to the tweet. This process is done for the entire set of input queries, until we obtain 50 such sentences for each, with the amount of phrases per web-source being limited to 10. Thus, the net external knowledge input to ENDEMIC during training is obtained by concatenating the encoding for each input in 2D fashion and is given by d EK \u2208 R n\u00d750\u00d7K , where n is the input size. For most of our experiments, we keep K = 512.",
+            "cite_spans": [
+                {
+                    "start": 400,
+                    "end": 404,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Exogenous signals"
+        },
+        {
+            "text": "Input tweet embedding. The original tweet text x T T i of sequence length N (say) is first represented by a one-hot vector using a vocabulary of size V . A word embedding look-up table transforms these one-hot vectors into a dense tensor. This embedding vector is further encoded using a Bidirectional LSTM. A final state output d \u2208 R K/2 is obtained at both the forward and backward layers, which are then concatenated to give a 2D vector corresponding to each text input. The final representation of the tweet text input to the model is, thus, d T T \u2208 R n\u00d7N \u00d7K .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Endogenous signals"
+        },
+        {
+            "text": "Graph embeddings. Extracting the propagation chain of retweets has been proven effective by the existing early detection models [9, 14] . However, these methods limit the training as for each training or test sample, the entire set of retweet chains needs to be extracted which is often computationally expensive. Here we build a heterogeneous graph G(V, E) as follows: the set of nodes V can be users or tweets, and edges E are formed in the following ways: two users are connected via follower-followee link, a user is connected to her posted tweet, two tweets are connected if one is a retweet of another. We keep G as undirected intentionally ignoring the direction of some edge types (follower-followee) in order to maintain uniformity. The formed heterogeneous graph contains around 51M nodes and 70M edges. Such huge connections, when added into one graph, form many disconnected clusters. In our graph, we observe one giant cluster with almost millions of nodes and edges, which stands dominating compared to other small (and disconnected) clusters.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 131,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 132,
+                    "end": 135,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Endogenous signals"
+        },
+        {
+            "text": "We obtain the embedding of the graph using GraphSAGE [17] in an unsupervised fashion due to its capability to scale and learn large graphs easily. We label each node with its characteristics such as parent, tweet, retweet, user, fake tweet. The generalisability of GraphSAGE helps in extracting the embeddings of unseen users and tweets. We use a teleportation probability of 0.3 for the graph to randomly jump across nodes, which helps with clusters having less number of connections or being disconnected from the rest. In this work, we show that using the embeddings of both users and tweets in combination with co-attention leads to better supervision and learning of the model.",
+            "cite_spans": [
+                {
+                    "start": 53,
+                    "end": 57,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Endogenous signals"
+        },
+        {
+            "text": "We represent the tweet and user graph embeddings as d T G and d U G \u2208 R n\u00d7G respectively, where G represents the embedding dimension, and is kept as G = 768, for most of our experiments.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Endogenous signals"
+        },
+        {
+            "text": "Contextual features. Social media platforms like Twitter offer a variety of additional features that can play a crucial role in identifying the general sentiment and stance on a post by the users. Moreover, some features of user could also be used as indicative measures of their social role and responsibility, in general. Therefore, we use a variety of such tweet and user features to provide additional context regarding the input tweet and the corresponding users who interact with it. Some of the tweet features used are number of favourites, number of retweets, PageRank reliability score of domains mentioned in the tweet, text harmonic sentiment 1 , etc. Some of the user features include follower and followee counts, verified status, and number of tweets made by the user.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Endogenous signals"
+        },
+        {
+            "text": "Note that majority of these features continually change over time and can be regarded as time-variant and accordingly, the inferences drawn also would change over time. Therefore, for early detection, it is vital not to rely too heavily on such features. For instance, the number of likes and retweets for a tweet changes over time. Similarly, such additional features for a new user cannot be expected to give a proper indicative measure of a user's tendency of believing, spreading, or curbing misinformation. And masking the time-variance during evaluation is better explained in Section 5.3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Endogenous signals"
+        },
+        {
+            "text": "Throughout this study, we represent these contextual tweet and user features as x T F \u2208 R n\u00d7N T F and x T F \u2208 R n\u00d7N U F , respectively, where N T F and N U F indicate the number of such features. As shown in Fig. 1 , these input features are concatenated and passed across a common feed-forward network (FFN), which interpolates",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 208,
+                    "end": 214,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Endogenous signals"
+        },
+        {
+            "text": "Co-attention. In order to jointly attend and reason about various interpolated inputs, we use the parallel co-attention mechanism [13] (Figure 2 ). As shown in Figure 1 , this is done at two places of ENDEMIC, namely, to co-attend between external knowledge d EK i \u2208 R 50\u00d7K and tweet text d T T \u2208 R N \u00d7K in 2D, and tweet d T G \u2208 R 1\u00d7G and user d U G \u2208 R 1\u00d7G graph embeddings in 1D. The same process is followed for two; therefore, to unify the notation, we use d A \u2208 R X\u00d7Z and d B \u2208 R Y \u00d7Z to explain the mechanism used.",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 134,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 135,
+                    "end": 144,
+                    "text": "(Figure 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 160,
+                    "end": 168,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "Firstly, an affinity matrix C \u2208 R Y \u00d7X is obtained as,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "Here W b \u2208 R Z,Z represents the learnable weight matrix. Further the corresponding attention maps between A and B are calculated as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "where, W A , W B \u2208 R k\u00d7Z again represent the learnable weight matrices. Further, to compute the attention probabilities of each element in A with each element of B, we use,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "where, w hA , w hB \u2208 R k represent the weight parameters, while a A \u2208 R X and a B \u2208 R Y represent the resultant attention probabilities. Finally, the net attention vectors between A and B are computed as a weighted sum of the corresponding features, i.e., Fig. 2 : The co-attention mechanism.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 256,
+                    "end": 262,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "A and B \u2208 R 1\u00d7Z are the learned feature vectors obtained through co-attention. This, for instance, represents how each representation in the tweet graph embeddings attends to the user graph embeddings, when A represents tweet graph embeddings (T G), and B represents user graph embeddings (U G).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "The interpolations of the various inputs, obtained through the separate smaller pipelines are combined using a unified head pipeline in the model architecture. Considering a single input, firstly, the representations from the two co-attention layers, d EK and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "This net representation, d \u2208 R 2K+2G+C , then passes onto a dropout (p drop = 0.2) regularised feed-forward layer with an output size of 2, and finally a Softmax function, to give the probability per output class. Training. In order to overcome the limitations produced by scarce labelled data, we use the Virtual Adversarial Loss (VAT) across both labelled and unlabelled data. VAT introduces a small perturbation in the input embedding and computes the loss using weak labels. Maximum Likelihood (ML) loss and Adversarial Training (AT) losses are further used to train ENDEMIC on the labelled data [15] . These additional losses allow ENDEMIC to be more robust, and the abundant unlabelled data being used this way allow it to form better understanding and representation of the domain-specific texts.",
+            "cite_spans": [
+                {
+                    "start": 600,
+                    "end": 604,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Connecting components and training"
+        },
+        {
+            "text": "Here we present our comparative analysis by empirically comparing ENDEMIC with state-of-the-art models, including techniques for general fake news detection, early detection, and text classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup and Results"
+        },
+        {
+            "text": "We consider nine baselines as follows. Liu and Wu [9] introduced a GRU and CNNbased model which relies on the propagation path (PP) of a news source to classify its veracity, and is termed as PPC (Propagation Path Classification). FNED [10] makes use of a PU-learning framework to perform weak classification, and is claimed to be suitable in data scarce settings with large amount of unlabelled data, as is the scenario we deal with in this study. Further, Shu et al. [25] proposed to learn from Multiplesources of weak Social Supervision (MWSS), on top of a classifier such as CNN and RoBERTa [11] . They too relied on weak labelling, but constructed them through social engagements. Both dEFEND and CSI deployed an RNN-based framework for classifying news; the former makes use of user comments with co-attention, while the latter relies on a three-step process of capturing, scoring and integrating the general user response. Furthermore, GCAN [14] presents a dual co-attention mechanism over source and retweet tweet representations, relying on interaction and propagation for detecting fake news. Finally, we also make some interesting observations by employing text classification models, namely MixText [4] and HAN [28] , as additional baselines. Table 1 shows the performance comparison of ENDEMIC compared to the baselines on the general-test set of ECTF. We observe that all the features (graph based, external knowledge and unlabelled data) play a major role in determining the corresponding performance of detecting fake tweets. While general fake news detection models like dEFEND and CSI strive to integrate more such features, early detection models like FNED and PPC tend to rely more on the time-invariant features like text alone. The effect produced by the absence of one over the other is apparent from Table 1 . In general, ENDEMIC shows a benchmark performance of 0.937 accuracy, outperforming all the baselines across all the evaluation measures significantly.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 53,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 469,
+                    "end": 473,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 595,
+                    "end": 599,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 948,
+                    "end": 952,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1211,
+                    "end": 1214,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1223,
+                    "end": 1227,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1255,
+                    "end": 1262,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1824,
+                    "end": 1831,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Baseline methods"
+        },
+        {
+            "text": "Early-test. Table 2 shows the comparative results on the specially curated evaluation set (early-test) for early detection of fake news. Even though the change in accuracy (\u2206Acc) of ENDEMIC as compared to its performance on general fake news (as shown in Table 1 ) is not least among the rest of the models, it can be seen that it still comfortably outperforms all other baselines. Interestingly, the general purpose text classifiers, which are not particularly designed for fake news detection, show a relatively lesser \u2206Acc, while dEFEND [5] suffers from the largest difference of 9%. We attribute this to the heavy reliance of these models on time-variant features which provide critically less context in early stages. At the same time, as shown in Table 1 , only text-based and closely related non-time-variant features are not enough to reliably detect fake news. Thus, the set of input features used by ENDEMIC optimises the trade-off between reliability and time-variance. Masking time variance. To further verify our model's prowess in detecting early fake news, we introduce a unique masking approach to be applied upon the early-test evaluation set. For this technique, the tweets belonging to the smaller rumour clusters (as defined in Section 3) are further simulated as actual early tweets for a model, by masking all time-variant features used by the model. We call this approach 'mask-detect'.",
+            "cite_spans": [
+                {
+                    "start": 540,
+                    "end": 543,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 12,
+                    "end": 19,
+                    "text": "Table 2",
+                    "ref_id": "TABREF4"
+                },
+                {
+                    "start": 255,
+                    "end": 262,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 753,
+                    "end": 760,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Evaluating on early detection"
+        },
+        {
+            "text": "Most of the existing techniques for fake news detection make use of some particular input features which are time-variant. In case of ENDEMIC, these are the additional contextual tweet features and user features, which rapidly change over time. When such features are masked, there is effectively no way to distinguish an old tweet from a new one. Therefore, we perform mask-detect by replacing the numerical values of the relevant time-variant features with a common masking token. These features are different for each model. Therefore, we first identify such features and then perform the masking. Table 3 shows the features masked for the various fake news detection models and their corresponding performance.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 601,
+                    "end": 608,
+                    "text": "Table 3",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Evaluating on early detection"
+        },
+        {
+            "text": "Although we tested our model on COVID-19, ENDEMIC is highly generalised to other domains. And to prove the generalisability, we also evaluate ENDEMIC on the Fake-NewsNet [23] datasets -PolitiFact and GossipCop. Both of these datasets are obtained from the respective sources and contain labelled textual news content along with the social context. Evaluating on these datasets allows us to validate ENDEMIC's generalisation across domains outside of COVID-19 and beyond ECTF. Table 4 shows that ENDEMIC outperforms all baselines with more than 0.5% accuracy on PolitiFact and 1.5% on GossipCop. The performance of ENDEMIC is highly comparable compared to other baselines w.r.t. other evaluation metrics. These results clearly establish that ENDEMIC generalises well on any fake news domain and dataset.",
+            "cite_spans": [
+                {
+                    "start": 170,
+                    "end": 174,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 476,
+                    "end": 483,
+                    "text": "Table 4",
+                    "ref_id": "TABREF6"
+                }
+            ],
+            "section": "Evaluating on general-domain fake news"
+        },
+        {
+            "text": "In this work, we introduced the task of early detection of COVID-19 fake tweets. We developed a COVID-19 dataset with additional test set to evaluate models for early detection. We took measures to simulate the early stages of the fake news events by extracting the external knowledge relative to the time the tweet is posted. Our proposed model, ENDEMIC overcomes the challenges of limited dataset in a semi-supervised fashion. We adhere to co-attention as a better information fusion tested on time invariant features. ENDEMIC outperformed nine baselines in both the tasks of general and early-stage fake news detection. Experimental results compared to nine state-of-the-art models show that ENDEMIC is highly capable for early detection task. We also showed the generalisability of ENDEMIC on two other publicly available fake news dataset which are not specific to COVID-19.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Spectral networks and locally connected networks on graphs",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bruna",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zaremba",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Szlam",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1312.6203"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Coronavirus Tweets, Tweets (json) for Coronavirus on Kaggle",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Carlson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Information credibility on twitter",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Castillo",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mendoza",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Poblete",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "675--684",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Mixtext: Linguistically-informed interpolation of hidden space for semi-supervised text classification",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.12239"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "defend: A system for explainable fake news detection",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "2961--2964",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Semi-supervised content-based detection of misinformation via tensor embeddings",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Guacho",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Abdali",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Shah",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Papalexakis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "322--325",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Variational pretraining for semi-supervised text classification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gururangan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Dang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Card",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1906.02242"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Weakly supervised learning for fake news detection on twitter",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Helmstetter",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Paulheim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "274--277",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Early detection of fake news on social media through propagation path classification with recurrent and convolutional networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "354--361",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Fned: A deep network for fake news early detection on social media",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "F B"
+                    ],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ACM Trans. Inf. Syst",
+            "volume": "38",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Roberta: A robustly optimized bert pretraining approach",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ott",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zettlemoyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Stoyanov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1907.11692"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "It's true: False news spreads faster and wider. and humans are to blame",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lohr",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The New York Times",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Hierarchical question-image co-attention for visual question answering",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Batra",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Parikh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sugiyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Luxburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Guyon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "29",
+            "issn": "",
+            "pages": "289--297",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "GCAN: Graph-aware co-attention networks for explainable fake news detection on social media",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "505--514",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Adversarial training methods for semi-supervised text classification",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Miyato",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1605.07725"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Fake news detection on social media using geometric deep learning",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Monti",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Frasca",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Eynard",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Mannion",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bronstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1902.06673"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Learning convolutional neural networks for graphs",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Niepert",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ahmed",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kutzkov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ICML. pp",
+            "volume": "",
+            "issn": "",
+            "pages": "2014--2023",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Text classification from labeled and unlabeled documents using em",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Nigam",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Mccallum",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Thrun",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mitchell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Machine learning",
+            "volume": "39",
+            "issn": "2-3",
+            "pages": "103--134",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Cross-sean: A crossstitch semi-supervised neural attention model for covid-19 fake news detection",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Paka",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Bansal",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kaushik",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sengupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Chakraborty",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2102.08924"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Sentence-BERT: Sentence embeddings using Siamese BERTnetworks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Reimers",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gurevych",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "EMNLP-IJCNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "3982--3992",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A kernel of truth: Determining rumor veracity on twitter by diffusion pattern alone",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Rosenfeld",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Szanto",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Parkes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "The WebConf",
+            "volume": "",
+            "issn": "",
+            "pages": "1018--1028",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Coronavirus (covid19) Tweets -early April",
+            "authors": [
+                {
+                    "first": "Shane",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Fakenewsnet: A data repository with news content, social context and dynamic information for studying fake news on social media",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Mahudeswaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1809.01286"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Understanding user profiles on social media for fake news detection",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Leveraging multi-source weak social supervision for early detection of fake news",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shu",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mukherjee",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Awadallah",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ruston",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.01732"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Weak supervision for fake news detection via reinforcement learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "AAAI",
+            "volume": "34",
+            "issn": "",
+            "pages": "516--523",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Hierarchical attention networks for document classification",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Dyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Smola",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Hovy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1480--1489",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Constrained nmf-based semi-supervised learning for social media spammer detection. Knowledge-Based Systems",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Qin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "125",
+            "issn": "",
+            "pages": "64--73",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Fake news early detection: A theory-driven model",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Phoha",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zafarani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Digital Threats: Research and Practice",
+            "volume": "1",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "A survey of fake news: Fundamental theories, detection methods, and opportunities",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zafarani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ACM CSUR",
+            "volume": "53",
+            "issn": "5",
+            "pages": "1--40",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "TABREF0": {
+            "text": "ig. 1: A schematic architecture of ENDEMIC. The encoded interpolations of external knowledge (d EK",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Acc. Prec. Rec. F1 \u2206Acc",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Comparing model performance on early-test set of ECTF.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Performance comparison for mask-detect on ECTF. The masked features and corresponding metric scores are shown.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "Performance comparison on two general-domain datasets to check the generalisability of the models.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The work was partially supported by Accenture Labs, SPARC (MHRD) and CAI, IIIT-Delhi. T. Chakraborty would like to thank the support of the Ramanujan Fellowship.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements"
+        }
+    ]
+}

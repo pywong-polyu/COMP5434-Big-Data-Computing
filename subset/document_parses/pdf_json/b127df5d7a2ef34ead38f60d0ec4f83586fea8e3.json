@@ -1,0 +1,4222 @@
+{
+    "paper_id": "b127df5d7a2ef34ead38f60d0ec4f83586fea8e3",
+    "metadata": {
+        "title": "Maliva: Using Machine Learning to Rewrite Visualization Queries Under Time Constraints",
+        "authors": [
+            {
+                "first": "Qiushi",
+                "middle": [],
+                "last": "Bai",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC Irvine",
+                    "location": {
+                        "postCode": "92697",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Sadeem",
+                "middle": [],
+                "last": "Alsudais",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC Irvine",
+                    "location": {
+                        "postCode": "92697",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": "salsudai@uci.edu"
+            },
+            {
+                "first": "Chen",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC Irvine",
+                    "location": {
+                        "postCode": "92697",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": "chenli@ics.uci.edu"
+            },
+            {
+                "first": "Shuang",
+                "middle": [],
+                "last": "Zhao",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC Irvine",
+                    "location": {
+                        "postCode": "92697",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We consider data-visualization systems where a middleware layer translates a frontend request to a SQL query to a backend database to compute visual results. We study the problem of answering a visualization request within a limited time constraint due to the responsiveness requirement. We explore the optimization options of rewriting an original query by adding hints and/or doing approximations so that the total time is within the time constraint. We develop a novel middleware solution called Maliva based on machine learning (ML) techniques. It applies the Markov Decision Process (MDP) model to decide how to rewrite queries and uses training instances to learn an agent to make a sequence of decisions judiciously for an online request. We give a full specification of the technique, including how to construct an MDP model, how to train an agent, and how to use approximating rewrite options. Our experiments on both real and synthetic datasets show that Maliva performs significantly better than a baseline solution that does not do any rewriting, in terms of both the probability of serving requests interactively and query execution time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "As a powerful way for people to gain insights from data quickly and intuitively, visualization is becoming increasingly important in the Big Data era. A common architecture to support data visualization has three tiers: a backend database, a middleware layer, and a user-facing frontend. The middleware translates a visualization request to a query (typically in SQL) to the database, and sends the query answers to the frontend to display. This architecture is widely used due to its benefits of supporting in-situ analytics at the data source, and utilizing the database's built-in capabilities of efficient storage, indexing, query processing, and optimization. Responsiveness is critical in these systems [5, 9, 28] , and a request needs to be served within a time budget, e.g., 500 . This requirement is especially challenging when the data volume is large, and the user request has ad-hoc conditions on attributes of various types.",
+            "cite_spans": [
+                {
+                    "start": 709,
+                    "end": 712,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 713,
+                    "end": 715,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 716,
+                    "end": 719,
+                    "text": "28]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In this paper, we study the problem of answering visualization requests with a predetermined time constraint. We focus on middleware-based solutions, with the advantage that they treat the backend database as a black box without changes, and can leverage the computing capabilities to do in-situ analytics. We consider both rewritings that return exact results and rewritings that return approximate results. As a motivating example, consider a system that visualizes social media tweets on the US map with a time constraint of 500 . Its backend database has a tweets table with attributes Content, Location, and CreateAt. Equivalent rewriting options. Suppose a user asks for a spatial heatmap of tweets containing the keyword covid on the Thanksgiving day of 2020 in a region. The middleware creates a SQL query shown in Figure 1 (a), which takes 3.35 seconds to execute. For this query, the physical plan generated by the database uses the keyword to access the inverted index on the Content attribute to retrieve candidate records, then filters them using the two other conditions. If we rewrite the query into an equivalent new query by adding a hint (Figure 1(b) ), the rewritten query takes only 0.3 seconds , as the hint helps the database generate a more efficient physical plan, which uses the temporal filtering condition to access the B+ Tree index on the CreateAt attribute.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 823,
+                    "end": 831,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1156,
+                    "end": 1168,
+                    "text": "(Figure 1(b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Approximation rewriting options. Figure 2 (a) shows another visualization request on a larger region, which takes at least 4.28 for the database to run, no matter what hints we add. In this case, we rewrite the query by using random sampling, resulting in an approximated query that takes only 0.45 to run (see Figure 2 (b)).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 33,
+                    "end": 41,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 311,
+                    "end": 319,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Why the database fails? For the query in Figure 1 (a), there are many reasons the database can fail to generate an efficient plan. One is the estimation error of the query cost due to an underestimation of the keyword covid's selectivity. The cost-estimation problem in optimizers is notoriously hard [30] . For example, in our experiments (Section 7), out of the 602 visualization queries that had at least one physical plan that could finish within 500 , PostgreSQL failed to choose an efficient plan for 269 queries due to its cost-estimation errors. Although there are many higheraccuracy estimators such as [16, 34, 36, 46, 56, 67, 68] , their higher estimation cost prevents them from being adopted by a generalpurpose database. For example, for OLTP queries that need to be finished within milliseconds, spending tens of milliseconds for the cost estimation is unacceptable. Our key observation is that for visualization applications where requests come with a predetermined time constraint, the middleware can be more opportunistic than the traditional database. For instance, it can spend tens of milliseconds to estimate the costs of multiple rewritten queries, then choose an efficient one to answer the request within the given time constraint.",
+            "cite_spans": [
+                {
+                    "start": 301,
+                    "end": 305,
+                    "text": "[30]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 612,
+                    "end": 616,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 617,
+                    "end": 620,
+                    "text": "34,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 621,
+                    "end": 624,
+                    "text": "36,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 625,
+                    "end": 628,
+                    "text": "46,",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 629,
+                    "end": 632,
+                    "text": "56,",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 633,
+                    "end": 636,
+                    "text": "67,",
+                    "ref_id": "BIBREF65"
+                },
+                {
+                    "start": 637,
+                    "end": 640,
+                    "text": "68]",
+                    "ref_id": "BIBREF66"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 41,
+                    "end": 49,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Challenges. We may enumerate all possible rewritten queries by applying different hints to a given original query. We then use one of the aforementioned query-time estimators (QTE for short) to estimate the execution time of these rewritten queries and choose the most efficient one. There are several challenges in using this approach in the context of interactive visualization. (C1) A main challenge is that the cost of estimating the execution time of a rewritten query can be significant given a tight time constraint. For example, in Bao [34] , estimating the execution time of all rewritten queries for one original query can take up to 320 in their experiments. (C2) Another challenge is the uncertainty caused by the estimation error of the QTE, and the fact that the backend database may or may not follow the provided hints to generate a physical plan. (C3) The third challenge is quality. For queries without equivalent rewritten queries that can meet the time constraint, approximate rewriting options need to be explored. It is critical to maximizing the quality of the result while ensuring the query time is within the time constraint.",
+            "cite_spans": [
+                {
+                    "start": 544,
+                    "end": 548,
+                    "text": "[34]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We address these challenges by introducing a novel machinelearning-based technique called Maliva, which stands for \"Machine Learning for Interactive Visualization. \" The technique formulates the middleware task as a Markov Decision Process (MDP). For a given time budget, we train an MDP agent to balance the planning time and the execution time of the rewritten queries. By learning from previous experiences, the MDP agent judiciously explores different rewriting options, so that the total time (including planning and query execution) is within the time limit. (We address challenge C1 in Section 4.) Applying reinforcement learning, which inherently handles uncertainty, Maliva solves the issues of inaccurate time estimation and database ignoring the query hints when rewriting a query. (We address challenge C2 in Section 5.) By considering visualization qualities of rewritten queries in the reward design of the MDP model, Maliva makes the best effort to maximize the result's quality while ensuring the query time is within the time limit. (We address challenge C3 in Section 6.) Our experiments show that Maliva has a much higher chance (70\u00d7 more than the original query) to generate an execution plan such that the total time is within a time limit. Interestingly, it can also reduce query execution time. Both improvements show the significant benefits of adding learning capabilities to the middleware to support responsive visualization.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "The rest of the paper is organized as follows. After formulating the middleware query-generation problem in Section 2, we give an overview of Maliva in Section 3. We present the details of this MDP-based solution, including its states, actions, transitions, and rewards (Section 4). We present how Maliva trains an MDP agent offline and uses it to generate a rewritten query online (Section 5). We generalize the MDP-based solution to be qualityaware by considering approximation rewriting (Section 6). Lastly, we report the results of a thorough experimental evaluation of Maliva to show its performance and benefits (Section 7).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Visualization is a broad topic studied in many communities, and here we focus on efficiency-related works. A survey [14] summarized studies on interactive data analytics and visualization, and there are several recent studies on this topic [21, 23, 25, 49] .",
+            "cite_spans": [
+                {
+                    "start": 116,
+                    "end": 120,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 240,
+                    "end": 244,
+                    "text": "[21,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 245,
+                    "end": 248,
+                    "text": "23,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 249,
+                    "end": 252,
+                    "text": "25,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 253,
+                    "end": 256,
+                    "text": "49]",
+                    "ref_id": "BIBREF47"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Approximate Query Processing (AQP). There are many techniques for computing approximate answers to queries [6, 11, 15, 26, 40, 44, 45, 47, 51, 62, 72, 73] . These approaches focus on developing approximation solutions to compute high-quality visualization. Existing solutions can be adopted as approximation rules in Maliva, such as Sample+Seek [11] , which generates error-bounded visualization results by running queries on a small sample table.",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 110,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 111,
+                    "end": 114,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 115,
+                    "end": 118,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 119,
+                    "end": 122,
+                    "text": "26,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 123,
+                    "end": 126,
+                    "text": "40,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 127,
+                    "end": 130,
+                    "text": "44,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 131,
+                    "end": 134,
+                    "text": "45,",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 135,
+                    "end": 138,
+                    "text": "47,",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 139,
+                    "end": 142,
+                    "text": "51,",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 143,
+                    "end": 146,
+                    "text": "62,",
+                    "ref_id": null
+                },
+                {
+                    "start": 147,
+                    "end": 150,
+                    "text": "72,",
+                    "ref_id": "BIBREF70"
+                },
+                {
+                    "start": 151,
+                    "end": 154,
+                    "text": "73]",
+                    "ref_id": "BIBREF71"
+                },
+                {
+                    "start": 345,
+                    "end": 349,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Datacube-based approaches. Related studies include [9, 10, 20, 22, 27, 29, 39, 65] . In these approaches, the predefined cube intervals cannot support visualization queries with arbitrary numerical range conditions. The proposed Maliva system efficiently computes results for visualization queries with arbitrary conjunctive selection conditions.",
+            "cite_spans": [
+                {
+                    "start": 51,
+                    "end": 54,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 55,
+                    "end": 58,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 59,
+                    "end": 62,
+                    "text": "20,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 63,
+                    "end": 66,
+                    "text": "22,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 67,
+                    "end": 70,
+                    "text": "27,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 71,
+                    "end": 74,
+                    "text": "29,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 75,
+                    "end": 78,
+                    "text": "39,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 79,
+                    "end": 82,
+                    "text": "65]",
+                    "ref_id": "BIBREF63"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Progressive visualization. There are solutions to show visualization results progressively [6, 8, 9, 13, 19, 38] . For instance, DICE [9] uses random and stratified samples to present an approximate result and then incrementally updates the result. These progressive visualization systems can adopt the proposed Maliva middleware to further optimize the intermediate queries to increase their efficiency.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 94,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 95,
+                    "end": 97,
+                    "text": "8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 98,
+                    "end": 100,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 101,
+                    "end": 104,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 105,
+                    "end": 108,
+                    "text": "19,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "38]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 134,
+                    "end": 137,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Prefetching-based approaches. Techniques including [1, 4, 53, 69] accelerate visualization queries by prefetching or caching their results. For example, ForeCache [4] divides visualizations into tiles and prefetches them based on predicted user behaviors. Maliva is orthogonal to these techniques, and it can be adopted by them to further optimize the database queries.",
+            "cite_spans": [
+                {
+                    "start": 51,
+                    "end": 54,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 55,
+                    "end": 57,
+                    "text": "4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 58,
+                    "end": 61,
+                    "text": "53,",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 62,
+                    "end": 65,
+                    "text": "69]",
+                    "ref_id": "BIBREF67"
+                },
+                {
+                    "start": 163,
+                    "end": 166,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Visualization using big data systems. These techniques use Hadoop, Spark, and Hive to support visualizations [6, 7, 12, 58, 70] . For instance, HadoopViz [12] and GeoSparkViz [70] use Hadoop and Spark to generate high-resolution visualizations. Their focus is on offline construction, not on an interactive visualization for queries with ad-hoc conditions. The proposed Maliva middleware technique is complementary to these solutions.",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 113,
+                    "end": 115,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 116,
+                    "end": 119,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 120,
+                    "end": 123,
+                    "text": "58,",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 124,
+                    "end": 127,
+                    "text": "70]",
+                    "ref_id": "BIBREF68"
+                },
+                {
+                    "start": 154,
+                    "end": 158,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 175,
+                    "end": 179,
+                    "text": "[70]",
+                    "ref_id": "BIBREF68"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "ML for visualization. The survey in [63] summarized studies of applying ML techniques to different stages during the whole visualization pipeline. Examples are [31, 64] for data cleaning and preparation and [18, 32, 50] for visualization recommendation.",
+            "cite_spans": [
+                {
+                    "start": 36,
+                    "end": 40,
+                    "text": "[63]",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 160,
+                    "end": 164,
+                    "text": "[31,",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 165,
+                    "end": 168,
+                    "text": "64]",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 207,
+                    "end": 211,
+                    "text": "[18,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 212,
+                    "end": 215,
+                    "text": "32,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 216,
+                    "end": 219,
+                    "text": "50]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Our proposed system focuses on applying ML techniques to solve performance issues at the middleware.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "ML-based query optimization. ML has recently used in database optimizers [24, 34-36, 54, 61, 71] , selectivity estimation [16, 46] , and cost estimation [56] . Comparison with Bao: The recent Bao technique [34] uses hints to generate optimized queries by modeling the optimization as a multi-armed bandit problem. In the training phase, Bao applies Thompson sampling to minimize the training time and maximize the accuracy of its neural-networkbased query time estimator (QTE). In the online query processing phase, Bao uses a brute-force strategy that enumerates all the candidate query-hint sets, estimates the query time of all rewritten queries, and chooses the fastest query-hint set as the output. Bao assumes that the cost of estimating query time is negligible. This assumption is not valid in Maliva as our problem is responsive visualization with a stringent time constraint (e.g., 500 ). Maliva focuses on the online planning problem when a bruteforce strategy is not acceptable. We compared Maliva with Bao in the experiments and the results show Maliva outperformed Bao in various metrics.",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 96,
+                    "text": "[24, 34-36, 54, 61, 71]",
+                    "ref_id": null
+                },
+                {
+                    "start": 122,
+                    "end": 126,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 127,
+                    "end": 130,
+                    "text": "46]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 153,
+                    "end": 157,
+                    "text": "[56]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 206,
+                    "end": 210,
+                    "text": "[34]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Visualization architecture. We consider a typical three-tier data-visualization system that consists of a backend database, a middleware layer, and a frontend. For each frontend visualization request, let be the original SQL query for the request. Let be a time limit that quantifies the expected responsiveness of the system. Ideally, we want the total delay, from the time the user submits a request to the time the result is shown on the frontend, to be within . The original query may not meet the time-limit constraint when the backend database cannot generate a physical plan that is fast enough. To solve this problem, Maliva rewrites with two kinds of options: query hints and approximation rules. By adding a query hint to , Maliva can help the backend database generate an efficient physical plan that computes the result within the time limit. For expensive queries where no physical plan can meet the time limit, Maliva can add an approximation rule to the original query such that the backend database computes an approximate result to trade the visualization quality for responsiveness. Note that the proposed approach also works in a more general setting of approximate query processing (AQP) where a time constraint is given.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "Query hints. A query hint in a database is an addition to the SQL standard that instructs the database engine on how to execute the query. For example, a hint may tell the engine to use or not to use an index (even if the query optimizer would decide otherwise) [17] . A query hint does not change the semantic meaning of the query, i.e., the result computed by the database engine with the hint remains the same. Databases such as AsterixDB [2] , MySQL [41] , Oracle [43] , PostgreSQL [48] , and SQL Server [55] support a variety of query hints. For example, in Figure 3 (b), Maliva adds two hints + Index-scan(t CreateAt) and Nest-Loop-Join(t u) to the original query. They suggest the engine to use the index on the CreateAt attribute to scan the table t, and do a nest-loop join on tables t and u.",
+            "cite_spans": [
+                {
+                    "start": 262,
+                    "end": 266,
+                    "text": "[17]",
+                    "ref_id": null
+                },
+                {
+                    "start": 442,
+                    "end": 445,
+                    "text": "[2]",
+                    "ref_id": null
+                },
+                {
+                    "start": 454,
+                    "end": 458,
+                    "text": "[41]",
+                    "ref_id": null
+                },
+                {
+                    "start": 468,
+                    "end": 472,
+                    "text": "[43]",
+                    "ref_id": null
+                },
+                {
+                    "start": 486,
+                    "end": 490,
+                    "text": "[48]",
+                    "ref_id": null
+                },
+                {
+                    "start": 508,
+                    "end": 512,
+                    "text": "[55]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 563,
+                    "end": 571,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "Approximation rules. An approximation rule is a method to rewrite the original SQL query to compute an approximate result, and the new query takes less time. There are various approximation rules available in database systems, such as adding a \"Limit\" clause, applying a SQL-standard \"TableSample\" operator on a Figure 3 (b), Maliva rewrites the original query by substituting the table tweets with a sample table tweetsSample20 with 20% randomly selected records.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 312,
+                    "end": 320,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "Now we formally define rewriting options, rewritten queries, and the query-rewriting problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "Definition 2.1. (Rewriting Option) Let be a set of query-hint sets and be a set of approximation-rule sets. A rewriting option (\"RO\" for short) is a tuple (\u210e, ), where \u210e \u2208 and \u2208 . Note that both \u210e and can be the empty set \u2205.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "For instance, the rewriting option in Figure 3 (b) is a tuple with a query-hint set of \"use the index on CreateAt and do a nest-loop join on t and u\" and an approximation-rule set of \"substituting the table tweets with the sample table tweetsSample20\". For example, Figure 3 (b) is a rewritten query for the original query in Figure 3 (a).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 38,
+                    "end": 46,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 266,
+                    "end": 274,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 326,
+                    "end": 334,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "Query-rewriting problem. Given a visualization request's original SQL query , and a time limit , we want to generate a rewriting option, such that the total time of the corresponding rewritten , including planning and query execution, is within and the quality of 's result is maximized. To quantify the quality, we assume a given visualization quality function . Let ( ) be the result of the original query and ( ) be the result of the rewritten query . Then ( ( ), ( )) computes the quality of ( ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "In Sections 3, 4, and 5, we study the case of using query hints only (i.e., without changing query results). In Section 6, we study the case where approximation rules are also used.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PROBLEM FORMULATION"
+        },
+        {
+            "text": "We now introduce the middleware technique called \"Maliva\" to solve the aforementioned query-rewriting problem. We first give an overview of the technique, then use an example to explain the details.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MALIVA: ML-BASED QUERY REWRITING"
+        },
+        {
+            "text": "Overview. As illustrated in Figure 5 , Maliva rewrites the original SQL query to answer a visualization request within a time budget. It considers a predefined set of rewriting options, which we denote as \u03a9 = { 1 , . . .}. For each , the rewritten query is denoted as . The set of candidate rewritten queries is \u03a6 = { 1 , . . .}. Figure 4 : The Query Rewriter acts like an agent who makes a sequence of decisions to generate a rewritten query (with a total time \u2264 500 ). At time 0, the agent considers rewritten query 1 due to its low estimation cost (estimated 25 , the actual 30 is updated once 1 is explored). After estimating its execution time (1, 300 ), the agent knows that 1 is not viable since the total time is longer than 500 . The estimation of 1 affects the costs for estimating 5 and 7 . The agent explores 5 and then 7 . With the estimated execution time being 300 and the elapsed time being 150 , 7 is decided as a viable rewritten query because the total time (450 ) is within 500 . Maliva has a Query Rewriter that enumerates possible RQs and uses a Query Time Estimator (QTE) to estimate the execution time of each of them. The Query Rewriter uses the best effort to choose an RQ such that the total time, including the planning process and query execution, is within the time budget . Such an RQ is called viable. The middleware then sends the rewritten query to the database. The Query Result Handler sends the retrieved result to the frontend to visualize.",
+            "cite_spans": [
+                {
+                    "start": 681,
+                    "end": 682,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 28,
+                    "end": 36,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 330,
+                    "end": 338,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "MALIVA: ML-BASED QUERY REWRITING"
+        },
+        {
+            "text": "Na\u00efvely enumerating all available RQs in \u03a6 is computationally prohibitive due to two reasons. First, the cost of Query Time Estimator to estimate the execution time of a rewritten query is not negligible. For instance, in some cases it could take up to 70 [56] or 300 [67] . Second, the number of RQs increases exponentially when the number of applicable indexing choices increases. For example, consider a selection query on a table with filtering conditions on attributes, and the database has an index on each attribute. The number of query-hint sets in would be 2 , since the database can use any subset of the indexes to do filtering and then intersect the record lists to compute the final result. Therefore, the Query Rewriter needs to balance the exploration time for query estimation and the execution time of each chosen RQ to find a viable RQ.",
+            "cite_spans": [
+                {
+                    "start": 256,
+                    "end": 260,
+                    "text": "[56]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 268,
+                    "end": 272,
+                    "text": "[67]",
+                    "ref_id": "BIBREF65"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Index on Location"
+        },
+        {
+            "text": "An example. Maliva views query rewriting as a Markov decision process (MDP) [57] and adopts machine learning (ML) to solve this problem. We use the running example in Section 1 to illustrate how Maliva uses an MDP agent to make a sequence of decisions to find a viable RQ. For simplicity, we assume the rewrite-options (RO) set to involve query hints only. We will generalize the technique to consider approximation rules in Section 6. As shown in Figure 4 , a query has three selection conditions on three attributes, and each of which has an index. Suppose in the set of query-hint sets, each attribute has a query hint of using or not using the index. Thus, we have 2 3 = 8 query-hint sets to choose from. The agent makes a sequence of decisions to estimate the execution times of several rewritten queries and find a viable one 7 (that uses the indexes on all three attributes). Next, we present the details of this MDP-based technique.",
+            "cite_spans": [
+                {
+                    "start": 76,
+                    "end": 80,
+                    "text": "[57]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 832,
+                    "end": 833,
+                    "text": "7",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 448,
+                    "end": 456,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Index on Location"
+        },
+        {
+            "text": "In this section, we present the details of using an MDP model in Maliva to solve the query-rewriting problem, and discuss how to implement the Query Time Estimator (QTE).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MDP MODEL FOR ADDING QUERY HINTS"
+        },
+        {
+            "text": "MDP [57] is a formalization of sequential decision-making problems where an agent learns to achieve a goal from interaction with an environment. At each time step, the agent is in a state , and chooses an action available in state . The environment transits the agent to a new state \u2032 , and gives the agent a corresponding reward ( , ). To train an MDP agent is to find a good policy * such that if the agent follows the policy to choose an action for each state, it maximizes the total reward in the end.",
+            "cite_spans": [
+                {
+                    "start": 4,
+                    "end": 8,
+                    "text": "[57]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MDP Model for Query Rewriting"
+        },
+        {
+            "text": "We use the MDP model to solve the query-rewriting problem. For simplicity, we first focus on the case where rewriting options do not contain any approximation rules, which means no rewritten queries have quality loss. We will generalize the technique to consider approximation rules in Section 6. Without considering quality loss, the MDP agent learns to maximize the chance of finding a viable rewritten query for a given visualization request. The agent takes a sequence of actions, and each action chooses an RQ to explore. That is, it asks the query time estimator (QTE) to estimate the execution time of the RQ. The agent chooses an RQ based on the current state, and considers the future cost it needs to pay and the execution time of RQs already explored. The agent gets a bonus if it finds a viable RQ, or a penalty if it runs out of time. In the offline phase, by analyzing queries in the training workload, the agent learns to maximize the chance to receive a bonus. In the online processing phase, given a new query, the agent decides which RQ to explore in each step to receive a bonus in the end. Now we present the details of how to use MDP to model the process of choosing RQs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MDP Model for Query Rewriting"
+        },
+        {
+            "text": "A state represents the past decisions, based on which the agent decides an RQ to consider next. Suppose we are given a predefined set of ROs, i.e., \u03a9 = { 1 , . . . , }. Correspondingly, we have candidate RQs, denoted as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "States."
+        },
+        {
+            "text": "which includes three pieces of information, as shown in Figure 6 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 56,
+                    "end": 64,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF8"
+                }
+            ],
+            "section": "States."
+        },
+        {
+            "text": "(1) The elapsed time ( ) captures how much time we have spent.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "States."
+        },
+        {
+            "text": "(2) The estimation cost ( ) for each possible rewritten query captures how much time is needed for the agent to estimate its running time. Each is initialized with a rough estimation collected offline and updated during the online planning phase. Note that the MDP state does not require the initial values to be accurate, and a rough estimation from history statistics suffices. The actual estimation costs will be collected while the MDP agent processes a query, as will be described soon in the definition of Transitions. We assume for each rewritten query , collecting the physical plan and its statistics (e.g., cardinality and cost estimations of each operator) is done by the QTE, and its time is captured by the MDP model's estimation cost ( ). We assume the rewritten queries' physical plans and statistics are not available to the MDP model. Thus, the proposed MDP model is general, and can be applied to any query shape with any predefined query-hint set. A natural question is that without the statistics of the explored RQs stored in the state, how can the MDP model make a good decision on which RQ to choose next? Our answer is that the execution time of a rewritten query implicitly captures the statistics of the physical operators (e.g., the cost of doing an R-Tree index scan on the Location attribute). By keeping the estimated execution time of each explored RQ in its state, the MDP model can learn the correlations of the execution times between different rewritten queries and make good decisions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "States."
+        },
+        {
+            "text": "Actions. An action, denoted as , is to explore an RQ next. For each RQ, the agent asks the QTE to estimate its execution time. Meanwhile, the agent needs to pay cost as it takes time for the QTE to extract query features, possibly by collecting online statistics from the database, and running the estimation model to do the estimation. In the running example, at time 0, the agent decides to explore 1 . It asks the QTE to estimate 1 's execution time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "States."
+        },
+        {
+            "text": "Transitions. A transition function defines how the environment computes the next state, given the agent's action in the current state. Let the RQ considered by action in state be . We define the transition function T as follows. First, the QTE estimates the time of , and we add the estimated time to the state. Second, the estimation costs for other RQs could change.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "States."
+        },
+        {
+            "text": "In the running example, to estimate 1 that uses the R-Tree index on the Location attribute, we need to collect the spatial filtering condition's selectivity on the Location attribute. To estimate 5 that uses both the inverted index on the Content attribute and the R-Tree index on the Location attribute, we need to collect the selectivity values of the filtering conditions on both attributes. After the agent takes the 1 action, we update the estimation cost of 1 to be the actual time it costs and update the estimated estimation cost of 5 by excluding the cost to collect the selectivity value of the spatial filtering condition. As shown in Figure 7 , after estimating the time of 1 , we add the estimated time 1, 300 of 1 to the state, update the estimation cost for 1 from the estimated 25 to the actual 30 , and update the estimation cost for 5 from the previous estimated 90 to the new estimated 60 . Lastly, the estimation takes time\u02c6, and we add it to the elapsed time so far to indicate how much time the agent has spent to explore different RQs. Note that the\u02c6is the actual cost of estimating , which could be different from because is an estimated cost for estimating . Rewards. A reward function defines the agent's immediate gain when it takes a particular action in a given state . In our setting, consider two cases to compute the reward function. (1) The first case is when the agent is at an intermediate state where it still has time for planning but has not yet found a viable rewritten query. In this case, the agent should not be awarded or punished since it has not made a decision yet. Thus the reward value is 0. (2) The second case is when the agent is at a termination state where it decides the rewritten query\u02c6, runs it against the database, and collects the execution time\u02c6of\u02c6. In this case, the agent should be awarded if the total time (including both the planning time and rewritten query execution time) is less than the time budget, or punished if the total time is more than the budget. The agent decides a rewritten query by considering three situations. The first one is that the agent finds an RQ to be viable based on the estimation of the QTE before running out of time. For example, in Figure 4 , after spending 150 for planning, the agent decides 7 as the chosen rewritten query, since the predicted total time of 7 is 450 , which is within the 500 budget. The second situation is when the agent uses up the time budget and has to stop planning. The third situation is when the agent has exhausted all candidate rewritten queries and has to decide which RQ to choose. In the latter two situations, the agent chooses the fastest RQ known so far as the final decision.",
+            "cite_spans": [
+                {
+                    "start": 2292,
+                    "end": 2293,
+                    "text": "7",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 2359,
+                    "end": 2360,
+                    "text": "7",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 646,
+                    "end": 654,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF9"
+                },
+                {
+                    "start": 2230,
+                    "end": 2238,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "States."
+        },
+        {
+            "text": "Formally, suppose the generated rewritten query by the agent is\u02c6and the actual running time of query\u02c6is\u02c6. Then the reward function R ( , ) is defined as follows,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "States."
+        },
+        {
+            "text": "where . denotes the elapsed time so far in state . If the total time . +\u02c6is less than the time budget , which makes R ( , ) positive, then the agent receives a reward. The faster the rewritten query is, the larger the reward will be. On the other hand, if the total time exceeds the time budget, which makes R ( , ) negative, then the agent receives a penalty. The slower the rewritten query is, the larger the penalty will be. Thus, guided by the reward function, the MDP model will learn to find an efficient rewritten query as soon as possible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "States."
+        },
+        {
+            "text": "Take the sampling-based QTE described in [67] as an example. It first builds an analytical cost model (e.g., linear regression model), and uses it to estimate the execution time of a rewritten query by collecting its statistics online. Specifically, it estimates the selectivity values of the query conditions by running count(*) queries on a small sample table, provides the values as input features to the cost model, and uses the model's prediction as the query's execution-time estimation. There are also other possible solutions in the literature [36, 56, 68] that can be used by Maliva.",
+            "cite_spans": [
+                {
+                    "start": 41,
+                    "end": 45,
+                    "text": "[67]",
+                    "ref_id": "BIBREF65"
+                },
+                {
+                    "start": 552,
+                    "end": 556,
+                    "text": "[36,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 557,
+                    "end": 560,
+                    "text": "56,",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 561,
+                    "end": 564,
+                    "text": "68]",
+                    "ref_id": "BIBREF66"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Query Time Estimator (QTE)"
+        },
+        {
+            "text": "Note that QTEs are the focus of this paper, and Maliva leverages a given QTE intelligently to balance the planning time and the query execution time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Query Time Estimator (QTE)"
+        },
+        {
+            "text": "In this section we discuss how to train the MDP agent offline in Maliva on a workload of visualization requests and use it to generate a viable rewritten query online.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TRAINING AND USING THE MDP AGENT"
+        },
+        {
+            "text": "Suppose we have a workload of queries = [ 1 , 2 , . . . , ]. Our goal is to find an optimal policy * such that for any query \u2208 , the agent following policy * maximizes the chance to generate a viable rewritten query. We adopt the deep Q-learning algorithm [37] for finding an optimal policy for the MDP agent. Its basic idea is to use a neural network (called Q-network) to represent a policy . Given an input of a state vector, the qnetwork outputs a Q-value [66] for each possible RQ in the state. A higher q-value means that the rewritten query is more likely to be viable given the current information. Its training process includes two main steps. The first step is to generate a set of experiences by exploring different planning sequences for queries in the workload repeatedly. Each experience is a 4-tuple ( , , \u2032 , \u2032 ), meaning that taking action from state results in state \u2032 with reward \u2032 . The second is to replay those experiences to update the q-network's weights gradually such that the q-network can approximate the q-values of the optimal policy for each stateaction pair.",
+            "cite_spans": [
+                {
+                    "start": 256,
+                    "end": 260,
+                    "text": "[37]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 460,
+                    "end": 464,
+                    "text": "[66]",
+                    "ref_id": "BIBREF64"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "To apply the q-learning algorithm to solve our problem, we first design a q-network architecture to represent the target policy * , then introduce an algorithm for training the agent to maximize the chance to generate viable RQs for the given workload . Next we provide more details in both steps. Q-network for the query-rewriting problem. A q-network approximates a policy using a neural network, and different weights of the network reflect different policy instances. As shown in Figure 8 , the q-network adopts a simple layered architecture that includes one input layer, two fully connected linear hidden layers, and a linear output layer. The two hidden layers have sizes similar to the input layer. The number of nodes in the output layer is the number of possible actions in the model, i.e., possible RQs. All the hidden layers adopt \"ReLU\" [52] as the activation function. Given a state , the input of the network is a vector of = ( , 1 , 2 , . . . , , 1 , 2 , . . . , ). The output is the q-value Q ( , ) for each action in state , where action can be any rewritten query in = { 1 , 2 , . . . , }.",
+            "cite_spans": [
+                {
+                    "start": 850,
+                    "end": 854,
+                    "text": "[52]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 484,
+                    "end": 492,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "Training an MDP agent for query rewriting. Algorithm 1 details how we train the MDP agent. To apply deep q-learning, we generate the replay memory of experiences. For a given visualization query workload = [ 1 , 2 , . . . , ], we generate a set of experiences. Each experience is a 4-tuple",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "where the agent in a state estimates the time of the hinted query represented by an action and observes the next state \u2032 with a reward \u2032 . Note that different queries can have different optimal policies. Our goal is to learn an optimal policy for the whole workload. We let the agent explore all the queries in the workload in multiple iterations until the policy converges or the number of runs exceeds a maximum threshold. In each iteration, we shuffle the order of queries to reduce the bias caused by earlier queries on the exploration direction of later queries. For each query in , we let the agent complete a sequence of decisions. At each step, it selects an RQ to estimate. It pays the cost to estimate the rewritten query's execution time, transits to the next state, and receives an immediate reward. The agent repeats the process until it reaches a termination state (line 9) in one of the three cases. The first case is when the estimated time ( ) of the rewritten query in action suggests it is potentially viable, i.e., . + ( ) \u2264 . The second case is when the agent runs out of time, i.e, . \u2265 . The third case is when the agent has exhausted all possible RQs, i.e., = \u2205.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "When the agent decides which RQ to explore at each step (lines 12 to 14), we adopt an -greedy strategy [37, 59] to balance between the exploration of RQs with uncertain values and the exploitation of RQs known with high values. With an probability, the agent chooses a random RQ that it has not been considered before (line 12). Otherwise, it selects an RQ that has not been explored with the highest q-value based on the current policy weights (line 14). We start with a high probability ( ) of exploration and gradually decrease it to favor exploitation with the training progress.",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 107,
+                    "text": "[37,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "59]",
+                    "ref_id": "BIBREF57"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "Once an RQ is decided by the agent as an action , we call the transition function T (Section 4.1) to transit the agent to the next state \u2032 (line 16). We estimate the query 's running time and update the new state \u2032 by adding the estimated time for , adding the cost to the elapsed time, and modifying the costs of affected RQs. We then call the reward function R (Section 4.1) to compute an immediate reward \u2032 for estimating the RQ in (line 17). To this end, we have generated a new experience tuple ( , , \u2032 , \u2032 ), and store it in the replay memory (line 18). When reaches its capacity C, we replace existing experiences in a FIFO manner.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "After processing a query, we update the policy following the original deep q-learning algorithm [37] (line 21). We sample a random subset \u2032 of experiences from . For each experience tuple ( , , \u2032 , \u2032 ) in \u2032 , we first compute the target q-value of the state-action pair ( , ) using the Bellman equation [66] . We then update the weights in policy by minimizing the loss value between the target q-value and the current q-value, where is defined as: = (Q ( , ) \u2212 ) 2 . We keep updating the policy until it converges, i.e., the total accumulated reward of the training workload does not improve much in new iterations (e.g., less than 1%).",
+            "cite_spans": [
+                {
+                    "start": 96,
+                    "end": 100,
+                    "text": "[37]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 303,
+                    "end": 307,
+                    "text": "[66]",
+                    "ref_id": "BIBREF64"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "Accommodating estimation inaccuracy using MDP. One advantage of using the MDP framework where an approximate QTE may give inaccurate estimations is its tolerance of the inaccuracy. The MDP model captures the uncertainty in two places. One is the transitions between states that store the estimated times of explored RQs. Although estimated times can have errors, statistically, after learning from the historical queries, the agent understands which action has the highest expected total reward. Another place is the reward definition, where the penalty for making a wrong decision will lead the agent to understand the QTE's mistakes and avoid them in the future.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training the MDP Agent"
+        },
+        {
+            "text": "After we train an MDP agent, the query rewriter utilizes the agent to generate a rewritten query for a new visualization query online. Algorithm 2 shows the pseudo-code. Starting from an initial state , we use the trained policy to compute the q-values for all the RQs and select the one with the highest q-value as the action (line 5). We then estimate the running time of query and transit to state \u2032 (line 6). We compute the immediate reward \u2032 for estimating RQ in (line 7). If the action is a potentiallyviable RQ (line 9), we output the query\u02c6in as the generated rewritten query. Otherwise, we run out of time for the remaining RQs (line 11). Then we select the rewritten query with the minimum execution time estimated so far and output it. If neither cases happen, we repeat the above process. In this section, we generalize Maliva by considering rewriting options with approximation rules. Recall that using a queryhint set to rewrite an original query into an can help the database generate an efficient physical plan that computes the actual result without any approximation. However, for expensive queries where no physical plan can meet the time constraint, by applying an approximation-rule set to , Maliva can generate an that efficiently computes an approximate result within the time budget. We first extend the MDP model in Section 4 to consider approximation rules. We then discuss two approaches to applying the MDP model to implement a quality-aware query rewriter. The quality-aware query rewriter makes the best effort to generate a viable rewritten query and maximize the result's quality. In the end, we discuss the trade-offs between the two approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Using MDP to Rewrite Queries Online"
+        },
+        {
+            "text": "Consider the case where the rewriting options contain both query hints and approximation rules. A rewritten query can return an approximate result with quality loss. We need to let the MDP agent learn to maximize the chance to generate a viable rewritten query and maximize the quality of the query result simultaneously. To quantify the quality of a rewritten query, we assume a given visualization quality function . Let ( ) be the result of the original query , and ( ) be the result of the rewritten query . Then ( ( ), ( )) computes the quality of ( ). For example, suppose we use the Jaccard similarity function to measure the quality of an approximate result. Figure 9 shows that the quality of the scatterplot visualization result of an approximate rewritten query compared to the original query is 0.76. Note that Maliva does not have restrictions on quality functions, and many functions can be used, such as VAS in [44] for scatterplots and the function of distribution precision in [11] for pie charts. Figure 9 : The quality of compared to using a Jaccardbased quality function as an example.",
+            "cite_spans": [
+                {
+                    "start": 926,
+                    "end": 930,
+                    "text": "[44]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 994,
+                    "end": 998,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 667,
+                    "end": 675,
+                    "text": "Figure 9",
+                    "ref_id": null
+                },
+                {
+                    "start": 1015,
+                    "end": 1023,
+                    "text": "Figure 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Quality-Aware MDP Model"
+        },
+        {
+            "text": "Reward function for a quality-aware MDP model. To achieve the goal of guiding the MDP agent to learn to maximize the chance to generate a viable rewritten query and maximize the quality of the query result simultaneously, we extend the definition of the reward function in Section 4. Recall that the learning goal of an MDP agent is to maximize the accumulative reward. In Section 4, once the agent decides a rewritten query, it receives a reward that reflects the query performance in terms of the total running time. Guided by the reward, the agent learns to generate a viable rewritten query quickly. Similarly, the MDP agent can also learn to quickly generate a viable rewritten query with a high result quality if the final reward reflects both the decided rewritten query's efficiency and quality. The main idea is to combine the efficiency defined in Section 4 and the quality. The new reward function is a weighted summation of both. Formally, suppose the generated rewritten query by the agent is\u02c6and the actual running time of query\u02c6is\u02c6. Then the new reward function R ( , ) is defined as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "/*+ Index-scan(t CreateAt) */ SELECT Id, Location"
+        },
+        {
+            "text": "The term \u2212 . \u2212\u02c6r epresents the efficiency of the rewritten query in terms of running time compared to the time budget. The function ( ( ), (\u02c6)) represents the quality of the RQ's result. Note that computing could be expensive since the actual result ( ) of the original query is required. However, we only need to pay the cost in the offline training phase once. In the online phase, we don't need to compute the value for a new query when we use the MDP model to explore different RQs. Since the MDP model learns from the final reward values only, we do not require every query to use the same quality function. In particular, different quality functions can be applied for different training queries to evaluate their visualization qualities, e.g., some queries are visualized as scatterplots and others as heat-maps. \u2208 [0, 1] is a parameter that indicates how important the running time is compared to the result quality.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "/*+ Index-scan(t CreateAt) */ SELECT Id, Location"
+        },
+        {
+            "text": "Now we discuss how to apply the extended MDP model to implement a quality-aware query rewriter. We present the technical details of two approaches and discuss their pros and cons. We will show the evaluation results in Section 7. One-stage approach. A natural idea is to replace the MDP model in Section 4 with the quality-aware MDP model. We let the MDP agent simultaneously consider query hints and approximation rules as rewriting options. By applying the new reward function combining both the efficiency of the rewritten query and the result's quality, the MDP agent learns to maximize the chance of generating viable rewritten queries and maximize the quality.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Quality-Aware Query Rewriter"
+        },
+        {
+            "text": "Two-stage approach. A drawback of the previous approach is that the agent might miss a non-approximate viable rewritten query. To solve this problem, we consider a two-stage approach, with a main idea to let the MDP agent exhaust all candidate query hints first and then explore those approximation rules. In the two-stage approach, Maliva first runs the original MDP model, excluding the approximation rules. If the agent finds a viable rewritten query, it outputs the as before. If the agent exhausts all candidate s without finding a viable one, and the elapsed Figure 11 : Two-stage MDP approach. After running the original agent that considers the 8 query-hint sets defined in Figure 4 without approximation rules, we cannot find a viable RQ. We then run the new agent with the qualityaware MDP model that considers all 8 query-hint sets combined with 3 approximation-rule sets (e.g., substituting the tweets table with 20%, 40%, or 80% sample tables), resulting in 24 rewritten queries in total. After spending extra time exploring a few RQs, the quality-aware agent chooses 21 as the final decision.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 565,
+                    "end": 574,
+                    "text": "Figure 11",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 682,
+                    "end": 690,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Quality-Aware Query Rewriter"
+        },
+        {
+            "text": "time has not exceeded the time budget , then we run the new quality-aware MDP model that considers the approximation rules to find a viable . When the planning time for the original agent is longer than the time budget, the two-stage approach reduces to the case described in Section 4. In this case, the one-stage approach is preferred since it can increase the chance of generating a viable rewritten query considering approximation rules. When the planning time for the original agent is relatively small compared to the time budget, the two-stage approach has the advantage of not missing any non-approximate viable rewritten queries.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Quality-Aware Query Rewriter"
+        },
+        {
+            "text": "We conducted experiments to evaluate Maliva. In particular, we want to answer the following questions: (1) How well does it rewrite queries to support visualization requests? (2) How well does it generalize to different numbers of rewriting options? (3) How well does it perform for different types of queries (e.g. single-table selection queries and multiple-table joining queries)? (4) How well does it generalize to different time budgets, unseen queries and other databases? (5) How does it compare with related solutions? and (6) How much is its training overhead?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "EXPERIMENTS"
+        },
+        {
+            "text": "Datasets. We used two real datasets and a synthetic one as shown in Table 1 . The Twitter dataset included 100 million geo-located tweets in the US from November 2015 to January 2017. We kept the timestamp, geo-coordinate, text message, and several user attributes for each tweet in a tweets table. For the experiment on join queries, we used the tweets table and a users table. The former had a foreign key of \"user_id\" referencing the \"id\" in the latter. We used the geo-coordinate attribute as the output for visualization (e.g., choropleth map, heatmap, or scatterplot). The NYC Taxi dataset [42] included taxi trip records within three years from 2010 to 2012. The third dataset was generated from the TPC-H benchmark [60] . We used the line-item table as the fact table. The attributes we used for query selection conditions are shown in Table 1 .",
+            "cite_spans": [
+                {
+                    "start": 596,
+                    "end": 600,
+                    "text": "[42]",
+                    "ref_id": null
+                },
+                {
+                    "start": 723,
+                    "end": 727,
+                    "text": "[60]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 68,
+                    "end": 75,
+                    "text": "Table 1",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 844,
+                    "end": 851,
+                    "text": "Table 1",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Setup"
+        },
+        {
+            "text": "Query workloads. We generated random queries on each dataset for training and evaluation. Take Twitter dataset as an example. We first randomly sampled a set of tweets from the base table.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "For each tweet, we generated a query as follows. We chose the text, created_at, and coordinates attributes for the selection conditions in the query. We generated three conditions based on the values in the sampled tweet. For text, we randomly selected a non-stop word in the original tweet's text message as the keyword condition. For created_at, we generated a temporal range condition with the value in the original tweet as the left boundary.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "We divided the maximum range on the created_at attribute in the base table into multiple zoom levels, and randomly selected a level to generate the length of the range condition. Suppose the maximum range on created_at had days. We computed the maximum zoom level on created_at as = \u2308 2 ( )\u2309. If we randomly chose a zoom level from range [0, ] as , we computed the length of the query condition range as = ( /2 , 1). Similarly, for the coordinates attribute, we used the exact coordinates in the sampled tweet as the center. We randomly chose a zoom level and generated a spatial bounding box as the spatial range condition for the query.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "In the experiments, we evenly divided generated queries into a training workload and an evaluation workload. We further divided the training workload into two parts, one with two thirds of queries for training the agent and the other one with one third of queries for validation. For all experiments, we used a hold-out validation strategy, i.e., we used a workload to train multiple MDP agents, and used a validation workload to choose a best agent to be evaluated on the evaluation workload. We report the performance on the evaluation workload in the each section. When evaluating different approaches, the \"difficulty\" of the queries in the evaluation workload played an important role. For example, if none of the physical plans of a query were viable, then no approach can generate a viable plan without approximation. On the contrary, if a query had many (e.g., five) viable physical plans, it was relatively easy for a method to find one. We further divided the evaluation workload into subsets of queries based on their difficulty. To measure the difficulty of a query, we define the following metric. Given a time budget , a query's number of viable plans is =1 [ ( ) \u2264 ], where the set { 1 , 2 , . . . , } contains an original query 's all possible physical plans generated by applying different candidate query hints, and ( ) is the execution time of plan . We changed the number of viable plans and evaluated different approaches on the same query workload with the same number of viable plans. QTE implementations. We implemented two QTEs to evaluate the Maliva's performance. 1) Accurate-QTE. To isolate the effect of estimation errors on the Maliva' performance, we used the actual execution time of the hinted queries as the estimation, and set up a unit cost parameter to represent the time of collecting the selectivity value of one filtering condition in a given rewritten query. Unless otherwise stated, we used 40 as the unit cost of collecting one selectivity value for the Accurate-QTE. 2) We also implemented the ML-based approximate-QTE as presented in Section 4.2. We used a random sample table [67] to estimate the selectivity values of query conditions. The selectivity values were used by the approximate-QTE's ML model to estimate the execution time of queries.",
+            "cite_spans": [
+                {
+                    "start": 2122,
+                    "end": 2126,
+                    "text": "[67]",
+                    "ref_id": "BIBREF65"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "Performance metrics. We used two metrics to evaluate the performance of different approaches. Recall that a generated rewritten query is \"viable\" if its total response time (including both the planning time and the querying time) is within a given time budget. The \"viable query percentage\" (VQP) of a solution was the ratio of viable queries over all the queries in the workload. The other metric was called \"Average Query Response Time\" (AQRT), which was the average total response time of all the queries in the workload.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "Query-rewriting Approaches. We compared the proposed MDPbased approaches with three related methods, i.e., baseline, naive, and Bao [33] . MDP-based approaches included an MDP agent using an approximate-QTE, i.e., MDP (Approximate-QTE), and an MDP agent using an accurate QTE, i.e., MDP (Accurate-QTE). In the baseline approach, the middleware relies on the database optimizer to generate a physical plan for the original query. In the naive approach, we used the same approximate QTE as the MDPbased approach, but enumerated all possible RQs in a brute-force way, then chose the best RQ as the output. The third approach was Bao [33] . We used its open-source release [3] as the server, which provided interfaces for training the model and using the model to choose the best plan for a given set of query plans. Its original client, which was a PostgreSQL plug-in, did not support query hints for using a specific index, which were required by our visualization queries. To solve this problem, we implemented a new client in Python to support such query hints while keeping their server implementation.",
+            "cite_spans": [
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "[33]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 630,
+                    "end": 634,
+                    "text": "[33]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 669,
+                    "end": 672,
+                    "text": "[3]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "In the experiments, we ran both the database and the middleware on the same AWS t2.xlarge instance with four vCPUs, 16GB RAM, and a 500GB SSD drive. We implemented the middleware in Python 3.6 and the neural network using Pytorch 1.7. We evaluated Maliva on both PostgreSQL and a commercial database.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Setup"
+        },
+        {
+            "text": "We evaluated the performance of Maliva for only considering query hints in rewriting options (i.e., no approximations). For each dataset, we generated queries with three filtering conditions and set up the rewrite-option set with 8 query-hint sets, i.e., using or not using the index on each attribute. We varied the evaluation workloads with different numbers of viable plans, and collected the VQP and AQRT metrics for each approach. Table 2 shows the number of queries in the evaluation workloads. Figure 12 shows viable-query percentages (VQP) on the three datasets. The MDP-based approaches and Bao outperformed the baseline approach significantly, with MDP (Accurate-QTE) as the best. For example, on the Twitter dataset, for the queries with a single viable plan, both MDP-based approaches increased the VQP from the baseline's 1% and Bao's 20% to more than 70%. In most cases, MDP (Approximate-QTE) performed better than or comparable to Bao. In one case of the TPC-H dataset, Bao performed better than MDP (Approximate-QTE) mainly because Bao's QTE had a much higher accuracy than the approximate QTE for TPC-H. When the number of viable plans increased from 1 to 4, the VQP of all approaches increased because the more viable plans existed for a query, the easier it was for each approach to find a viable plan in a short amount of time. Figure 13 shows the results of the average query-response time (AQRT) of different approaches. On the Twitter dataset, Bao had a comparable AQRT to the baseline, while MDP (Approximate-QTE) had much lower time than the baseline and Bao for queries with one or two viable plans. For example, MDP (Approximate-QTE) reduced the average response time from the baseline's 1.11 seconds and Bao's 1.01 seconds to 0.4 seconds. On the NYC Taxi dataset, Bao and MDP-based approaches had comparable performance and were slightly better than the baseline. On the TPC-H dataset, Bao was better than or comparable to the baseline. In two cases, Bao performed better than MDP (Approximate-QTE) because Bao's QTE had a much higher accuracy than the approximate QTE on TPC-H. However, in all cases, MDP (Accurate-QTE) always had a lower query time than Bao and the baseline, which means it generated a more efficient plan. In cases where MDP (Accurate-QTE) had a longer response time, the extra planning time was the main reason. At the same time, the high VQP of MDP (Accurate-QTE) proved the ability of the MDP model balancing the planning time and the query-execution time to maximize the chance of generating a viable rewritten query.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 436,
+                    "end": 443,
+                    "text": "Table 2",
+                    "ref_id": "TABREF6"
+                },
+                {
+                    "start": 501,
+                    "end": 510,
+                    "text": "Figure 12",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1348,
+                    "end": 1357,
+                    "text": "Figure 13",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Performance on Using Query Hints"
+        },
+        {
+            "text": "The number of rewrite options affects both the state and action space of the MDP model, which will further affect the performance of the MDP agent. We evaluated the effect of the number of rewrite options on the Twitter dataset. We set up two workloads of queries with filtering conditions on 4 attributes and 5 attributes of the tweets table, resulting in a rewrite-option set with 16 query-hint sets as rewrite options and the other rewriteoption set with 32 rewrite options. We compared the MDP-based approaches with Bao and the baseline approach. We varied the evaluation workloads with different groups of viable-plan numbers and collected the VQP and AQRT metrics of each approach. Table 3 shows the number of queries for the workloads. Figure 14 shows the VQP results of different approaches for workloads with 16 and 32 rewrite options. The MDP approaches (similar between using an Approximate-QTE and using an Accurate-QTE) performed the best in both cases, generating up to 40\u00d7 more viable queries than both Bao and the baseline approach for the workload with 16 rewrite options on queries with one or two viable plans. As expected, the advantages of MDP-based approaches over the baseline approach became smaller when the number of rewrite options increased to 32. Estimating the query time became more expensive for queries with more rewrite options, and it increased the planning time of MDP-based approaches significantly compared to queries with fewer rewrite options. two viable plans. On the other hand, for queries with more viable plans, the MDP approach using an approximate-QTE had a comparable query-response time to Bao and the baseline approach. However, the MDP approach using an accurate-QTE always had a lower average query time than all other approaches. That is, the former generated a more efficient plan for most queries than the latter, but the total response time might be longer due to the extra planning time.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 688,
+                    "end": 695,
+                    "text": "Table 3",
+                    "ref_id": "TABREF7"
+                },
+                {
+                    "start": 743,
+                    "end": 752,
+                    "text": "Figure 14",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Effect of Rewrite-Option Number"
+        },
+        {
+            "text": "We evaluated the effect of time budget on the performance of different approaches. We varied the time budget to 0.25, 0.75, and 1.0 seconds on the Twitter dataset. For each time budget, we used different query workloads with different numbers of viable plans, and collected both the VQP and AQRT metrics for each approach. Figure 16 shows the results of VQP for different time budgets. The MDP-based approaches outperformed both Bao and the baseline approach significantly for all the budgets. When the time budget was 0.25 second, MDP (Approximate-QTE) outperformed MDP (Accurate-QTE) significantly because the latter was too expensive for planning. On the other hand, when the time budget was 1.0 second, MDP (Accurate-QTE) outperformed MDP (Approximate-QTE) since the agent could afford the expensive estimation cost for more accurate estimations to find better-rewritten queries. These results show that the MDP model is adaptive to QTE's with different costs and accuracies for different time budgets. Figure 17 shows the results of the average response time for different time budgets. For queries with one or two viable plans, all MDP-based approaches outperformed both Bao and the baseline approach. For queries with three or four viable plans, MDP (Approximate-QTE) had a performance comparable to Bao and the baseline approach.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 323,
+                    "end": 332,
+                    "text": "Figure 16",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1007,
+                    "end": 1016,
+                    "text": "Figure 17",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Effect of Time Budget"
+        },
+        {
+            "text": "To evaluate the performance of Maliva on queries with joins, we set up a workload of queries joining the tweets and users tables with filtering conditions on three attributes. We compared the performance of the MDP-based approaches with Bao and the baseline approach. For the MDP-based approaches and Bao, we considered 7 different ways of using or not using indexes on the three attributes and 3 different join methods (i.e., nest-loopjoin, hash-join, and merge-join) between the two tables. Thus we had 21 query-hint sets in total as the rewrite options. We varied the evaluation workloads with different groups of viable-plan numbers and collected each approach's VQP and AQRT metrics. Figure 18 (a) shows that for all workloads of different viableplan numbers, the MDP-based approaches outperformed Bao. For the queries with only one or two viable plans, MDP (Approximate-QTE) generated more than twice as many viable plans than Bao. Figure 18 (b) shows that MDP (Approximate-QTE) outperformed Bao in all cases. For queries with one or two viable plans, the MDP-based approach reduced the average query response time from Bao's 0.87 second to 0.34 second. Bao uses the plan tree and operators' cost estimations from the physical plan generated by the underlying PostgreSQL database. Bao's QTE also suffered from estimation errors where the database had wrong cardinality estimations. Maliva mitigated this problem by applying a more expensive sampling-based approximate-QTE. By judiciously choosing rewritten queries to run the expensive QTE, Maliva generated more efficient queries than Bao.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 689,
+                    "end": 698,
+                    "text": "Figure 18",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 938,
+                    "end": 947,
+                    "text": "Figure 18",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Performance on Join Queries"
+        },
+        {
+            "text": "Maliva vs Bao: In general, the MDP-based approaches performed much better than Bao for workloads of queries with textual and spatial filtering conditions (e.g., Twitter and NYC). The reason was that Bao's QTE relied on the plan tree and operators' cost estimations from the physical plan generated by PostgreSQL. It also suffered from the large estimation errors by PostgreSQL for textual and spatial filtering conditions. Maliva mitigated this problem by applying a sampling-based approximate-QTE that had better estimations for textual and spatial conditions. By judiciously choosing rewritten queries to run the expensive QTE, Maliva generated more efficient queries than Bao. We also evaluated the approach that used Bao with the expensive approximate QTE (labeled \"Naive (Approximate-QTE)\" in Figure 14 ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 798,
+                    "end": 807,
+                    "text": "Figure 14",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Performance on Join Queries"
+        },
+        {
+            "text": "To evaluate how well Maliva can be generalized to handle unseen queries, we did experiments on the Twitter dataset to train and test the MDP model using two workloads with different query shapes. The training queries were on a single tweets table with three filtering conditions. In comparison, the testing queries joined the tweets table and the users table on user_id with  three filtering conditions on the former table. As shown in Figure 19(a) , the MDP-based approaches outperformed the baseline significantly on the workload with unseen queries. For example, for queries with a single viable plan, the MDP (Approximate-QTE) approach increased the VQP from the baseline's 2% to 55%, and the MDP (Accurate-QTE) approach further increased it to 74%.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 326,
+                    "end": 423,
+                    "text": "tweets table and the users table on user_id with  three filtering conditions on the former table.",
+                    "ref_id": null
+                },
+                {
+                    "start": 436,
+                    "end": 448,
+                    "text": "Figure 19(a)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Unseen Queries and Other Databases"
+        },
+        {
+            "text": "We also did experiments on the Twitter dataset using a commercial database. We used a smaller table with 10 million records and thus a smaller time budget (250 ). The result is shown in Figure19(b) . Due to the commercial database's complex behaviors, the approximate QTE had a much lower accuracy (two orders of magnitude) than it had on PostgreSQL. The reason was the approximate QTE only considered predicates' selectivities for estimation, but more factors in the commercial database affected the query time, such as buffering and dynamic execution plan change. However, MDP (Approximate QTE) still had comparable performance (VQP) to the baseline. With a more accurate yet more expensive QTE, MDP (Accurate-QTE) outperformed the baseline for all the queries. For example, for queries with one or two viable plans, the baseline had a VQP of 23%, MDP (approximate-QTE) had a VQP of 36%, and MDP (Accurate-QTE) increased the VQP to 50%.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 186,
+                    "end": 197,
+                    "text": "Figure19(b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Unseen Queries and Other Databases"
+        },
+        {
+            "text": "We evaluated the performance of the two quality-aware query rewriting approaches (i.e., one-stage and two-stage) described in Section 6. We used them on the same Twitter dataset and workload as in Section 7.2. We compared them with the baseline approach and the MDP approach without considering approximation rules. For the quality-aware rewriting approaches, we considered five approximation rules (i.e., adding a LIMIT clause with 0.032%, 0.16%, 0.8%, 4%, and 20% of the estimated cardinality of the query) in addition to the eight query-hint sets (i.e., using or not using indexes on the three filtering attributes) considered in Section 7.2. All MDP-based approaches used an accurate-QTE. Besides the AQP and AQRT metrics, we collected a new metric called Jaccard-based Quality, which computed the Jaccard similarity between the visualization result of a rewritten query and that of the original query. Figure 20 (a) shows the VQP of these approaches. For the group of queries without any viable plan, the MDP-based approach without considering approximation rules and the baseline approach had a zero VQP. By generating approximate rewritten queries, the two-stage MDP-based approach increased the VQP to 24%, and the one-stage MDP approach further increased the VQP to 31%. There were 518 queries in the 0-viable-plan workload (Table 2) , and the one-stage MDP approach generated more than 35 viable queries than the two-stage approach. As shown in Figure 20 (b), the one-stage MDP approach also reduced the average query response time of the 0-viable-plan queries from the two-stage approach's 1.21 seconds to 0.95 seconds. In terms of efficiency, the one-stage MDP approach outperformed the two-stage approach in all cases. Figure 20 (c) shows the average Jaccard-based quality of the rewritten queries generated by different approaches. Both the baseline and the MDP-based approach without considering approximation rules had no quality loss. The two-stage MDP approach had a significant advantage over the one-stage approach in terms of quality. For example, The former increased the quality of the 0-viable-plan queries from the one-stage approach's 0.43 to 0.79.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 907,
+                    "end": 916,
+                    "text": "Figure 20",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1333,
+                    "end": 1342,
+                    "text": "(Table 2)",
+                    "ref_id": "TABREF6"
+                },
+                {
+                    "start": 1455,
+                    "end": 1464,
+                    "text": "Figure 20",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1732,
+                    "end": 1741,
+                    "text": "Figure 20",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Performance of Quality-Aware Rewriting"
+        },
+        {
+            "text": "We evaluated the training performance for workloads with eight, sixteen, and thirty-two rewrite options on the Twitter dataset. For each workload, we divided a set of about 1, 400 queries into a training set and a validation set. Then we varied the number of training queries and randomly sampled those from the training set without replacement. We then used the sampled queries to train an MDP agent and tested its performance on both the training queries and the validation queries. We repeated the step ten times for each number of training queries and collected the mean and standard deviation of the VQPs. We conducted the experiments on the MDP-based approach using the Accurate-QTE. The unit cost for the three workloads was 100 , 60 , and 50 , respectively, and the time budget was 0.5 seconds. Figure 21 (a) and Figure 21 (b) show the trend when we varied the number of training queries. For the workload with eight rewrite options, the VQP on the validation set got close to the VQP on the training set for about 50 training queries, i.e., adding more training queries did not further improve the performance. For workloads with sixteen or thirty-two rewrite options, the validation VQP got close to the training VQP at about 80 and 150 training queries, respectively. For different sizes of the training set, we also collected the mean and standard deviation of the training time. Figure 21 (c) shows the training time of different numbers of rewrite options on the training sizes. For the same number of training queries, more rewrite options resulted in a larger q-network, which took more time to update the weights. For the workload with thirty-two rewrite options, it took about 150 seconds to train an MDP agent on 150 training queries.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 803,
+                    "end": 812,
+                    "text": "Figure 21",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 821,
+                    "end": 830,
+                    "text": "Figure 21",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1392,
+                    "end": 1401,
+                    "text": "Figure 21",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Training Performance"
+        },
+        {
+            "text": "The experiments show that Maliva outperformed the baseline approach in terms of both the number of viable queries and average query response time. Maliva generated up to 70\u00d7 more viable queries than the baseline approach. The advantages of Maliva were shown in both the real datasets and synthetic dataset, for different numbers of rewriting options, different time budgets and different query workloads. Its offline training overhead was relatively small. By considering approximation rules considered, Maliva generated even more viable queries. The comparison with Bao shows the advantage of Maliva due to the fact these two techniques were designed with different settings and optimization goals.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Remarks:"
+        },
+        {
+            "text": "In this paper we studied how to rewrite database queries to improve execution performance in middleware-based visualization systems. We explored two optimization options of adding hints and doing approximation. We developed a novel solution called Maliva, which adopts a Markov Decision Process (MDP) model to rewrite a visualization request under a tight time constraint. We gave a full specification of the solution, including how to construct an MDP model, how to train an agent, and how to use approximating rewriting options. Our experiments on both real and synthetic datasets showed that Maliva performed significantly better than the baseline without no-rewriting options in terms of both the probability of serving a visualization request within a time budget and query execution time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSIONS"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Maintaining interactivity while exploring massive time series",
+            "authors": [
+                {
+                    "first": "Ling",
+                    "middle": [],
+                    "last": "Sye-Min Chan Ands",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pat",
+                    "middle": [],
+                    "last": "Gerth",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hanrahan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the IEEE Symposium on Visual Analytics Science and Technology, IEEE VAST 2008, Columbus",
+            "volume": "",
+            "issn": "",
+            "pages": "19--24",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/VAST.2008.4677357"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Dynamic Prefetching of Data Tiles for Interactive Visualization",
+            "authors": [
+                {
+                    "first": "Leilani",
+                    "middle": [],
+                    "last": "Battle",
+                    "suffix": ""
+                },
+                {
+                    "first": "Remco",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Stonebraker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 International Conference on Management of Data, SIGMOD Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2882903.2882919"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "The Role of Latency and Task Complexity in Predicting Visual Search Behavior",
+            "authors": [
+                {
+                    "first": "Leilani",
+                    "middle": [],
+                    "last": "Battle",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "Jordan"
+                    ],
+                    "last": "Crouser",
+                    "suffix": ""
+                },
+                {
+                    "first": "Audace",
+                    "middle": [],
+                    "last": "Nakeshimana",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ananda",
+                    "middle": [],
+                    "last": "Montoly",
+                    "suffix": ""
+                },
+                {
+                    "first": "Remco",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Stonebraker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Trans. Vis. Comput. Graph",
+            "volume": "26",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TVCG.2019.2934556"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Hillview: A trillion-cell spreadsheet for big data",
+            "authors": [
+                {
+                    "first": "Mihai",
+                    "middle": [],
+                    "last": "Budiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Parikshit",
+                    "middle": [],
+                    "last": "Gopalan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lalith",
+                    "middle": [],
+                    "last": "Suresh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Udi",
+                    "middle": [],
+                    "last": "Wieder",
+                    "suffix": ""
+                },
+                {
+                    "first": "Han",
+                    "middle": [],
+                    "last": "Kruiger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marcos",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Aguilera",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "PVLDB",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Tile based visual analytics for Twitter big data exploratory analysis",
+            "authors": [
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Peter",
+                    "middle": [],
+                    "last": "Schretlen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nathan",
+                    "middle": [],
+                    "last": "Kronenfeld",
+                    "suffix": ""
+                },
+                {
+                    "first": "Neil",
+                    "middle": [],
+                    "last": "Bozowsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Wright",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 2013 IEEE International Conference on Big Data",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/BigData.2013.6691787"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Vizdom: Interactive Analytics through Pen and Touch",
+            "authors": [
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Crotty",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alex",
+                    "middle": [],
+                    "last": "Galakatos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emanuel",
+                    "middle": [],
+                    "last": "Zgraggen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carsten",
+                    "middle": [],
+                    "last": "Binnig",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Kraska",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "PVLDB",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.14778/2824032.2824127"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "The case for interactive data exploration accelerators (IDEAs)",
+            "authors": [
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Crotty",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alex",
+                    "middle": [],
+                    "last": "Galakatos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emanuel",
+                    "middle": [],
+                    "last": "Zgraggen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carsten",
+                    "middle": [],
+                    "last": "Binnig",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Kraska",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the Workshop on Human-In-the-Loop Data Analytics, HILDA@SIGMOD 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2939502.2939513"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Hashedcubes: Simple, Low Memory, Real-Time Visual Exploration of Big Data",
+            "authors": [
+                {
+                    "first": "Sean",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Cicero Augusto De Lara Pahins",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carlos",
+                    "middle": [],
+                    "last": "Stephens",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jo\u00e3o Luiz Dihl",
+                    "middle": [],
+                    "last": "Scheidegger",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Comba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Vis. Comput. Graph",
+            "volume": "23",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TVCG.2016.2598624"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Sample + Seek: Approximating Aggregates with Distribution Precision Guarantee",
+            "authors": [
+                {
+                    "first": "Silu",
+                    "middle": [],
+                    "last": "Bolin Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "Surajit",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kaushik",
+                    "middle": [],
+                    "last": "Chaudhuri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chi",
+                    "middle": [],
+                    "last": "Chakrabarti",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 International Conference on Management of Data, SIGMOD Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2882903.2915249"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "HadoopViz: A MapReduce framework for extensible visualization of big spatial data",
+            "authors": [
+                {
+                    "first": "Ahmed",
+                    "middle": [],
+                    "last": "Eldawy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohamed",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Mokbel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christopher",
+                    "middle": [],
+                    "last": "Jonathan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "32nd IEEE International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDE.2016.7498274"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Trust me, i'm partially right: incremental visualization lets analysts explore large datasets faster",
+            "authors": [
+                {
+                    "first": "Danyel",
+                    "middle": [],
+                    "last": "Fisher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Igor",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Popov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Steven",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Drucker",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "CHI Conference on Human Factors in Computing Systems, CHI '12",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2207676.2208294"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Interactive Visualization of Large Data Sets",
+            "authors": [
+                {
+                    "first": "Parke",
+                    "middle": [],
+                    "last": "Godfrey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jarek",
+                    "middle": [],
+                    "last": "Gryz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Piotr",
+                    "middle": [],
+                    "last": "Lasek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Trans. Knowl. Data Eng",
+            "volume": "28",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TKDE.2016.2557324"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Efficient Selection of Geospatial Data on Maps for Interactive and Visualized Exploration",
+            "authors": [
+                {
+                    "first": "Tao",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kaiyu",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gao",
+                    "middle": [],
+                    "last": "Cong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhifeng",
+                    "middle": [],
+                    "last": "Bao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 International Conference on Management of Data, SIGMOD Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3183713.3183738"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Deep Learning Models for Selectivity Estimation of Multi-Attribute Queries",
+            "authors": [
+                {
+                    "first": "Shohedul",
+                    "middle": [],
+                    "last": "Hasan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Saravanan",
+                    "middle": [],
+                    "last": "Thirumuruganathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jees",
+                    "middle": [],
+                    "last": "Augustine",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nick",
+                    "middle": [],
+                    "last": "Koudas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gautam",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 International Conference on Management of Data, SIGMOD Conference 2020, online conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3318464.3389741"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "VizML: A Machine Learning Approach to Visualization Recommendation",
+            "authors": [
+                {
+                    "first": "Kevin",
+                    "middle": [
+                        "Zeng"
+                    ],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michiel",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Bakker",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stephen",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Kraska",
+                    "suffix": ""
+                },
+                {
+                    "first": "C\u00e9sar",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Hidalgo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems, CHI 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3290605.3300358"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "VisReduce: Fast and responsive incremental information visualization of large datasets",
+            "authors": [
+                {
+                    "first": "Jean-Francois",
+                    "middle": [],
+                    "last": "Im",
+                    "suffix": ""
+                },
+                {
+                    "first": "Felix",
+                    "middle": [
+                        "Giguere"
+                    ],
+                    "last": "Villegas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mcguffin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 2013 IEEE International Conference on Big Data",
+            "volume": "",
+            "issn": "",
+            "pages": "6--9",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/BigData.2013.6691710"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Accelerating Spatial Data Visualization Dashboards via a Materialized Sampling Approach",
+            "authors": [
+                {
+                    "first": "Jia",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohamed",
+                    "middle": [],
+                    "last": "Sarwat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Evaluating Interactive Data Systems: Workloads, Metrics, and Guidelines",
+            "authors": [
+                {
+                    "first": "Lilong",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Protiva",
+                    "middle": [],
+                    "last": "Rahman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arnab",
+                    "middle": [],
+                    "last": "Nandi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 International Conference on Management of Data, SIGMOD Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3183713.3197386"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Distributed and interactive cube exploration",
+            "authors": [
+                {
+                    "first": "Niranjan",
+                    "middle": [],
+                    "last": "Kamat",
+                    "suffix": ""
+                },
+                {
+                    "first": "Prasanth",
+                    "middle": [],
+                    "last": "Jayachandran",
+                    "suffix": ""
+                },
+                {
+                    "first": "Karthik",
+                    "middle": [],
+                    "last": "Tunga",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arnab",
+                    "middle": [],
+                    "last": "Nandi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE 30th International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDE.2014.6816674"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Northstar: An Interactive Data Science System",
+            "authors": [
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Kraska",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "PVLDB",
+            "volume": "11",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Learning to Optimize Join Queries With Deep Reinforcement Learning",
+            "authors": [
+                {
+                    "first": "Sanjay",
+                    "middle": [],
+                    "last": "Krishnan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zongheng",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ken",
+                    "middle": [],
+                    "last": "Goldberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joseph",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hellerstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ion",
+                    "middle": [],
+                    "last": "Stoica",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1808.03196"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "The Case for a Visual Discovery Assistant: A Holistic Solution for Accelerating Visual Data Exploration",
+            "authors": [
+                {
+                    "first": "Doris",
+                    "middle": [
+                        "Jung"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lin",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aditya",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Parameswaran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Data Eng. Bull",
+            "volume": "41",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Approximate Query Processing: What is New and Where to Go? -A Survey on Approximate Query Processing",
+            "authors": [
+                {
+                    "first": "Kaiyu",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guoliang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Data Science and Engineering",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s41019-018-0074-4"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Nanocubes for Real-Time Exploration of Spatiotemporal Datasets",
+            "authors": [
+                {
+                    "first": "James",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Lauro Didier Lins",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carlos",
+                    "middle": [
+                        "Eduardo"
+                    ],
+                    "last": "Klosowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Scheidegger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE Trans. Vis. Comput. Graph",
+            "volume": "19",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TVCG.2013.179"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "The Effects of Interactive Latency on Exploratory Visual Analysis",
+            "authors": [
+                {
+                    "first": "Zhicheng",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [],
+                    "last": "Heer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE Trans. Vis. Comput. Graph",
+            "volume": "20",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TVCG.2014.2346452"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "imMens: Real-time Visual Querying of Big Data",
+            "authors": [
+                {
+                    "first": "Zhicheng",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Biye",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [],
+                    "last": "Heer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Comput. Graph. Forum",
+            "volume": "32",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1111/cgf.12129"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Is Query Optimization a \"Solved",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Lohman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Problem? ACM SIGMOD Blog. ACM Blog",
+            "volume": "14",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Interactive Cleaning for Progressive Visualization through Composite Questions",
+            "authors": [
+                {
+                    "first": "Yuyu",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengliang",
+                    "middle": [],
+                    "last": "Chai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xuedi",
+                    "middle": [],
+                    "last": "Qin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nan",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guoliang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "36th IEEE International Conference on Data Engineering",
+            "volume": "2020",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDE48307.2020.00069"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Deep-Eye: Creating Good Data Visualizations by Keyword Search",
+            "authors": [
+                {
+                    "first": "Yuyu",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xuedi",
+                    "middle": [],
+                    "last": "Qin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nan",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guoliang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xinran",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 International Conference on Management of Data, SIGMOD Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3183713.3193545"
+                ]
+            }
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Bao: Learning to Steer Query Optimizers",
+            "authors": [
+                {
+                    "first": "Ryan",
+                    "middle": [],
+                    "last": "Marcus",
+                    "suffix": ""
+                },
+                {
+                    "first": "Parimarjan",
+                    "middle": [],
+                    "last": "Negi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hongzi",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nesime",
+                    "middle": [],
+                    "last": "Tatbul",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohammad",
+                    "middle": [],
+                    "last": "Alizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Kraska",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.03814"
+                ]
+            }
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Bao: Making Learned Query Optimization Practical",
+            "authors": [
+                {
+                    "first": "Ryan",
+                    "middle": [],
+                    "last": "Marcus",
+                    "suffix": ""
+                },
+                {
+                    "first": "Parimarjan",
+                    "middle": [],
+                    "last": "Negi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hongzi",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nesime",
+                    "middle": [],
+                    "last": "Tatbul",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohammad",
+                    "middle": [],
+                    "last": "Alizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Kraska",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "SIGMOD '21: International Conference on Management of Data, Virtual Event",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3448016.3452838"
+                ]
+            }
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Deep Reinforcement Learning for Join Order Enumeration",
+            "authors": [
+                {
+                    "first": "Ryan",
+                    "middle": [],
+                    "last": "Marcus",
+                    "suffix": ""
+                },
+                {
+                    "first": "Olga",
+                    "middle": [],
+                    "last": "Papaemmanouil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the First International Workshop on Exploiting Artificial Intelligence Techniques for Data Management",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3211954.3211957"
+                ]
+            }
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Neo: A Learned Query Optimizer",
+            "authors": [
+                {
+                    "first": "Ryan",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Marcus",
+                    "suffix": ""
+                },
+                {
+                    "first": "Parimarjan",
+                    "middle": [],
+                    "last": "Negi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hongzi",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chi",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohammad",
+                    "middle": [],
+                    "last": "Alizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Kraska",
+                    "suffix": ""
+                },
+                {
+                    "first": "Olga",
+                    "middle": [],
+                    "last": "Papaemmanouil",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nesime",
+                    "middle": [],
+                    "last": "Tatbul",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. VLDB Endow",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.14778/3342263.3342644"
+                ]
+            }
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Playing Atari with Deep Reinforcement Learning",
+            "authors": [
+                {
+                    "first": "Volodymyr",
+                    "middle": [],
+                    "last": "Mnih",
+                    "suffix": ""
+                },
+                {
+                    "first": "Koray",
+                    "middle": [],
+                    "last": "Kavukcuoglu",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Silver",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alex",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ioannis",
+                    "middle": [],
+                    "last": "Antonoglou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daan",
+                    "middle": [],
+                    "last": "Wierstra",
+                    "suffix": ""
+                },
+                {
+                    "first": "Martin",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Riedmiller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1312.5602"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Trust, but Verify: Optimistic Visualizations of Approximate Queries for Exploring Big Data",
+            "authors": [
+                {
+                    "first": "Dominik",
+                    "middle": [],
+                    "last": "Moritz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Danyel",
+                    "middle": [],
+                    "last": "Fisher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bolin",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chi",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 CHI Conference on Human Factors in Computing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3025453.3025456"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Falcon: Balancing Interactive Latency and Resolution Sensitivity for Scalable Linked Visualizations",
+            "authors": [
+                {
+                    "first": "Dominik",
+                    "middle": [],
+                    "last": "Moritz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bill",
+                    "middle": [],
+                    "last": "Howe",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [],
+                    "last": "Heer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems, CHI 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3290605.3300924"
+                ]
+            }
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "SnappyData: A Unified Cluster for Streaming, Transactions and Interactice Analytics",
+            "authors": [
+                {
+                    "first": "Barzan",
+                    "middle": [],
+                    "last": "Mozafari",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jags",
+                    "middle": [],
+                    "last": "Ramnarayan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sudhir",
+                    "middle": [],
+                    "last": "Menon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yogesh",
+                    "middle": [],
+                    "last": "Mahajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Soubhik",
+                    "middle": [],
+                    "last": "Chakraborty",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hemant",
+                    "middle": [],
+                    "last": "Bhanawat",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kishor",
+                    "middle": [],
+                    "last": "Bachhav",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CIDR 2017, 8th Biennial Conference on Innovative Data Systems Research",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Visualizationaware sampling for very large databases",
+            "authors": [
+                {
+                    "first": "Yongjoo",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Cafarella",
+                    "suffix": ""
+                },
+                {
+                    "first": "Barzan",
+                    "middle": [],
+                    "last": "Mozafari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "32nd IEEE International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDE.2016.7498287"
+                ]
+            }
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "VerdictDB: Universalizing Approximate Query Processing",
+            "authors": [
+                {
+                    "first": "Yongjoo",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "Barzan",
+                    "middle": [],
+                    "last": "Mozafari",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Sorenson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Junhao",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 International Conference on Management of Data, SIGMOD Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3183713.3196905"
+                ]
+            }
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "QuickSel: Quick Selectivity Learning with Mixture Models",
+            "authors": [
+                {
+                    "first": "Yongjoo",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shucheng",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Barzan",
+                    "middle": [],
+                    "last": "Mozafari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 International Conference on Management of Data, SIGMOD Conference 2020, online conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3318464.3389727"
+                ]
+            }
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "AQP++: Connecting Approximate Query Processing With Aggregate Precomputation for Interactive Analytics",
+            "authors": [
+                {
+                    "first": "Jinglin",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dongxiang",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiannan",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jian",
+                    "middle": [],
+                    "last": "Pei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 International Conference on Management of Data, SIGMOD Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3183713.3183747"
+                ]
+            }
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Provenance for Interactive Visualizations",
+            "authors": [
+                {
+                    "first": "Fotis",
+                    "middle": [],
+                    "last": "Psallidas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eugene",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the Workshop on Human-In-the-Loop Data Analytics, HILDA@SIGMOD 2018",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3209900.3209904"
+                ]
+            }
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "ML-based Visualization Recommendation: Learning to Recommend Visualizations from Data",
+            "authors": [
+                {
+                    "first": "Xin",
+                    "middle": [],
+                    "last": "Qian",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ryan",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rossi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fan",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sungchul",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eunyee",
+                    "middle": [],
+                    "last": "Koh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sana",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joel",
+                    "middle": [],
+                    "last": "Tak Yeon Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2009.12316"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "2017. I've Seen \"Enough\": Incrementally Improving Visualizations to Support Rapid Decision Making",
+            "authors": [
+                {
+                    "first": "Sajjadur",
+                    "middle": [],
+                    "last": "Rahman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maryam",
+                    "middle": [],
+                    "last": "Aliakbarpour",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hidy",
+                    "middle": [],
+                    "last": "Kong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Blais",
+                    "suffix": ""
+                },
+                {
+                    "first": "Karrie",
+                    "middle": [],
+                    "last": "Karahalios",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aditya",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Parameswaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ronitt",
+                    "middle": [],
+                    "last": "Rubinfeld",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "PVLDB",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.14778/3137628.3137637"
+                ]
+            }
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Xmdvtool Q : : quality-aware interactive data exploration",
+            "authors": [
+                {
+                    "first": "Elke",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rundensteiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matthew",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Ward",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zaixian",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Qingguang",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Charudatta",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Wad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Di",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shiping",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the ACM SIGMOD International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1247480.1247623"
+                ]
+            }
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "MONSOON: Multi-Step Optimization and Execution of Queries with Partially Obscured Predicates",
+            "authors": [
+                {
+                    "first": "Sourav",
+                    "middle": [],
+                    "last": "Sikdar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Jermaine",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 International Conference on Management of Data, SIGMOD Conference 2020, online conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3318464.3389728"
+                ]
+            }
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "An End-to-End Learning-based Cost Estimator",
+            "authors": [
+                {
+                    "first": "Ji",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guoliang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. VLDB Endow",
+            "volume": "13",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.14778/3368289.3368296"
+                ]
+            }
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Reinforcement learning -an introduction",
+            "authors": [
+                {
+                    "first": "Richard",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Sutton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Barto",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Kyrix: Interactive Pan/Zoom Visualizations at Scale",
+            "authors": [
+                {
+                    "first": "Wenbo",
+                    "middle": [],
+                    "last": "Tao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaoyu",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yedi",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leilani",
+                    "middle": [],
+                    "last": "Battle",
+                    "suffix": ""
+                },
+                {
+                    "first": "\u00c7agatay",
+                    "middle": [],
+                    "last": "Demiralp",
+                    "suffix": ""
+                },
+                {
+                    "first": "Remco",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Stonebraker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Comput. Graph. Forum",
+            "volume": "38",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1111/cgf.13708"
+                ]
+            }
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Adaptive epsilon-Greedy Exploration in Reinforcement Learning Based on Value Difference",
+            "authors": [
+                {
+                    "first": "Michel",
+                    "middle": [],
+                    "last": "Tokic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "KI 2010: Advances in Artificial Intelligence, 33rd Annual German Conference on AI",
+            "volume": "6359",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-16111-7_23"
+                ]
+            }
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "SkinnerDB: Regret-Bounded Query Evaluation via Reinforcement Learning",
+            "authors": [
+                {
+                    "first": "Immanuel",
+                    "middle": [],
+                    "last": "Trummer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Junxiong",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Deepak",
+                    "middle": [],
+                    "last": "Maram",
+                    "suffix": ""
+                },
+                {
+                    "first": "Samuel",
+                    "middle": [],
+                    "last": "Moseley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Saehan",
+                    "middle": [],
+                    "last": "Jo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Antonakakis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 International Conference on Management of Data, SIGMOD Conference 2019, Amsterdam",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3299869.3300088"
+                ]
+            }
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Applying Machine Learning Advances to Data Visualization: A Survey on ML4VIS",
+            "authors": [
+                {
+                    "first": "Qianwen",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhutian",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yong",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Huamin",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2012.00467"
+                ]
+            }
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "A Perception-Driven Approach to Supervised Dimensionality Reduction for Visualization",
+            "authors": [
+                {
+                    "first": "Yunhai",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kang",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaowei",
+                    "middle": [],
+                    "last": "Chu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jian",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chi-Wing",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Sedlmair",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaohui",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Baoquan",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Trans. Vis. Comput. Graph",
+            "volume": "24",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TVCG.2017.2701829"
+                ]
+            }
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Gaussian Cubes: Real-Time Modeling for Visual Exploration of Large Multidimensional Datasets",
+            "authors": [
+                {
+                    "first": "Zhe",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nivan",
+                    "middle": [],
+                    "last": "Ferreira",
+                    "suffix": ""
+                },
+                {
+                    "first": "Youhao",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aarthy Sankari",
+                    "middle": [],
+                    "last": "Bhaskar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carlos",
+                    "middle": [],
+                    "last": "Scheidegger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Vis. Comput. Graph",
+            "volume": "23",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TVCG.2016.2598694"
+                ]
+            }
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "Technical Note Q-Learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "C H"
+                    ],
+                    "last": "Christopher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Peter",
+                    "middle": [],
+                    "last": "Watkins",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Dayan",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "Mach. Learn",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/BF00992698"
+                ]
+            }
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "Predicting query execution time: Are optimizer cost models really unusable",
+            "authors": [
+                {
+                    "first": "Wentao",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yun",
+                    "middle": [],
+                    "last": "Chi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shenghuo",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hakan",
+                    "middle": [],
+                    "last": "Jun&apos;ichi Tatemura",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Hacig\u00fcm\u00fcs",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Naughton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "29th IEEE International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDE.2013.6544899"
+                ]
+            }
+        },
+        "BIBREF66": {
+            "ref_id": "b66",
+            "title": "Uncertainty Aware Query Execution Time Prediction",
+            "authors": [
+                {
+                    "first": "Wentao",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xi",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hakan",
+                    "middle": [],
+                    "last": "Hacig\u00fcm\u00fcs",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Naughton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "PVLDB",
+            "volume": "7",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF67": {
+            "ref_id": "b67",
+            "title": "Hippo in Action: Scalable Indexing of a Billion New York City Taxi Trips and Beyond",
+            "authors": [
+                {
+                    "first": "Jia",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Raha",
+                    "middle": [],
+                    "last": "Moraffah",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohamed",
+                    "middle": [],
+                    "last": "Sarwat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "33rd IEEE International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDE.2017.201"
+                ]
+            }
+        },
+        "BIBREF68": {
+            "ref_id": "b68",
+            "title": "GeoSparkViz: a scalable geospatial data visualization framework in the apache spark ecosystem",
+            "authors": [
+                {
+                    "first": "Jia",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zongsi",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohamed",
+                    "middle": [],
+                    "last": "Sarwat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 30th International Conference on Scientific and Statistical Database Management, SSDBM 2018",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3221269.3223040"
+                ]
+            }
+        },
+        "BIBREF69": {
+            "ref_id": "b69",
+            "title": "Reinforcement Learning with Tree-LSTM for Join Order Selection",
+            "authors": [
+                {
+                    "first": "Xiang",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guoliang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengliang",
+                    "middle": [],
+                    "last": "Chai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nan",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "36th IEEE International Conference on Data Engineering",
+            "volume": "2020",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICDE48307.2020.00116"
+                ]
+            }
+        },
+        "BIBREF70": {
+            "ref_id": "b70",
+            "title": "G-OLA: Generalized On-Line Aggregation for Interactive Analysis on Big Data",
+            "authors": [
+                {
+                    "first": "Kai",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sameer",
+                    "middle": [],
+                    "last": "Agarwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ankur",
+                    "middle": [],
+                    "last": "Dave",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Armbrust",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ion",
+                    "middle": [],
+                    "last": "Stoica",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 2015 ACM SIGMOD International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2723372.2735381"
+                ]
+            }
+        },
+        "BIBREF71": {
+            "ref_id": "b71",
+            "title": "Sapprox: Enabling Efficient and Accurate Approximations on Sub-datasets with Distribution-aware Online Sampling",
+            "authors": [
+                {
+                    "first": "Xuhong",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jun",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiangling",
+                    "middle": [],
+                    "last": "Yin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shouling",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "PVLDB",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.14778/3021924.3021928"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "\u00a9 2022 Copyright held by the owner/author(s). Published in Proceedings of the 25th International Conference on Extending Database Technology (EDBT), 29th March-1st April, 2022, ISBN 978-3-89318-086-8 on OpenProceedings.org. Distribution of this paper is permitted under the terms of the Creative Commons license CC-by-nc-nd 4.0. Database Traditional middleware SELECT BIN_ID, COUNT(*) FROM tweets WHERE Content contains \"covid\" AND Location in ((-124.4, 32.5), (-114.1, 42.0)) AND CreateAt on Nov-26-2020 GROUP BY BIN_ID(Location); (a) The original SQL query takes 3.35 . Database Maliva: ML-based middleware /*+ Index-Scan( CreateAt ) */ SELECT BIN_ID, COUNT(*) FROM tweets WHERE Content contains \"covid\" AND Location in ((-124.4, 32.5), (-114.1, 42.0)) AND CreateAt on Nov-26-2020 GROUP BY BIN_ID(Location);(b) A rewritten query with a hint takes 0.33 .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Equivalent rewriting option: adding query hints helps the database compute results with a time constraint (500 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "contains \"covid\" AND Location in ((-132.6, 27.7), (-103.5, 40.0)) AND CreateAt on Nov-26-2020; (a) The query takes 4.28 (no hints can reduce it). Database Maliva: ML-based middleware SELECT Id, Location FROM sample_tweets WHERE Content contains \"covid\" AND Location in((-132.6, 27.7), (-103.5, 40.0)) AND CreateAt on Nov-26-2020;(b) A rewritten query using a sample table takes 0.45 .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Approximation rewriting option: rewriting the query to compute an approximate result within the time constraint.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "FROM tweets t, users u WHERE t.Content contains \"covid\" AND t.Location in ((-124.4, 32.5), (-114.1, 42.0)) AND t.CreateAt on 'Nov-26-2020' AND u.TweetCnt in [100, 5000] AND t.user_id = u.id GROUP BY BIN_ID(t.Location); FROM tweetsSample20 t, users u WHERE t.Content contains \"covid\" AND t.Location in ((-124.4, 32.5), (-114.1, 42.0)) AND t.CreateAt on 'Nov-26-2020' AND u.TweetCnt in [100, 5000] AND t.user_id = u.id GROUP BY BIN_ID(t.Location); A original query and a rewritten query.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Definition 2.2. (Rewritten Query) Given an original SQL query and a rewriting option , a rewritten query (\"RQ\" for short) is a new SQL query generated by applying onto . If = (\u2205, \u2205), then = .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Overview of Maliva.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "(3) is the estimated time for each already explored . Each is initialized with a 0 value until it is filled with an estimated execution time. An MDP state in Maliva.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "Transition after estimating execution time of 1 .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Q-network in Maliva for query rewriting.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "1 , 2 , . . . , , 0, 0, . . . , 0); 7 Remaining set \u2190 query 's all possible RQs { 1 , 2 , . . . , experience tuple ( , , \u2032 , \u2032 ) in ; // Remove query from the remaining set 19 \u2190 \u2212 { }; \u2190 \u2032 ; \u2190 \u2032 ;",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "Generating an RQ online Input: A new query A trained policy A transition function T A reward function R A time budget Output: An RQ 1 State \u2190 (0, 1 , 2 , . . . , , 0, 0, . . . , 0); 2 Remaining set \u2190 query 's all possible RQs { 1 , 2 , . . . , . \u2265 or = \u2205 then 12 return with the minimum execution time estimated in ; 13 end",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "FROM tweetsSample60 t WHERE Content contains \"covid\" AND Location in ((-132.6, 27.7), (-103.5, 40.0)) AND CreateAt in Nov-2020; SELECT Id, Location FROM tweets t WHERE Content contains \"covid\" AND Location in ((-132.6, 27.7), (-103.5, 40.0)) AND CreateAt in Nov-2020;",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF14": {
+            "text": "One-stage MDP approach.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF17": {
+            "text": "Viable query percentage using PostgreSQL on Twitter, NYC Taxi and TPC-H datasets.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF19": {
+            "text": "TPC-H ( = 500 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF20": {
+            "text": "Average query response time using PostgreSQL on Twitter, NYC Taxi and TPC-H datasets.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF22": {
+            "text": "Viable query percentages for different numbers of rewrite options using PostgreSQL on Twitter dataset. (Time budget = 500 .) MDP (Appr.-QTE) Query MDP (Accu.-QTE) Query (b) 32 rewrite options.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF23": {
+            "text": "Average query response time for different numbers of rewrite options using PostgreSQL on Twitter dataset. (Time budget = 500 .)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF24": {
+            "text": "shows the results of average query-response time. Consistent with the VQP results, all MDP-based approaches outperformed both Bao and the baseline approach for hard queries with fewer viable plans. For example, the MDP-based approach using an Approximate-QTE reduced the average query-response time from the baseline's 1.13 seconds and Bao's 1.05 seconds to 0.66 seconds for workloads with 16 rewrite options and one or budget = 1.0 second.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF25": {
+            "text": "Viable query percentages using PostgreSQL on Twitter dataset for different time budgets. MDP (Appr.-QTE) Query MDP (Accu.-QTE) Query (c) Time budget = 1.0 second.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF26": {
+            "text": "Average query response time using PostgreSQL on Twitter dataset for different time budgets.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF27": {
+            "text": "MDP (Appr.-QTE) Query MDP (Accu.-QTE) Query (b) Average query response time.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF28": {
+            "text": "Performance on join queries using PostgreSQL on Twitter dataset. (Time budget = 500 .)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF29": {
+            "text": "(a)), and Maliva still outperformed Bao because of Bao's long time of enumerating all possible rewritten queries.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF30": {
+            "text": "queries ( = 500 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF31": {
+            "text": "DB ( = 250 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF32": {
+            "text": "Generalization to (a) handle unseen queries and (b) use a commercial database.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF34": {
+            "text": "Performance of quality-aware rewriting approaches using PostgreSQL on Twitter dataset. (Time budget = 500 .) curve for 8 rewrite options.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF35": {
+            "text": "curve for 32 rewrite options.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF36": {
+            "text": "time curves for 8, 16, and 32 rewrite options.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF37": {
+            "text": "Learning curves and training time curves (varying number of training queries) for 8 and 32 rewrite options using PostgreSQL on Twitter dataset (shaded area is plotted with (mean + standard deviation) as the upper bound and (mean \u2212 standard deviation) as the lower bound).",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "substituting a table with a smaller table randomly sampled from the original table. For example, in",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Datasets.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "Number of queries in evaluation workloads.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Workloads with 16 and 32 rewrite options.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

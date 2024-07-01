@@ -1,0 +1,1816 @@
+{
+    "paper_id": "5d8660e7728bde33ad7b951c83b4151bba8601b1",
+    "metadata": {
+        "title": "Differentially-Private Publication of Origin-Destination Matrices with Intermediate Stops",
+        "authors": [
+            {
+                "first": "Sina",
+                "middle": [],
+                "last": "Shaham",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Southern California Los Angeles",
+                    "location": {
+                        "region": "California",
+                        "country": "USA"
+                    }
+                },
+                "email": "sshaham@usc.edu"
+            },
+            {
+                "first": "Gabriel",
+                "middle": [],
+                "last": "Ghinita",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Massachusetts Boston",
+                    "location": {
+                        "region": "Massachusetts",
+                        "country": "USA"
+                    }
+                },
+                "email": "gghinita@cs.umb.edu"
+            },
+            {
+                "first": "Cyrus",
+                "middle": [],
+                "last": "Shahabi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Southern California Los Angeles",
+                    "location": {
+                        "region": "California",
+                        "country": "USA"
+                    }
+                },
+                "email": "shahabi@usc.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Conventional origin-destination (OD) matrices record the count of trips between pairs of start and end locations, and have been extensively used in transportation, traffic planning, etc. More recently, due to use case scenarios such as COVID-19 pandemic spread modeling, it is increasingly important to also record intermediate points along an individual's path, rather than only the trip start and end points. This can be achieved by using a multi-dimensional frequency matrix over a data space partitioning at the desired level of granularity. However, serious privacy constraints occur when releasing OD matrix data, and especially when adding multiple intermediate points, which makes individual trajectories more distinguishable to an attacker. To address this threat, we propose a technique for privacy-preserving publication of multi-dimensional OD matrices that achieves differential privacy (DP), the de-facto standard in private data release. We propose a family of approaches that factor in important data properties such as data density and homogeneity in order to build OD matrices that provide provable protection guarantees while preserving query accuracy. Extensive experiments on real and synthetic datasets show that the proposed approaches clearly outperform existing state-of-the-art.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Origin-destination (OD) matrices have been extensively used to characterize the demand for transportation between pairs of start and end trip points. Using OD matrices, one can provision appropriate capacity for a transportation infrastructure, by determining what is the demand (or trip frequency) for each source-destination pair. However, novel applications require more level of detail, for which conventional OD matrices are insufficient, due to the fact that they have a 2D structure, and intermediate points along a trajectory cannot be captured. Consider, for instance, the study of COVID-19 spread patterns in the ongoing pandemic, where an analyst needs to determine not only the end points of a trajectory, but also the intermediate points that a certain individual has visited, and where possible exposure to the virus occurred. In this case, it is necessary to record several distinct points across a trajectory, which leads to an increase in the dimensionality of OD matrices. We denote such enhanced data structures as OD matrices with intermediate stops.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "While such detailed OD matrices capture additional information, they also pose a more serious privacy threat for the individuals included in the data, since the finer level of granularity of trajectory representation allows an adversary to pinpoint a user with better accuracy. For instance, there may be a large number of users that travel between a suburban neighborhood and the city center. However, when intermediate stops are also included, e.g., a specific type of store that sells ethnic products, a gym specializing on a certain type of yoga, and a fertility clinic, there are far fewer individuals who follow such a path (and sometimes, perhaps just one individual), which may lead to serious privacy breaches related to that individual's gender, race and lifestyle details. It is thus essential to protect the privacy of individuals whose trajectories are aggregated to build detailed OD matrices, and differential privacy (DP) [7] is the model of choice to achieve an appropriate level of protection.",
+            "cite_spans": [
+                {
+                    "start": 938,
+                    "end": 941,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Specifically, DP bounds the ability of an adversary such that s/he cannot determine with significant probability whether the trajectory data of a target individual is present in the released OD matrix or not. The OD matrix with intermediate stop points is equivalent to a multi-dimensional frequency matrix, in which an element represents the number of individuals who took a trip that includes that specific sequence of start, intermediate and end points. According to DP, carefully calibrated noise is added to each count to bound the identification probability of any single individual.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Several approaches tackled the problem of protecting frequency matrices for location data, but they do have serious limitations. For instance, solutions for DP-compliant location data histograms [4, 15, 20, 21] build data-independent structures that do not adapt well to data density, and assume a fixed dimensionality of the indexing structure, typically 2D only. As we show in Section 6, they do not handle well skewed datasets, which are the most typical ones in the case of geospatial data. Another category of approaches attempts to capture trajectories using prefix trees or -grams [1, 2] , but those approaches transform cells in the data domain into a sequence of abstract string labels, and lose the proximity semantics that are so important when querying location-based data.",
+            "cite_spans": [
+                {
+                    "start": 195,
+                    "end": 198,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 199,
+                    "end": 202,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 203,
+                    "end": 206,
+                    "text": "20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 207,
+                    "end": 210,
+                    "text": "21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 588,
+                    "end": 591,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 592,
+                    "end": 594,
+                    "text": "2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We propose a novel technique for sanitization of OD matrices with intermediate stops such that location proximity semantics are preserved, and at the same time the characteristics of the data are carefully factored in to boost query accuracy. Specifically, we build custom data structures that tune important characteristics like index fan-out and split points to account for data properties. This way, we are able to achieve superior accuracy while at the same time enforcing the strong protection guarantees of DP.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Our specific contributions are:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 We identify important properties of indexing data structures that have a high impact on query accuracy when representing location frequency matrices; \u2022 We design customized approaches that are guided by intrinsic data properties and automatically tune structure parameters, such as fan-out, split points and index height; \u2022 We perform a detailed analysis of the obtained data structures that allows us to allocate differential privacy budget in a manner that is conducive to preserving as much data accuracy as possible under a given privacy constraint; \u2022 We perform an extensive experimental evaluation on both real and synthetic datasets which shows that our proposed techniques adapt well to data characteristics and outperform existing state-of-the-art in terms of query accuracy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Section 2 introduces necessary background concepts and definitions. Section 3 outlines data-independent techniques, followed by data-adaptive approaches in Section 4. Section 5 surveys related work. We present experimental evaluation results in Section 6, followed by conclusions in Section 7.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We assume the two-party system model shown in Fig. 1 : a trusted data curator/owner collects the frequency matrix directly from individuals and sanitizes the data. Untrusted data analysts are interested in querying the private frequency matrix. Let 1 \u00d7 2 \u00d7 ... \u00d7 be a -dimensional array representing a frequency matrix . Each entry \u2208 is a number denoting a frequency or count. For example, a two-dimensional frequency matrix can model a map with each entry indicating the number of individuals located in a particular area. The frequency matrix corresponds to a -dimensional finite space hyper-rectangle, or -orthotope. According to the differential privacy model, a protection mechanism adds to each matrix element noise from a carefully selected random distribution to prevent an adversary from learning with significant probability whether a particular individual's data was used or not when creating the matrix.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 46,
+                    "end": 52,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "BACKGROUND AND DEFINITIONS"
+        },
+        {
+            "text": "Differential privacy (DP) [7] is a popular privacy model which provides strong protection guarantees. It presents an aggregate query interface (i.e., count queries) and ensures that the presence or absence of an individual in the data does not significantly change the results of a query. Consider two frequency matrices and \u2032 that differ in a single record , i.e., \u2032 = { } or \u2032 = \u29f9{ }. and \u2032 are commonly referred to as neighboring or sibling datasets.",
+            "cite_spans": [
+                {
+                    "start": 26,
+                    "end": 29,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Differential Privacy"
+        },
+        {
+            "text": "A provides -DP if for any pair of neighboring frequency matrices and \u2032 , and any output value \u2208 (A),",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 ( -Differential Privacy). A randomized mechanism"
+        },
+        {
+            "text": "Parameter is the privacy budget: lower values result in stricter privacy, but also require addition of noise with larger magnitude, decreasing query accuracy. The sequential composability property Laplace noise with sensitivity and budget of DP states that running in succession multiple mechanisms that each satisfy DP with privacy budgets 1 , 2 , ..., respectively, is equivalent to the execution of a single mechanism with = =1 . An essential concept of DP is the sensitivity of queries, which measures the maximal difference that can be achieved by the addition or removal of a single individual's record in the database.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 ( -Differential Privacy). A randomized mechanism"
+        },
+        {
+            "text": "Definition 2 ( 1 -Sensitivity). Given two sibling datasets , \u2032 and a set of real-valued functions G = { 1 , 2 , ..., }, the 1sensitivity of is measured as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 ( -Differential Privacy). A randomized mechanism"
+        },
+        {
+            "text": "The Laplace mechanism is a widely used technique to achieve -DP. It adds to the output of a query function noise drawn from a Laplace distribution with scale , where depends on two factors: sensitivity and privacy budget.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 ( -Differential Privacy). A randomized mechanism"
+        },
+        {
+            "text": "In the rest of the paper, we denote Laplace noise by ( ). In the case of query functions that are modeled through a partitioning of the dataspace (e.g., a set of non-overlapping histogram bins), sensitivity is equal to 1, since a record can fall in exactly one partition.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 ( -Differential Privacy). A randomized mechanism"
+        },
+        {
+            "text": "Starting with an input frequency matrix, we create a set of nonoverlapping partitions of the matrix and then publish a set of noisy counts for each of these partitions, according to the Laplace mechanism. The sanitized, DP-compliant frequency matrix consists of the boundaries of all partitions and their noisy counts. Since partitions are non-overlapping, we keep sensitivity low (i.e., 1). We refer to each input cell in the original frequency matrix as an entry, hence a partition is a group of matrix entries. Analysts (i.e., users of the sanitized matrix) ask multi-dimensional range queries.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Statement"
+        },
+        {
+            "text": "A range query on the frequency matrix is a -orthotope with dimensions denoted as 1 \u00d7 2 \u00d7 ... \u00d7 , where represents a continuous interval in dimension .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3. (Range Query)"
+        },
+        {
+            "text": "For example, consider the 3 \u00d7 2 \u00d7 3 frequency matrix shown in Fig. 1 . The generation of partitions is referred to as partitioning and the addition of noise to total sums is referred to as sanitization. The example shows a sample partitioning of the matrix generating three partitions 1 , 2 and 3 with total counts of 2, 4 and 12, respectively. In a simplified setup, the sanitization follows by adding Laplace noise to the partitions' total count and answering queries based on the resulting private frequency matrix. Moreover, a uniformity assumption [4] is made within each partition to answer queries with varying shapes and sizes. For example, if the sanitized counts are 2 + 1 , 4 + 2 , and 12 + 3 , where denotes Laplace noise added for sanitization, and an analyst asks a query including two cells whose borders are shown in bold red color, the answer is 12 + 3 6",
+            "cite_spans": [
+                {
+                    "start": 553,
+                    "end": 556,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 62,
+                    "end": 68,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Definition 3. (Range Query)"
+        },
+        {
+            "text": "Suppose that the total count of a partition entailing entries is , and its noisy count is denoted by . One can see that there are two sources of error while answering a query. The first type of error is referred to as noise error, which is due to Laplace noise added to the partition counts. The second source of error is referred to as uniformity error. The uniformity error arises as the assumption of uniformity is made within each partition so that the noisy count of a cell in the partition can be calculated as / .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3. (Range Query)"
+        },
+        {
+            "text": "To evaluate accuracy of query results, we use the mean relative error (MRE). For a query with the true count and noisy count , MRE is calculated as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3. (Range Query)"
+        },
+        {
+            "text": "Problem 1. Given a frequency matrix , generate an -differentially private version of such that the expected value of relative error (MRE) is minimized.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3. (Range Query)"
+        },
+        {
+            "text": "In the design of methods for the publication of private frequency matrices, we make extensive use of entropy to understand the amount of information contained in the frequency matrix and the effect that partitioning has on information loss. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3. (Range Query)"
+        },
+        {
+            "text": "Conventional OD matrices allow analysts to determine how many individuals traveled between pairs of locations, e.g., between the central business district (CBD) and a suburb. Increasing availability of mobile data and their use in complex planning problems makes it important to expand the expressiveness of OD matrices, by allowing one to include intermediate stops, which essentially amounts to supporting queries on trajectories. Furthermore, conventional OD matrices tend to use abstract representations of locations, where the spatial information may be lost, e.g., by tabulating counts of individuals traveling between pairs of zipcodes. Proximity of zipcodes may be lost in the process, and if one wishes to change the representation granularity, or perform range-based queries (e.g., find how many users traveled from a 1 circle centered at point to a 1 circle centered at ), such functionality is not possible. Our proposed multi-dimensional histograms produce a hierarchical partitioning of the data domain that preserves locality and proximity information. It allows flexible queries, and captures intermediate points along a trajectory, as shown in Figure 2 . Assume a trajectory representation where one wishes to capture daily activities across several time frames, e.g., morning->noon->evening. Trajectory 1 corresponds to a person who lives in a suburb, works in CBD and goes to see a play in the evening. This can be captured using a multi-dimensional histogram where the first pair of spatial coordinates corresponds to the morning location (suburb), followed by another pair in the CBD, and finally the evening in the theater district. Each of the time frames can be partitioned independently, resulting in the structure on the right half of Figure 2 (due to space constraints, we do not represent the evening time frame). Each trajectory corresponds to a single entry in this multi-dimensional matrix, according to each location at each time frame.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1161,
+                    "end": 1169,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1761,
+                    "end": 1769,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Trajectory Modeling with OD Matrices"
+        },
+        {
+            "text": "An important advantage of this representation is that the specific partitioning used for a particular dimension is customized to the data corresponding to that time frame. For instance, the same part of the space can be present in different frames, but with different granularities. In this example, the CBD area has low granularity for the morning time frame, since few people live there, but high granularity in the noon frame. Similarly, a theater district will not present interest in queries for the first or second time frame, but will likely be of high interest in the evening frame. Conventional OD matrices cannot accommodate such scenarios.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Trajectory Modeling with OD Matrices"
+        },
+        {
+            "text": "In this section, we introduce two data-independent approaches for the sanitization of frequency matrices with arbitrary dimensionality. These are extensions of existing work, particularly the technique in [15] . In Section 4 we will introduce more advanced data-dependent techniques that account for data distribution.",
+            "cite_spans": [
+                {
+                    "start": 205,
+                    "end": 209,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "DATA-INDEPENDENT APPROACHES"
+        },
+        {
+            "text": "We extend the work in [15] , originally proposed for two-dimensional frequency matrices. We refer to that algorithm as Uniform Grid (UG). The main idea of UG was to sanitize the total count of the frequency matrix and substitute it in a formula that results in a constant value that represents the granularity of dividing each dimension of a 2D frequency matrix. After partitioning, the count in each of the partitions is sanitized using the Laplace mechanism.",
+            "cite_spans": [
+                {
+                    "start": 22,
+                    "end": 26,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "While the approach in [15] only works for two-dimensional data, EUG provides a detailed analytical model that finds the optimal value for uniform partitioning in any number of dimensions. EUG is formally presented in Algorithm 1. Suppose that the frequency matrix has dimensions represented by a 1 \u00d7 2 \u00d7 ... \u00d7 array, and let denote the total count of . The objective is to find a value of such that, by updating the granularity of to and applying the Laplace mechanism, the utility of the published private histogram is maximized. The algorithm starts by utilizing a small amount of budget denoted as 0 to obtain a noisy count of the total number of entries in the frequency matrix.",
+            "cite_spans": [
+                {
+                    "start": 22,
+                    "end": 26,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "where denotes the sanitized count. The sanitized count is used for the estimation of by formulating an optimization problem. The value of can be estimated by considering the existing error sources, i.e., noise error and non-uniformity error. The former is used for sanitization of counts, and the latter is due to the assumption that data in each partition are uniform. Consider a query that selects portions of , calculated by dividing its covered entries over the total number of entries. Hence, the query entails entries of . On the one hand, given that the noise added to each partition has a variance of 2/ 2 , the total additive noise variance sums up to 2 2 , or equivalently standard devia-",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "On the other hand, the query can be seen as a -orthotope where the side length is proportional to \u221a",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": ". Thus, each side of the orthotope spans \u221a \u00d7 cells, and the number of points located inside the query is on average",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "comes from the assumption of data uniformity in . By further assuming that the non-uniformity error on average is some portion of the total density of the cells on the query border, we have the non-uniformity error as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "for some constant 0 . Therefore, the aim is to find the optimal value of that minimizes the summation of two errors, i.e.,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "Solving based on stationary conditions of the above convex problem results in the optimal given by:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "The base case of the problem occurs when the frequency matrix has two dimensions and results in the same equation proposed by [15] :",
+            "cite_spans": [
+                {
+                    "start": 126,
+                    "end": 130,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "For higher dimensions, if query size is known in advance, Equation (8) can be used with the given to estimate the value of ; otherwise, by assuming that all query sizes are equally likely, integration over leads to Equation (13) . For derivation, let us define an auxiliary variable as",
+            "cite_spans": [
+                {
+                    "start": 67,
+                    "end": 70,
+                    "text": "(8)",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 224,
+                    "end": 228,
+                    "text": "(13)",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "Input: , tot , 0 , ; 1: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "for each entry in do 11:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "Integration over leads to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "and ultimately, results in:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "Once the value of is calculated, each dimension of matrix is divided into equal intervals generating partitions. The entries in each partition are set to the partition's sanitized total count divided by the number of entries it contains. The sanitized total count of a partition is generated by adding its entries and using Laplace mechanism with the privacy budget of tot \u2212 0 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Extended Uniform Grid (EUG)"
+        },
+        {
+            "text": "A critical point in the EUG algorithm is how to determine the value of . We propose Entropy-based Partitioning (EBP), a method for estimating a good value of based on the concept of entropy. In addition to providing better accuracy, EBP also addresses the issue with EUG's arbitrary choice of constant 0 which is empirically set to 10/ \u221a 2. EBP proposes a more informed parameter selection process that does not require arbitrary value settings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "Consider a -dimensional frequency matrix with dimensions 1 \u00d7 2 \u00d7...\u00d7 , and let represent the total count of . Moreover, denote the privacy budget allocated for the calculation of by . As in the case of Algorithm 1, the objective is to find a value of that, by updating the granularity of to , and applying the Laplace mechanism, the utility of the published private histogram is maximized. We look at the problem from an information theory perspective. Once the granularity of is updated, the variance of total Laplace noise used to sanitize partitions adds up to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "leading to total standard deviation of \u221a 2 /2 . The entropy of the noise imposed on the frequency matrix is therefore,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "On the other hand, consider the amount of information loss that occurs due to the change in granularity. To calculate the information loss, the amount of information before and after changing the granularity is required. The information contained in before change of granularity can be calculated as ( ), denoting the entropy of . After partitioning is conducted, the entropy is reduced to ( | ), denoting entropy calculated based on the updated frequency matrix with the granularity of . Thus, the amount of information loss incurred due to change in granularity is:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "An optimization problem can be formulated to find the optimal value of that minimizes the average query error.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "min (",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "By increasing the value of , information loss becomes smaller, but the induced noise grows larger. The optimal value of is reached when the noise is equal to information loss. Unfortunately, entropy cannot be directly calculated due to privacy concerns; however, an approximation can be employed as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "We assume that the number of entries is in the order of the number of data points, and data points are uniformly distributed over the partitions. Entropy before/after changing granularity can be approximated as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "To preserve the privacy of users, the value of is sanitized beforehand based on the Laplace mechanism. The value of minimizing the optimization problem is derived as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "The derived formula in Equation (19) is an alternative method to calculate the value of in the EUG algorithm. Therefore, the pseudocode in Algorithm 1 applies to EBP by replacing the formula in line 4 with Equation (19) .",
+            "cite_spans": [
+                {
+                    "start": 215,
+                    "end": 219,
+                    "text": "(19)",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Entropy-based Partitioning (EBP)"
+        },
+        {
+            "text": "Data-independent algorithms overlook critical information about the distribution of data points, as they always assume uniform distribution. This is particularly problematic for higher dimensional frequency matrices, due to their tendency to be sparse.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DATA-DEPENDENT APPROACHES 4.1 Overview"
+        },
+        {
+            "text": "To improve accuracy when publishing higher dimensional frequency matrices, we propose a tree-based approach called Density-Aware Framework (DAF) that takes into account density variation across different regions of the space. In addition, DAF introduces a key feature that enables custom stop conditions for partitioning. Intuitively, denser parts of the space should be split in more granular fashion, while for sparse areas the partitioning can stop earlier, since most likely large regions of the space are empty. The decision of when to stop partitioning the frequency matrix is made privately, and avoids over-partitioning which can lead to large errors in higher dimensional frequency matrices.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DATA-DEPENDENT APPROACHES 4.1 Overview"
+        },
+        {
+            "text": "DAF is a hierarchical partitioning approach that resembles a tree index. Each node covers a portion of the frequency matrix, with the root node covering all entries. Descendants of a node are generated by a non-overlapping split of the parent node's entries. if \u2032 = then 6:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DATA-DEPENDENT APPROACHES 4.1 Overview"
+        },
+        {
+            "text": ".ncount \u2190 .count + (1/( tot \u2212 )) 7:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DATA-DEPENDENT APPROACHES 4.1 Overview"
+        },
+        {
+            "text": "return TRUE 8: if \u2032 = 0 then 9:",
+            "cite_spans": [
+                {
+                    "start": 12,
+                    "end": 14,
+                    "text": "8:",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "DATA-DEPENDENT APPROACHES 4.1 Overview"
+        },
+        {
+            "text": "x.ncount = x.count + (1/( /100)) 10:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DATA-DEPENDENT APPROACHES 4.1 Overview"
+        },
+        {
+            "text": ".ncount \u2190 .count + (1/ )",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DATA-DEPENDENT APPROACHES 4.1 Overview"
+        },
+        {
+            "text": "\u2190 + 16: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "15:"
+        },
+        {
+            "text": "The split is conducted based on the depth of the node, such that nodes at depth are created by dividing dimension of their parent node's partition. The maximum index height is + 1. The fanout and the split point are customized at each node based on sanitized local information about the data. We propose two DAF alternatives based on different split objective functions: (i) DAF-Entropy (Section 4.2) which uses entropy information to estimate good split parameters, and (ii) DAF-Homogeneity (Section 4.3) which focuses on creating partitions with high intra-region homogeneity. Section 4.4 introduces privacy budget allocation considerations that are relevant to both approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "15:"
+        },
+        {
+            "text": "DAF-Entropy has the recursive structure presented in Algorithm 2. It receives as inputs the current node to split denoted by , privacy budget tot , variable tracking the budget spent so far (initially set to zero), and a constant 0 set in the first round of the recursion which is used for budget allocation purposes at all levels of the tree (more details are provided in Section 4.4). Each tree node is an object with four attributes: (i) . ; the node's associated entries in the frequency matrix, (ii) .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Entropy"
+        },
+        {
+            "text": "; the actual sum of entries in . , (iii) .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Entropy"
+        },
+        {
+            "text": "; the sanitized (or noisy) count, and (iv) .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Entropy"
+        },
+        {
+            "text": "\u210e; the node's depth in the tree. The initial run of the function is performed for the root node, representing the whole frequency matrix. DAF-Entropy sanitizes the total count of the root node and utilizes Equation (19) to partition the first dimension of the frequency matrix. New nodes are generated for each new partition assigned as one of the node's children. The algorithm recursively visits children and repeats the same process with the key difference that the split is done based on the second dimension. More generally, upon reaching a node at depth , the split is conducted in the ( + 1)-th dimension.",
+            "cite_spans": [
+                {
+                    "start": 215,
+                    "end": 219,
+                    "text": "(19)",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "DAF-Entropy"
+        },
+        {
+            "text": "Once a new node is visited, its count is sanitized, and stop conditions are tested on the sanitized count. If satisfied, the tree is pruned, and the node turns into a leaf. A special technique is used in such a scenario to enhance accuracy. The algorithm uses the remaining amount of budget that was supposed to be used while visiting children to update the sanitized count. This technique improves accuracy as budget allocation is such that lower levels of the tree are allocated more budget. Thus, it is worth updating the sanitized count based on the remaining amount of budget. Note that, stop conditions can be selected based on application-specific details; however, the most prominent stop condition that can help avoid over-partitioning is to stop when the sanitized count is below a certain threshold. The algorithm continues until reaching depth , indicating that partitioning on all dimensions has been implemented successfully or a stop condition is reached. Finally, the sanitized counts of the leaves are published, representing the private frequency matrix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Entropy"
+        },
+        {
+            "text": "The partitioning process plays a critical role in the private publication of frequency matrices. Hence, several attempts have been made in prior work [8, 19] to find an efficient splitting mechanism, including partitioning independent of data, based on medians or using the frequency matrix's total count to estimate a viable partitioning granularity. Our earlier work in [16] shows that partitioning based on homogeneity can significantly improve the utility of private frequency matrices in 2D. The principal idea is to have mechanisms that can cluster the entries such that data density is homogeneous within each cluster. Recall that partitioning needs to follow the DP constraint as with any other part of the algorithm. Here, we extend the approach in [16] to higher dimensional frequency matrices. The approach is built on top of Algorithm 2, with a key difference that once fanout is calculated for a node, an alternative method is used to partition the space based on homogeneity.",
+            "cite_spans": [
+                {
+                    "start": 150,
+                    "end": 153,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 154,
+                    "end": 157,
+                    "text": "19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 372,
+                    "end": 376,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 758,
+                    "end": 762,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Suppose that while executing Algorithm 2, a node with depth is visited. DAF-Homogeneity starts by dividing the calculated amount of budget into two parts: sanitization budget ( ), and partitioning budget ( prt ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Constant denotes the ratio of the budget assigned for partitioning. This value is experimentally set to 0.3. Next, the node's count is sanitized based on the Laplace mechanism with the privacy budget , and substituted in Equation (19) to calculate the fanout .",
+            "cite_spans": [
+                {
+                    "start": 230,
+                    "end": 234,
+                    "text": "(19)",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Suppose that = 3 and recall that for nodes with depth , the split is conducted on dimension + 1. Let us denote the interval corresponding to the ( + 1)-th dimension by [ start , end ]. In the case of DAF-Homogeneity, given that the fanout is calculated to be 3, the generated intervals for the + 1 dimension of children would be [ start , 1 ), [ 1 , 2 ), and [ 2 , end ], where if \u2032 = then 6: .ncount \u2190 .count + (1/( tot \u2212 )) 7:",
+            "cite_spans": [
+                {
+                    "start": 390,
+                    "end": 392,
+                    "text": "6:",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "return TRUE 8: if \u2032 = 0 then 9:",
+            "cite_spans": [
+                {
+                    "start": 12,
+                    "end": 14,
+                    "text": "8:",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "x.ncount = x.count + (1/( /100)) 10:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "K 1 , ...K \u2190 Use to generate candidate sets 13: Compute (K 1 ), (K 2 ), .., (K ) 14:",
+            "cite_spans": [
+                {
+                    "start": 44,
+                    "end": 47,
+                    "text": "13:",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "(K ) \u2190 (K ) + (2/( \u00d7 prt )), \u2200 = 1... .ncount \u2190 .count + (1/ data ) 22: DAF-Homogeneity( \u2032 , )",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Instead of simply selecting 1 and 2 as splitting points, DAF-Homogeneity follows an alternative method: it generates sets of candidate partitioning sets K 1 , K 2 , ...K , where is an input to the algorithm. Each set K has a cardinality equal to the desired fanout, and is generated by drawing uniformly random split positions from every partition. For example, consider the first candidate set to be",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "and \u2032 3 are uniformly random coordinates drawn from intervals [ start , 1 ), [ 1 , 2 ), and [ 2 , end ], respectively. Furthermore, let us denote the frequency matrix generated by setting the + 1 dimension into the th interval by . Next, the algorithm computes the homogeneity objective function for candidate sets, resulting in (K 1 ), (K 2 ), .., (K ), where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "In the above equation, denotes the average of entries in .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Then, the output values are sanitized based on the Laplace mechanism with the reserved privacy budget for partitioning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "The optimal candidate set is chosen as the one that results in the minimum sanitized output.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Lemma 4.1. Sensitivity of the homogeneity objective function is 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Proof. In the calculation of objective function (K) for a given split index set K, a data entry's existence or absence only affects one cell and the corresponding cluster. Let us denote the objective function after addition or removal of one data record by (K) \u2032 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "Without loss of generality assume that the additional record is located in the first cluster which results in \u2032 1 = 1 + 1/| 1 |, and \u2032 = for all = 2, ..., + 1. Similarly, the counts are equal ( \u2032 = ) for all entries except a single entry denoted by for which we have we have \u2032 = + 1. Writing triangle inequality results in",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "The sensitivity of the objective function can have the maximum value of two, as proven by the following inequality:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "The DAF-Homogeneity pseudocode is shown in Algorithm 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "To better understand the reason why the proposed DAF approaches outperform competitor techniques, Fig. 3 provides a heatmap representation of Los Angeles city with 500,000 sampled from the Veraset dataset (experimental setup details are provided in Section 6.1). The partitioning conducted in the first and second dimensions are shown by green and yellow lines, respectively. For non-adaptive approaches, only the sanitized total population count is used for partitioning, and therefore, both dimensions are divided equally without considering user distribution (Fig. 3a) . Conversely, the DAF-Entropy approach is adaptively adjusting the number of partitioning as the dimension changes (Fig. 3b) . The DAF-Homogeneity technique goes one step further, and adjusts the number of partitions generated in each dimension, by selecting the split point such that resulting areas will exhibit homogeneous intra-bin density, hence reducing the negative effects of uniformity assumption and increasing query accuracy. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 98,
+                    "end": 104,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 562,
+                    "end": 571,
+                    "text": "(Fig. 3a)",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 687,
+                    "end": 696,
+                    "text": "(Fig. 3b)",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "DAF-Homogeneity"
+        },
+        {
+            "text": "The derivation of the optimal amount of privacy budget allocated for different levels of the hierarchy is a challenging task as nodes have varying fanouts. We formulate an optimization problem to achieve a good quality budget allocation. Denote the fanout of the root node by 0 . We assume that the progression of fanout is geometric. At depth , there exist approximately 0 nodes. Furthermore, we denote the budget allocated to depth of the tree by . The goal is to minimize the variance of the noise added to each level:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Budget Allocation"
+        },
+        {
+            "text": "where, \u2032 tot = tot \u2212 0 . We have intentionally separated the root node's budget, as it will be used to calculate 0 . The optimization problem can be solved by writing Lagrangian and KKT conditions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Budget Allocation"
+        },
+        {
+            "text": "which leads to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Budget Allocation"
+        },
+        {
+            "text": "A question arises on how to calculate the value 0 upon which the above optimization problem is formulated. Note that the formulation only considers depths 1 to , and the root node is excluded from the equation. The value of 0 is calculated in the first run of the recursive algorithm 2, and we set the budget to: 0 = tot 100 (33) Therefore, a comparably small amount of budget is allocated to the root node to derive 0 . Based on the above formulation, one can see that lower levels of the tree benefit from significantly higher levels of budget. This helps to improve the utility of the published private histogram, as the sanitized leaf set of the tree represents the counts published by our approach.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Budget Allocation"
+        },
+        {
+            "text": "Prior works on private publication of frequency matrices can be classified into three categories: data independent, partially data dependent, and data dependent algorithms. The algorithms in the first category are independent of the underlying dataset. The partial data dependent algorithms are the category of algorithms where the number of data points is used to generate the private FMs, but no consideration is made for the data distribution. The algorithms in the last category take the distribution of data points into consideration to improve the utility. Most algorithms are developed to address only the publication of 1D and 2D FMs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "In the category of data-independent approaches, two baseline algorithms that stand out are called singular and identity. The singular algorithm [8] considers the frequency matrix as a single partition and adds Laplace noise to the total count. The queries are answered based on the sanitized total count only, considering the assumption of data uniformity. The identity algorithm [7] on the other hand, adds Laplace noise to each entry of the frequency matrix. The number of partitions in this algorithm is equal to the total number of entries. The Privlet algorithm [18] enhances the performance of the identity algorithm by transforming the frequency matrix based on wavelets and by adding noise in the new domain. Then, the algorithm converts back to the noisy matrix and releases the DP counts. The authors in [4] build a quadtree on top of the FM: a tree-based spatial indexing structure that splits each node into four equal quarters, regardless of data placement. The so-called binning or partitioning of space without observing the histograms is studied in [3] . The authors consider the amount of overlap between bins and propose an algorithm called 'varywidth' that provides improved performance in terms of the trade-off between the spatial precision and the accumulated variance over differentially private queries. The use of summaries for private publication of histograms is explored in [5] . The authors show it is possible to reduce the two-step approach of generating private summaries, in which first the private histogram is generated and then the summaries are released, to a one-step approach. The one-step method prevents the data owner and data user from getting overwhelmed with the large computational complexity overhead.",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 147,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 567,
+                    "end": 571,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 814,
+                    "end": 817,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1065,
+                    "end": 1068,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1402,
+                    "end": 1405,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "In contrast to the data independent algorithms, data dependent approaches exploit the distribution of data in the FM to answer queries with higher accuracy. General purpose mechanisms [13, 14] and their workload-aware counterpart DAWA [12] operate over a discrete 1D domain; however, they can be applied to the 2D domain by dimensional reduction transformations such as Hilbert curves [8] . Unfortunately, dimensionality reduction can prevent range queries from being answered accurately, and also increases computational complexity. This significantly limits their practicality, particularly for higher-dimensional data. Data-aware tree-based algorithms such as k-d-trees [19] allocate a portion of the budget to partitioning, and generate split points based on density. Hybrid approaches between data-independent and data-dependent algorithms have also been proposed, e.g., UG and AG [15] . We refer to these approaches as partially datadependent. Only the sanitized total count of the FM is used in the partitioning process. The UG algorithm and its extension [15] sanitize the total count of FMs and use it to alter the granularity of FM such that the utility of the published private FM is improved. The MKM approach proposed in [11] provides an alternative formula to partition FM considering its dimensionality. As is the case in UG, the formula only takes as input the total count of the frequency matrix and determines the granularity of FM based on the sanitized total count. In some cases, such approaches have been shown to provide superior performance to more complex methods [8] .",
+            "cite_spans": [
+                {
+                    "start": 184,
+                    "end": 188,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 189,
+                    "end": 192,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 235,
+                    "end": 239,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 385,
+                    "end": 388,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 673,
+                    "end": 677,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 886,
+                    "end": 890,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1063,
+                    "end": 1067,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1234,
+                    "end": 1238,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1589,
+                    "end": 1592,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "There is prior work in storage, processing, and compression of histograms, but without considerations for privacy. The authors in [9] focus on lowering the computational complexity of matrix multiplication and storage. The proposed approach generates an execution plan for the multiplication of dense and sparse matrices. A cost model is also proposed to understand the sparsity of matrices and the estimation of density. The execution plan tends to optimize the overall cost overhead. An adaptive tile matrix representation is proposed in [10] for large matrix multiplication. An operator called ATMULT with the capability of shared memory parallel matrix multiplication is proposed for dynamic tile-granular optimizations, conducted based on the density estimation. The work in [6] studies the problem of density estimation for higher dimensional histograms. The main idea is to estimate the distribution of data for a given set of samples. The algorithm provides near-optimal sample complexity, i.e. close to theoretical information limit, and runs in polynomial time.",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 133,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 540,
+                    "end": 544,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 780,
+                    "end": 783,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "6 EXPERIMENTAL EVALUATION 6.1 Experimental Setup Synthetic Datasets. We generate synthetic frequency matrices according to both Gaussian and Zipf distribution. To generate a -dimensional Gaussian frequency matrix with dimensions 1 \u00d7 2 \u00d7 ... \u00d7 , a uniformly random integer is sampled in each dimension: \u223c Uniform(1, ), \u2200 = 1... . The generated point ( 1 , 2 , ..., ) is selected as the cluster center and 1 million datapoints are generated with respect to the cluster center according to a normal distribution. Specifically, each data point ( 1 , 2 , ..., ) \u2208 Z is sampled from a multivariate Gaussian distribution ( 1 , 2 , ..., ), where \u223c N ( , ). Changing the variance allows us to adjust the degree of data skewness (lower values of will correspond to more skewed data). Zipfian data are generated by sampling each datapoint from a multivariate Zipf distribution ( 1 , 2 , ..., ), where \u223c \u2212 ( ) . (.) denotes the Riemann Zeta function and parameter controls the skew in the frequency matrix. As opposed to variance in Gaussian distribution, a higher value of results in a more skewed distribution for the Zipf distribution. Real-world datasets. We use a subset of the Veraset 1 dataset [17] , including location measurements of cell phones in three US cities: New York, Denver and Detroit. For each city, we consider a large geographical region covering a 70 \u00d7 70 km 2 area centered at the city's central latitude and longitude. These are chosen to represent cities with high, moderate and low densities, respectively. Cities are modeled by a 1000 \u00d7 1000 frequency matrix where each entry represents the number of data points in the corresponding region of the city. The selected data generates a frequency matrix of 1 million data points during the time period March 1-7, 2020.",
+            "cite_spans": [
+                {
+                    "start": 1189,
+                    "end": 1193,
+                    "text": "[17]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Based on the real location data, we construct origin-destination matrices: in each city, 300, 000 trajectories are sampled, and their origin, destination and intermediate points are included in the OD matrix. The data are stored as a multi-dimensional frequency matrix generated as follows: the map of each city is discretized to a 1000 \u00d7 1000 grid, and for every trajectory with the origin coordinates of ( , ) and destination coordinates of ( , ), the element [ , , , ] in the frequency matrix is incremented by one. A similar process is conducted for intermediate points, with the distinction that the matrix dimension count increases.",
+            "cite_spans": [
+                {
+                    "start": 462,
+                    "end": 471,
+                    "text": "[ , , , ]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "The evaluation metric used to compare the results is Mean Relative Error (MRE), formally defined in Section 2, Eq. (3). We evaluate the accuracy of considered approaches on the basis of:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "\u2022 Varying Data Skewness/Distribution. The generation of synthetic datasets is conducted for Gaussian and Zipfian random variables with distinct variances; for real-world datasets we select cities with a wide range of skewness properties. \u2022 Varying Query Shape/Size. Each data point in our experiments is the average MRE result of 1000 queries generated based on random shapes and sizes. Additionally, the impact of small, medium and large queries is evaluated. \u2022 Varying Privacy Budget. The experiments consider three privacy budget values of 0.1, 0.3, 0.5 modeling high, moderate, and low privacy constraints. \u2022 Varying dimensionality. We run experiments on frequency matrices with dimensionality from two to six.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Compared Approaches. Table 2 provides a summary and corresponding references for each of the algorithms used in our evaluation. More details about each of the baselines are provided in Section 5. In total, we consider six techniques: IDENTITY, EUG, EBP, MKM, DAF-Entropy, and DAF-Homogeneity. For the 2D case, results are shown in Figures 4a-4c . EBP and DAF-Entropy provide superior accuracy compared to other techniques, followed by DAF-Homogeneity and EUG. The MKM and IDENTITY algorithms exhibit similar performance, and we observed that MKM is reaching the maximum granularity for the frequency matrix. This is justified by the fact that the MKM approach does not follow the epsilon-scale exchangeability principle identified in [8] . In general, there exist two scenarios in which data-independent algorithms perform better: (i) the data points are distributed almost uniformly, (i.e., high variance) and (ii) the data points are densely populated in the cluster center in a handful of matrix entries (i.e., low variance). The superior performance of the DAF framework becomes more evident in higher dimensions. In almost all experiments conducted, the DAF framework outperformed the data-independent sanitization approaches. Among the two objective functions that we developed for DAF, DAF-Entropy generally outperforms DAF-Homogeneity.",
+            "cite_spans": [
+                {
+                    "start": 734,
+                    "end": 737,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 21,
+                    "end": 28,
+                    "text": "Table 2",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 331,
+                    "end": 344,
+                    "text": "Figures 4a-4c",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "We also evaluate the studied approaches for Zipf synthetic distribution of data. Figure 5 shows similar relative trends, with the proposed approaches outperforming existing work by an order of magnitude. The error increases as the skew parameter increases. Figure 6 shows the accuracy of all studied methods on 2D data, for various query workloads: a mix of random queries, as well as fixed coverage queries with range from 1% to 10% of dataspace side. As in the case of synthetic data, the IDENTITY and MKM benchmarks underperform by an order of magnitude. For all methods, the error decreases when the query range increases, which is expected, since coarser queries can be accurately answered using most methods. However, the more challenging case is that of small query ranges, which provide more detailed information to the analyst. Due to their poor performance, we exclude IDENTITY and MKM from the rest of the results, and focus on studying the relative performance of the proposed approaches, illustrated in Figure 7 on linear scale. The EUG algorithm results in poorer accuracy overall. For Detroit and New York EBP has performed better than competing techniques. The EBP and DAF results are comparable for the Denver datasets, with DAF-Homogeneity providing the highest accuracy. The EBP algorithm performs better in cities where the entropy of the population histogram is higher. This aligns with our expectations, as greater entropy can be an indicator of higher skewness, where EUG performs worse. When increasing the privacy budget, the error of all algorithms decreases consistently, since the noise required to satisfy the privacy bound becomes lower. Fig. 8 presents the results for higher-dimensionality matrices. Similar to the results observed for synthetic datasets, DAF-Entropy has superior accuracy on average compared to the other techniques. The relative accuracy gain achieved by DAF is observed to increase as the number of dimensions increases. Table 3 shows the execution time for all techniques. The DAF methods have faster execution time, because they adapt to data and do not perform unnecessary splits. In all cases, the proposed techniques complete execution in less than five minutes.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 81,
+                    "end": 89,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF12"
+                },
+                {
+                    "start": 257,
+                    "end": 265,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF14"
+                },
+                {
+                    "start": 1016,
+                    "end": 1024,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF16"
+                },
+                {
+                    "start": 1668,
+                    "end": 1674,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF17"
+                },
+                {
+                    "start": 1973,
+                    "end": 1980,
+                    "text": "Table 3",
+                    "ref_id": "TABREF8"
+                }
+            ],
+            "section": "Results on Synthetic Datasets"
+        },
+        {
+            "text": "Discussion. Data-independent methods perform better when data are highly uniform or highly concentrated around the cluster center. However, most location datasets do not fall in either of these cases, hence there is need for carefully-designed densityaware approaches, like the ones we proposed. In lower dimensions, the EBP algorithm outperforms competitor approaches on both real-world and synthetic datasets. In higher dimensions, the density-aware algorithms outperform data-independent algorithms. The improvement margin increases as the number of dimensions grows. On average, DAF-Entropy outperforms its homogeneity-based counterpart due to the additional budget required for evaluating homogeneity metrics of candidate splits in the latter.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results on Real-World Datasets"
+        },
+        {
+            "text": "We proposed a customized privacy-preserving approach for the publication of origin-destination matrices with intermediate stops in the context of differential privacy. Our proposed approaches provide the strong formal protection guarantees of differential privacy, while achieving superior accuracy to existing techniques that are designed for low-dimensionality location data and do not adapt well to data properties such as density variation. In future work, we plan to further improve accuracy by considering more sophisticated mechanisms in addition to Laplace noise addition. We will also investigate the correlation between location and semantic features of the geographical dataspace, which can provide additional accuracy in the case of semantic-centric queries (e.g., an analyst may be interested in trajectories that satisfy some semantic constraint, like workplace-entertainment-sports sequences, where the type of feature visited is more important than the actual geographical placement).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "(a) New York, random queries (b) New York, 1% query coverage (c) New York, 5% query coverage (d) New York, 10% query coverage (e) Denver, random queries (f) Denver, 1% query coverage (g) Denver, 5% query coverage (h) Denver, 10% query coverage (i) Detroit, random queries (j) Detroit, 1% query coverage (k) Detroit, 5% query coverage (l) Detroit, 10% query coverage ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Differentially private histogram publishing through lossy compression",
+            "authors": [
+                {
+                    "first": "Gergely",
+                    "middle": [],
+                    "last": "Acs",
+                    "suffix": ""
+                },
+                {
+                    "first": "Claude",
+                    "middle": [],
+                    "last": "Castelluccia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rui",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Intl. Conference on Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Differentially private sequential data publication via variable-length n-grams",
+            "authors": [
+                {
+                    "first": "Rui",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gergely",
+                    "middle": [],
+                    "last": "Acs",
+                    "suffix": ""
+                },
+                {
+                    "first": "Claude",
+                    "middle": [],
+                    "last": "Castelluccia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "ACM CCS",
+            "volume": "",
+            "issn": "",
+            "pages": "638--649",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Data-Independent Space Partitionings for Summaries",
+            "authors": [
+                {
+                    "first": "Graham",
+                    "middle": [],
+                    "last": "Cormode",
+                    "suffix": ""
+                },
+                {
+                    "first": "Minos",
+                    "middle": [],
+                    "last": "Garofalakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Shekelyan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 40th ACM SIGMOD-SIGACT-SIGAI Symposium on Principles of Database Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "285--298",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Differentially private spatial decompositions",
+            "authors": [
+                {
+                    "first": "Graham",
+                    "middle": [],
+                    "last": "Cormode",
+                    "suffix": ""
+                },
+                {
+                    "first": "Cecilia",
+                    "middle": [],
+                    "last": "Procopiuc",
+                    "suffix": ""
+                },
+                {
+                    "first": "Divesh",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "Entong",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ting",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "IEEE Conf. on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "20--31",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Differentially private summaries for sparse data",
+            "authors": [
+                {
+                    "first": "Graham",
+                    "middle": [],
+                    "last": "Cormode",
+                    "suffix": ""
+                },
+                {
+                    "first": "Cecilia",
+                    "middle": [],
+                    "last": "Procopiuc",
+                    "suffix": ""
+                },
+                {
+                    "first": "Divesh",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thanh Tl",
+                    "middle": [],
+                    "last": "Tran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the 15th International Conference on Database Theory",
+            "volume": "",
+            "issn": "",
+            "pages": "299--311",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Fast and sample nearoptimal algorithms for learning multidimensional histograms",
+            "authors": [
+                {
+                    "first": "Ilias",
+                    "middle": [],
+                    "last": "Diakonikolas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jerry",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ludwig",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Conference On Learning Theory",
+            "volume": "",
+            "issn": "",
+            "pages": "819--842",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Calibrating noise to sensitivity in private data analysis",
+            "authors": [
+                {
+                    "first": "Cynthia",
+                    "middle": [],
+                    "last": "Dwork",
+                    "suffix": ""
+                },
+                {
+                    "first": "Frank",
+                    "middle": [],
+                    "last": "Mcsherry",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kobbi",
+                    "middle": [],
+                    "last": "Nissim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Theory of cryptography",
+            "volume": "",
+            "issn": "",
+            "pages": "265--284",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Principled evaluation of differentially private algorithms using dpbench",
+            "authors": [
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Hay",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ashwin",
+                    "middle": [],
+                    "last": "Machanavajjhala",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gerome",
+                    "middle": [],
+                    "last": "Miklau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yan",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "139--154",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "SpMacho-Optimizing Sparse Linear Algebra Expressions with Probabilistic Density Estimation",
+            "authors": [
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Kernert",
+                    "suffix": ""
+                },
+                {
+                    "first": "Frank",
+                    "middle": [],
+                    "last": "K\u00f6hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wolfgang",
+                    "middle": [],
+                    "last": "Lehner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "EDBT",
+            "volume": "",
+            "issn": "",
+            "pages": "289--300",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Topology-aware optimization of big sparse matrices and matrix multiplications on main-memory systems",
+            "authors": [
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Kernert",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wolfgang",
+                    "middle": [],
+                    "last": "Lehner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Frank",
+                    "middle": [],
+                    "last": "K\u00f6hler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE 32nd International Conference on Data Engineering (ICDE)",
+            "volume": "",
+            "issn": "",
+            "pages": "823--834",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Differentially private m-estimators",
+            "authors": [
+                {
+                    "first": "Jing",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "24",
+            "issn": "",
+            "pages": "361--369",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "A data-and workload-aware algorithm for range queries under differential privacy",
+            "authors": [
+                {
+                    "first": "Chao",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Hay",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gerome",
+                    "middle": [],
+                    "last": "Miklau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yue",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the VLDB Endowment",
+            "volume": "7",
+            "issn": "",
+            "pages": "341--352",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "An Adaptive Mechanism for Accurate Query Answering under Differential Privacy",
+            "authors": [
+                {
+                    "first": "Chao",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gerome",
+                    "middle": [],
+                    "last": "Miklau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proc. VLDB Endow",
+            "volume": "5",
+            "issn": "",
+            "pages": "514--525",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Optimal error of query sets under the differentially-private matrix mechanism",
+            "authors": [
+                {
+                    "first": "Chao",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gerome",
+                    "middle": [],
+                    "last": "Miklau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Intl. Conference on Database Theory",
+            "volume": "",
+            "issn": "",
+            "pages": "272--283",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Differentially private grids for geospatial data",
+            "authors": [
+                {
+                    "first": "Wahbeh",
+                    "middle": [],
+                    "last": "Qardaji",
+                    "suffix": ""
+                },
+                {
+                    "first": "Weining",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ninghui",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE International conference on data engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "757--768",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "HTF: Homogeneous Tree Framework for Differentially-Private Release of Location Data",
+            "authors": [
+                {
+                    "first": "Sina",
+                    "middle": [],
+                    "last": "Shaham",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gabriel",
+                    "middle": [],
+                    "last": "Ghinita",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ritesh",
+                    "middle": [],
+                    "last": "Ahuja",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Krumm",
+                    "suffix": ""
+                },
+                {
+                    "first": "Cyrus",
+                    "middle": [],
+                    "last": "Shahabi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 29th International Conference on Advances in Geographic Information Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "184--194",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Veraset Movement data for the USA, The largest, deepest and broadest available movement dataset (anonymized GPS signals)",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Differential privacy via wavelet transforms",
+            "authors": [
+                {
+                    "first": "Xiaokui",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guozhang",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Johannes",
+                    "middle": [],
+                    "last": "Gehrke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "IEEE Transactions on knowledge and data engineering",
+            "volume": "23",
+            "issn": "",
+            "pages": "1200--1214",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Differentially private data release through multidimensional partitioning",
+            "authors": [
+                {
+                    "first": "Yonghui",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Li",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chun",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Workshop on Secure Data Management",
+            "volume": "",
+            "issn": "",
+            "pages": "150--168",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Privtree: A differentially private algorithm for hierarchical decompositions",
+            "authors": [
+                {
+                    "first": "Jun",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaokui",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xing",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "155--170",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Towards accurate histogram publication under differential privacy",
+            "authors": [
+                {
+                    "first": "Xiaojian",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rui",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jianliang",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaofeng",
+                    "middle": [],
+                    "last": "Meng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yingtao",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 SIAM international conference on data mining. SIAM",
+            "volume": "",
+            "issn": "",
+            "pages": "587--595",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "\u00a9 2022 Copyright held by the owner/author(s). Published in Proceedings of the 25th International Conference on Extending Database Technology (EDBT), 29th March-1st April, 2022, ISBN 978-3-89318-086-8 on OpenProceedings.org. Distribution of this paper is permitted under the terms of the Creative Commons license CC-by-nc-nd 4.0.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "System model for private frequency matrices.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "(Entropy) Given a frequency matrix and a set of partitions P = { 1 , 2 , ..., } with the total counts 1 , 2 , ..., , the entropy of is defined as:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Capturing trajectory data using OD matrices.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Intuition behind DAF sanitization approaches.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "2D, tot = 0.3. (c) 2D, tot = 0.5. (d) 4D, tot = 0.1. (e) 4D, tot = 0.3. (f) 4D, tot = 0.5. (g) 6D, tot = 0.1. (h) 6D, tot = 0.3. (i) 6D, tot = 0.5.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "Synthetic dataset results, Gaussian distribution, random shape and size queries.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "presents evaluation results on synthetic datasets. For each distinct dimensionality (i.e., row), we consider low, medium and high privacy budget settings. The width of frequency matrices in each dimension is set to \u221a .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "Synthetic dataset results, Zipf distribution, random shape and size queries, tot = 0.1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF14": {
+            "text": "Population histograms in 2D for real datasets.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF15": {
+            "text": "",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF16": {
+            "text": "Population histograms in 2D on real datasets, no baselines.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF17": {
+            "text": "Origin-Destination matrices in 4D, real datasets. ACKNOWLEDGEMENT This research has been funded in part by NSF grants IIS-1910950, IIS-1909806, CNS-2027794, IIS-2128661 and CNS-2125530, the USC Integrated Media Systems Center (IMSC), and an unrestricted cash gift from Microsoft Research. Any opinions, findings, and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of any of the sponsors such as the NSF.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Summary of notations.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "summarizes notations used throughout the paper.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": ":\u2032 . \u2190 . with th dimension set to [ ]",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Summary of Compared Approaches",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "a) New York, random queries",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF8": {
+            "text": "Running time of algorithms (seconds), 2D, = 0.1 IDENTITY EUG EBP MKM DAF-Entropy DAF-Homogeneity",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

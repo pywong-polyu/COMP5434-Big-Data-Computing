@@ -1,0 +1,1525 @@
+{
+    "paper_id": "5378bcdc0a0c3345993e8ab0944d468b41d2be75",
+    "metadata": {
+        "title": "GOPHER: Categorical probabilistic forecasting with graph structure via local continuous-time dynamics",
+        "authors": [
+            {
+                "first": "Ke",
+                "middle": [
+                    "Alexander"
+                ],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {}
+                },
+                "email": ""
+            },
+            {
+                "first": "Danielle",
+                "middle": [],
+                "last": "Maddix",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {}
+                },
+                "email": "dmmaddix@amazon.com"
+            },
+            {
+                "first": "Yuyang",
+                "middle": [],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {}
+                },
+                "email": "yuyawang@amazon.com"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We consider the problem of probabilistic forecasting over categories with graph structure, where the dynamics at a vertex depends on its local connectivity structure. We present GOPHER, a method that combines the inductive bias of graph neural networks with neural ODEs to capture the intrinsic local continuous-time dynamics of our probabilistic forecasts. We study the benefits of these two inductive biases by comparing against baseline models that help disentangle the benefits of each. We find that capturing the graph structure is crucial for accurate in-domain probabilistic predictions and more sample efficient models. Surprisingly, our experiments demonstrate that the continuous time evolution inductive bias brings little to no benefit despite reflecting the true probability dynamics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In categorical probabilistic forecasting, we seek to predict a discrete probability distribution p(t) at some instantaneous time t, based on observed time-stamped data [10] . Consider the example of forecasting the most likely locations of the next earthquake over a finite set of locations at t, given the history of earthquake times and locations. We can view locations as vertices V on a graph G = (V, E) with edges E that represent adjacency. Specifically, the probability of an earthquake at node v \u2208 V in the near future is mostly influenced by the probability of earthquakes at nodes within its neighborhood. This type of graphical structure also appears in other problems, including traffic forecasting [28] , information diffusion in social networks [1] , epidemic diffusion [24, 13] , urban conflict patterns [16] , and is an example of a marked temporal point process [6] .",
+            "cite_spans": [
+                {
+                    "start": 168,
+                    "end": 172,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 711,
+                    "end": 715,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 759,
+                    "end": 762,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 784,
+                    "end": 788,
+                    "text": "[24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 789,
+                    "end": 792,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 819,
+                    "end": 823,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 879,
+                    "end": 882,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we consider categorical probabilistic forecasts where there is a graphical structure to inform us of the local dynamics governing p(t) over time. We formalize the intuition that each component of the probability vector p(t) \u2208 R |V | obeys local dynamics using the differential equation",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "which we use to inform our model's inductive bias. Here, g governs the local dynamics, N (v) \u2286 V denotes the set of neighboring nodes of v, and p v denotes the probability at node v. To capture the equivariant local dynamics of our forecast p(t), we propose GOPHER, a model that learns a neural ODE [4] with graph neural network (GNN) [26] dynamics.",
+            "cite_spans": [
+                {
+                    "start": 299,
+                    "end": 302,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 335,
+                    "end": 339,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our method GOPHER introduces two inductive biases to aid with probabilistic forecasting over graph-structured categories by 1) utilizing graph structure explicitly and 2) introducing temporal evolution through a neural ODE. To disentangle the benefits of these two biases, we introduce two baseline models, ablating each bias. We find that utilizing the known graph structure results is key, and results in 10x improvements in accuracy and sample efficiency. On the other hand, explicitly modelling the temporal dynamics surprisingly results in little benefits. * Work done as an intern at Amazon Research Let G = (V, E) be a graph, and let t i \u2208 R + 0 denote the timestamp of an event at node v i \u2208 V . Given G and an irregularly sampled dataset",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": ", we want to learn the probability vector p(t) \u2208 R |V | of each v \u2208 V at any time t. We wish to model the dynamics of p(t) such that the change in the probability at node v depends only on the neighborhood N (v) around v, as described in Equation 1. However, directly parameterizing g from Equation 1 with a neural ODE can violate conservation of probability: 1 p(t) = 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Instead of explicitly enforcing the sum constraint into our neural ODE, we model the dynamics in a continuous-time embedding space from which we derive the dynamics dp/dt. Specifically, let Z 0 \u2208 R |V |\u00d7D , where D denotes the embedding space dimension. We use z 0,i to denote row i of Z 0 at initial time t 0 , corresponding to the embedding of node v i . We then model the dynamics of the continuous-time embeddings Z(t) \u2208 R |V |\u00d7D via",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "where g is the learned graph neural network (GNN) dynamics. To map Z(t) to a probability space while preserving equivariance, we learn a shared projection \u03c0 : R D \u2192 R such that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Provided that g and \u03c0 are differentiable, which can be done using smooth activation functions, our model then implicitly models the local temporal dynamic of our problem in Equation 1. Finally, we train our model GOPHER by maximizing the log likelihood N i=1 log p vi (t i ) with respect to the parameters of \u03c0, g, and the initial condition Z 0 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Incorporating node attributes. In some cases G may have node attributes {a v } v\u2208V for each node v \u2208 V that affect the interaction dynamics, such as the geographical coordinates of each node in a spatial graph or the demographics of a user in a social network. Node attributes can be easily incorporated by letting the initial node embeddings be a learned function of the attributes,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": ", and optimizing with respect to the parameters of {\u03c8 v }.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Related works. Our paper lies at the intersection of probabilistic forecasting, neural ODEs, and graph neural networks (GNNS), and can be seen as the discrete analogue of continuous normalizing flows [4, 11, 5] on manifolds [17, 18] . Probabilistic forecasting seeks to predict a full distribution at each time step [14, 10] , with contemporary methods often relying on deep probabilistic models [22, 25, 21, 20] . A direct application of categorical probabilistic forecasts is marked temporal point processes, which learn the rate of an event type v at time t, summarized by the conditional intensity function \u03bb(t, v) = \u03bb(t) \u00b7 p v (t) [6] . The inductive bias of a learnable ODE with GNN dynamics has also been explored in the context of other problems, including graph generation [7] , node classification [19, 2] , multi-particle trajectory prediction [19] , learning partial differential equations [15] , and knowledge graph forecasting [12] .",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 203,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 204,
+                    "end": 207,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 208,
+                    "end": 210,
+                    "text": "5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 224,
+                    "end": 228,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 229,
+                    "end": 232,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 316,
+                    "end": 320,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 321,
+                    "end": 324,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 396,
+                    "end": 400,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 401,
+                    "end": 404,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 405,
+                    "end": 408,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 409,
+                    "end": 412,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 636,
+                    "end": 639,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 782,
+                    "end": 785,
+                    "text": "[7]",
+                    "ref_id": null
+                },
+                {
+                    "start": 808,
+                    "end": 812,
+                    "text": "[19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 813,
+                    "end": 815,
+                    "text": "2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 855,
+                    "end": 859,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 902,
+                    "end": 906,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 941,
+                    "end": 945,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "3 Results: I Can't Believe Temporal Dynamics Don't Matter! Synthetic datasets. We apply our method to model the mark component of a marked temporal point process (TPP) occurring on the nodes of a graph such that p v (t) is the probability of an event occurring on vertex v at time t. We create a synthetic dataset where events occur over time on a directed graph G, with node probabilities that obey graph advection as an example of local dynamics [3] . Graph advection conserves the total probability by ensuring 1 dp/dt = 0. We represent the graph G by the weighted adjacency matrix A, where A uv > 0 for (u, v) \u2208 E. We sample sequences of events over time [0, T ] from a homogeneous Poisson process with constant temporal intensity \u03bb(t) = \u03bb = 2.5 and temporal node probability p(t) \u2208 R |V | governed by the graph advection equation [3] dp ",
+            "cite_spans": [
+                {
+                    "start": 448,
+                    "end": 451,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 835,
+                    "end": 838,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We create two graphs structures for our synthetic datasets, a ring graph and a random geometric graph, and visualize their advection on the graph over time in Figure 1 ; see Appendix D for more details on their construction. We also visualize the advection dynamics of each component of p(t) for the ring graph in Figure 9 of Appendix D. We use T = 5 seconds for the ring graph dataset and T = 1 second for the geometric graph dataset. Since the timestamps are sampled from a Poisson process and not equidistantly spaced over [0, T ], the continuous time aspect of the problem is clearly evident in the dataset. Evaluating each inductive bias of GOPHER. We evaluate the accuracy and sample-efficiency improvements from incorporating graph structure and modelling temporal dynamics in GO-PHER. To disentangle the effects of these two inductive biases, we compare our model to two baseline models. The first is a two-layer MLP that acts on node-embeddings concatenated with time, which has none of the above inductive biases. The second is a single-layer GNN that also acts on node-embeddings concatenated with time. The GNN incorporates the explicit graph structure, but does not incorporate dynamical systems structure. We refer to the models as NAIVEMLP and NAIVEGNN respectively. In our experiments, GOPHER learns g using a Graph Isomorphism Network (GIN) layer [27] parameterized by a two-layer MLP; we use another two-layer MLP for the projection \u03c0. NAIVEGNN uses the same GIN architecture and projection except that it does not learn a differential equation. Finally, NAIVEMLP replaces the GIN layer with a two layer MLP. See Appendix D for further details on our experiment hyperparameters. Figure 2 shows the KL divergence betweeen the ground truth p(t) and the learned predictions over time for the ring graph. We summarize the KL divergence over [0, T ] in Figure 3 by the geometric mean since the error varies over multiple overs of magnitudes over time [9] . In both figures, we show the 95% confidence intervals over 3 seeds. For both datasets, there is 10x difference in accuracy Num. train seqs. Num. train seqs. between the graph structured models and NAIVEMLP, indicating that utilizing the graph structure is greatly beneficial. Though NAIVEGNN does not explicitly model the local temporal dynamics of the datasets, it performs nearly identically to our model GOPHER in fitting p(t) over the training interval [0, T ]. In principle, GOPHER has the best chance of extrapolating to the [T, 2T ] time period not seen during training since GOPHER explicitly models the local dynamics. However, GOPHER's poor extrapolation ability suggests that its learned dynamics do not actually reflect the true dynamics. Indeed, in Figure 7 of Appendix C we show that although GOPHER can fit the training data well, it is brittle to edge deletions, further indicating GOPHER does not learn the true dynamics. Real-world dataset. We use data released publicly by the New York Times [23] on daily COVID-19 cases in New Jersey state to construct a real-world categorical probabilistic forecasting dataset, following the preprocessing script of Chen et al. [5] . We aggregate the cases by county and form a graph with 21 nodes where each node is a county and each edge is a county border. Using the train/test split from Chen et al. [5] , we obtain per event log likelihoods with 1-standard-deviations of \u22122.766 \u00b1 0.003 for NAIVEMLP, \u22122.768 \u00b1 0.003 for NAIVEGNN, and \u22122.767 \u00b1 0.000 for GOPHER over 3 seeds. However, these likelihoods are not representative of the model differences since we find a large distribution shift between the train and test distribution shown in Figure 5 of Appendix A. This distribution shift causes the models to perform equally poorly on the test set. In actuality, NAIVEMLP completely fails to capture variations in p(t) over time, as shown in Figure 4 .",
+            "cite_spans": [
+                {
+                    "start": 1364,
+                    "end": 1368,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1964,
+                    "end": 1967,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 2981,
+                    "end": 2985,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 3153,
+                    "end": 3156,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 3329,
+                    "end": 3332,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 159,
+                    "end": 167,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 314,
+                    "end": 322,
+                    "text": "Figure 9",
+                    "ref_id": "FIGREF9"
+                },
+                {
+                    "start": 1697,
+                    "end": 1705,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1866,
+                    "end": 1874,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 2732,
+                    "end": 2740,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 3668,
+                    "end": 3676,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 3870,
+                    "end": 3878,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Although the inductive biases of GOPHER, directly reflect properties of categorical forecasting with local continuous-time dynamics, our experiments find that, surprisingly, explicitly modelling the temporal dynamics does not improve performance. Most of the performance gains of GOPHER come from incorporating a graph structure, which can be done with a simple baseline model like NAIVEGNN. The failure of GOPHER can be attributed to the fact that the learned dynamics in the embedding space do not accurately reflect the ground truth dynamics in probability space.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "A Distribution shift in our real-world dataset The predicted p(t) after we remove all edges from the ring graph. Notice that the ground truth of a completely disconnected graph is to have p(t) = p(0) for all t. However, all of the models fail completely on this new disconnected graph, suggesting that they do not learn the true dependence of p(t) on the graph structure.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "We use 2 layer MLPs with 64 hidden units per layer whenever we use a MLP. We use Swish activations to ensure smoothness of our dynamics. We also use an augmented neural ODE [8] , using 16 dimensions as augmented dimensions out of the 64 hidden dimensions.",
+            "cite_spans": [
+                {
+                    "start": 173,
+                    "end": 176,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D Implementation details"
+        },
+        {
+            "text": "GOPHER. We parameterize the dynamics g from Equation 2 using one graph isomorophism network layer parameterized by a MLP. We also use a MLP to model the projection \u03c0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D.1 Model architectures."
+        },
+        {
+            "text": "NAIVEGNN. We use the same architecture as GOPHER, namely a GIN layer followed by a projection \u03c0. However, instead of using the model to parameterize ODE dynamics, we directly input the node embeddings concatenated with time t through the GNN. NAIVEMLP. We replace the GIN layer of NAIVEGNN with a MLP, keeping all else the same.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D.1 Model architectures."
+        },
+        {
+            "text": "D.2 Training procedure and dataset details.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D.1 Model architectures."
+        },
+        {
+            "text": "To maximize hardware parallelism, we parallelize our neural ODE computation across sequence timesteps and across sequences using the time-reparameterization trick outlined in Chen et al. [5] .",
+            "cite_spans": [
+                {
+                    "start": 187,
+                    "end": 190,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D.1 Model architectures."
+        },
+        {
+            "text": "For the synthetic datasets, we use the AdamW optimizer with 0.01 learning rate and batch size 64 for 30 epochs. For the COVID-19 dataset, we use a 3 \u00d7 10 \u22124 learning rate and batch size 4 for 15 epochs. Here, each batch consists of multiple sequences drawn from the training period [0, T ]. We use T = 5 for the ring graph, T = 1 for the geometric graph, and T = 8 for the New Jersey counties graph. We generate the ring graph dataset by using hand-set coefficients for the edge weights A uv to allow for counter-clockwise transport. We generate the geometric graph dataset by generating a random geometric graph via the networkx python package and drawing a random sample of {A uv }. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D.1 Model architectures."
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The role of social networks in information diffusion",
+            "authors": [
+                {
+                    "first": "Eytan",
+                    "middle": [],
+                    "last": "Bakshy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Itamar",
+                    "middle": [],
+                    "last": "Rosenn",
+                    "suffix": ""
+                },
+                {
+                    "first": "Cameron",
+                    "middle": [],
+                    "last": "Marlow",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lada",
+                    "middle": [],
+                    "last": "Adamic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the 21st International Conference on World Wide Web, WWW '12",
+            "volume": "",
+            "issn": "",
+            "pages": "519--528",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2187836.2187907"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "GRAND: Graph Neural Diffusion",
+            "authors": [
+                {
+                    "first": "Ben",
+                    "middle": [],
+                    "last": "Chamberlain",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Rowbottom",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maria",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Gorinova",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Bronstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stefan",
+                    "middle": [],
+                    "last": "Webb",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emanuele",
+                    "middle": [],
+                    "last": "Rossi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1407--1418",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Advection on graphs",
+            "authors": [
+                {
+                    "first": "Airlie",
+                    "middle": [],
+                    "last": "Chapman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mehran",
+                    "middle": [],
+                    "last": "Mesbahi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Control Confereence (CDC-ECC)",
+            "volume": "50",
+            "issn": "",
+            "pages": "1461--1466",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Neural Ordinary Differential Equations",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Ricky",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yulia",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jesse",
+                    "middle": [],
+                    "last": "Rubanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Bettencourt",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Duvenaud",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "31",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Neural Spatio-Temporal Point Processes",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Ricky",
+                    "suffix": ""
+                },
+                {
+                    "first": "Brandon",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maximilian",
+                    "middle": [],
+                    "last": "Amos",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Nickel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "An Introduction to the Theory of Point Processes: Volume I: Elementary Theory and Methods. Probability and Its Applications, An Introduction to the Theory of Point Processes",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Daley",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Vere-Jones",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/b97277"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Augmented Neural ODEs",
+            "authors": [
+                {
+                    "first": "Emilien",
+                    "middle": [],
+                    "last": "Dupont",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arnaud",
+                    "middle": [],
+                    "last": "Doucet",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yee Whye",
+                    "middle": [],
+                    "last": "Teh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "32",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Simplifying Hamiltonian and Lagrangian Neural Networks via Explicit Constraints",
+            "authors": [
+                {
+                    "first": "Marc",
+                    "middle": [],
+                    "last": "Finzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexander",
+                    "middle": [],
+                    "last": "Ke",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wilson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "33",
+            "issn": "",
+            "pages": "13880--13889",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Probabilistic Forecasting",
+            "authors": [
+                {
+                    "first": "Tilmann",
+                    "middle": [],
+                    "last": "Gneiting",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matthias",
+                    "middle": [],
+                    "last": "Katzfuss",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Annual Review of Statistics and Its Application",
+            "volume": "1",
+            "issn": "1",
+            "pages": "125--151",
+            "other_ids": {
+                "DOI": [
+                    "10.1146/annurev-statistics-062713-085831"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "FFJORD: Free-Form Continuous Dynamics for Scalable Reversible Generative Models",
+            "authors": [
+                {
+                    "first": "Will",
+                    "middle": [],
+                    "last": "Grathwohl",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ricky",
+                    "middle": [
+                        "T Q"
+                    ],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jesse",
+                    "middle": [],
+                    "last": "Bettencourt",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ilya",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Duvenaud",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Temporal Knowledge Graph Forecasting with Neural ODE",
+            "authors": [
+                {
+                    "first": "Zhen",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zifeng",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yunpu",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yujia",
+                    "middle": [],
+                    "last": "Gu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Volker",
+                    "middle": [],
+                    "last": "Tresp",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2101.05151"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Dynamics of an SIS reaction-diffusion epidemic model for disease transmission",
+            "authors": [
+                {
+                    "first": "Wenzhang",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maoan",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kaiyu",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Mathematical Biosciences & Engineering",
+            "volume": "7",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.3934/mbe.2010.7.51"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Forecasting: Principles and Practice",
+            "authors": [
+                {
+                    "first": "Robin",
+                    "middle": [
+                        "John"
+                    ],
+                    "last": "Hyndman",
+                    "suffix": ""
+                },
+                {
+                    "first": "George",
+                    "middle": [],
+                    "last": "Athanasopoulos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Learning continuous-time PDEs from sparse data with graph neural networks",
+            "authors": [
+                {
+                    "first": "Valerii",
+                    "middle": [],
+                    "last": "Iakovlev",
+                    "suffix": ""
+                },
+                {
+                    "first": "Markus",
+                    "middle": [],
+                    "last": "Heinonen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Harri",
+                    "middle": [],
+                    "last": "L\u00e4hdesm\u00e4ki",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Discovering Latent Network Structure in Point Process Data",
+            "authors": [
+                {
+                    "first": "Scott",
+                    "middle": [],
+                    "last": "Linderman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ryan",
+                    "middle": [],
+                    "last": "Adams",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1413--1421",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Neural manifold ordinary differential equations",
+            "authors": [
+                {
+                    "first": "Aaron",
+                    "middle": [],
+                    "last": "Lou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Derek",
+                    "middle": [],
+                    "last": "Lim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Isay",
+                    "middle": [],
+                    "last": "Katsman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leo",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Qingxuan",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nam",
+                    "middle": [],
+                    "last": "Ser",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christopher M De",
+                    "middle": [],
+                    "last": "Lim",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "33",
+            "issn": "",
+            "pages": "17548--17558",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Riemannian Continuous Normalizing Flows",
+            "authors": [
+                {
+                    "first": "Emile",
+                    "middle": [],
+                    "last": "Mathieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maximilian",
+                    "middle": [],
+                    "last": "Nickel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "33",
+            "issn": "",
+            "pages": "2503--2515",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Continuous-Depth Neural Models for Dynamic Graph Prediction",
+            "authors": [
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Poli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stefano",
+                    "middle": [],
+                    "last": "Massaroli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Clayton",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Rabideau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Junyoung",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "Atsushi",
+                    "middle": [],
+                    "last": "Yamashita",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hajime",
+                    "middle": [],
+                    "last": "Asama",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jinkyoo",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2106.11581"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Deep State Space Models for Time Series Forecasting",
+            "authors": [
+                {
+                    "first": "Matthias",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Syama Sundar Rangapuram",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jan",
+                    "middle": [],
+                    "last": "Seeger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lorenzo",
+                    "middle": [],
+                    "last": "Gasthaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yuyang",
+                    "middle": [],
+                    "last": "Stella",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Januschowski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "31",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Multivariate Probabilistic Time Series Forecasting via Conditioned Normalizing Flows",
+            "authors": [
+                {
+                    "first": "Kashif",
+                    "middle": [],
+                    "last": "Rasul",
+                    "suffix": ""
+                },
+                {
+                    "first": "Abdul-Saboor",
+                    "middle": [],
+                    "last": "Sheikh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ingmar",
+                    "middle": [],
+                    "last": "Schuster",
+                    "suffix": ""
+                },
+                {
+                    "first": "Urs",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bergmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Roland",
+                    "middle": [],
+                    "last": "Vollgraf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "DeepAR: Probabilistic forecasting with autoregressive recurrent networks",
+            "authors": [
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Salinas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Valentin",
+                    "middle": [],
+                    "last": "Flunkert",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jan",
+                    "middle": [],
+                    "last": "Gasthaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Januschowski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Journal of Forecasting",
+            "volume": "36",
+            "issn": "3",
+            "pages": "1181--1191",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.ijforecast.2019.07.001"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Covid-19) Data in the United States",
+            "authors": [],
+            "year": 2021,
+            "venue": "The New York Times. Coronavirus",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Bridging physics-based and data-driven modeling for learning dynamical systems",
+            "authors": [
+                {
+                    "first": "Rui",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Danielle",
+                    "middle": [],
+                    "last": "Maddix",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christos",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yuyang",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rose",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 3rd Conference on Learning for Dynamics and Control",
+            "volume": "144",
+            "issn": "",
+            "pages": "7--08",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Deep Factors for Forecasting",
+            "authors": [
+                {
+                    "first": "Yuyang",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alex",
+                    "middle": [],
+                    "last": "Smola",
+                    "suffix": ""
+                },
+                {
+                    "first": "Danielle",
+                    "middle": [],
+                    "last": "Maddix",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jan",
+                    "middle": [],
+                    "last": "Gasthaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dean",
+                    "middle": [],
+                    "last": "Foster",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Januschowski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "6607--6617",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A Comprehensive Survey on Graph Neural Networks",
+            "authors": [
+                {
+                    "first": "Zonghan",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shirui",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fengwen",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guodong",
+                    "middle": [],
+                    "last": "Long",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengqi",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Philip",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "IEEE Transactions on Neural Networks and Learning Systems",
+            "volume": "32",
+            "issn": "1",
+            "pages": "2162--2388",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TNNLS.2020.2978386"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "How Powerful are Graph Neural Networks",
+            "authors": [
+                {
+                    "first": "Keyulu",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Weihua",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jure",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stefanie",
+                    "middle": [],
+                    "last": "Jegelka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Spatio-temporal graph convolutional networks: A deep learning framework for traffic forecasting",
+            "authors": [
+                {
+                    "first": "Bing",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Haoteng",
+                    "middle": [],
+                    "last": "Yin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhanxing",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 27th International Joint Conference on Artificial Intelligence, IJCAI'18",
+            "volume": "",
+            "issn": "",
+            "pages": "3634--3640",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(Top) Advection on a cyclic graph set chosen so that the probability mass is transported more strongly in the counter-clockwise direction. (Bottom) Advection on a random geometric graph with randomly chosen edge weights. (Both) Colors are shown in log-scale to make dynamics more visually-apparent. Light-gray coloring corresponds to log(1/|V |) which is the steady-state probability mass for each node.Here, L out (A) := D out (A) \u2212 A denotes the out-degree graph Laplacian, and D out (G) denotes the diagonal out-degree matrix with D out (",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "KL divergence between the true probabilities p(t) and the predicted probabilities q(t) trained on 1024 sampled sequences. Gray is the training set time interval [0, T ] and red is the extrapolation region [T, 2T ] beyond the training set.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Sample complexity of each model on the geometric graph dataset (left) and cyclic graph dataset (right). The error is measured in terms of the geometric mean of the KL divergence over the evaluation time period [0, T ]. Prediction of uniform probability corresponds to a geometric mean KL divergence of 0.72 for the geometric graph and 0.15 for the cyclic graph.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Learned p(t) over a subset of the counties fit using the COVID-19 dataset preprocessed by Chen et al.[5]. Only the graph-based models are able to capture the variations over time. See Appendix A for the empirical distribution of p(t).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Distribution shift between the train and test distribution of the New Jersey COVID-19 cases created by Chen et al.[5] when binned by the 21 counties. For each of the two distributions, the height of each violin plots is normalized by the total count of observations in that split, i.e. size of training set or size of test set. For most vertices, there are fewer COVID cases later in the 7 day interval in the test set than in the training set. A copy ofFigure 4for easier comparison to the empirical distribution inFigure 5",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "(Top) The learned and ground truth p(t) for the ring graph dataset. (Bottom)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "Architecture of GOPHER.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "The dynamics of each component of p(t) on the cyclic graph. Each component corresponds to the probability of a vertex on the graph.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Still) Can't Believe It's Not Better Workshop at NeurIPS 2021.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

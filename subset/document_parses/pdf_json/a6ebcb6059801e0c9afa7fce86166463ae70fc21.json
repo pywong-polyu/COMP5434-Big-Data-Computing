@@ -1,0 +1,1164 @@
+{
+    "paper_id": "a6ebcb6059801e0c9afa7fce86166463ae70fc21",
+    "metadata": {
+        "title": "MP2: A Momentum Contrast Approach for Recommendation with Pointwise and Pairwise Learning",
+        "authors": [
+            {
+                "first": "Menghan",
+                "middle": [],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {},
+                "email": "wangmengh@zju.edu.cn"
+            },
+            {
+                "first": "Yuchen",
+                "middle": [],
+                "last": "Guo",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Zhenqi",
+                "middle": [],
+                "last": "Zhao",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Guangzheng",
+                "middle": [],
+                "last": "Hu",
+                "suffix": "",
+                "affiliation": {},
+                "email": "guangzhengh@student.unimelb.edu.au"
+            },
+            {
+                "first": "Yuming",
+                "middle": [],
+                "last": "Shen",
+                "suffix": "",
+                "affiliation": {},
+                "email": "yuming.shen@eng.ox.ac.uk"
+            },
+            {
+                "first": "Philip",
+                "middle": [],
+                "last": "Torr",
+                "suffix": "",
+                "affiliation": {},
+                "email": "philip.torr@eng.ox.ac.uk"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Binary pointwise labels (aka implicit feedback) are heavily leveraged by deep learning based recommendation algorithms nowadays. In this paper we discuss the limited expressiveness of these labels may fail to accommodate varying degrees of user preference, and thus lead to conflicts during model training, which we call annotation bias. To solve this issue, we find the soft-labeling property of pairwise labels could be utilized to alleviate the bias of pointwise labels. To this end, we propose a momentum contrast framework (MP2) that combines pointwise and pairwise learning for recommendation. MP2 has a three-tower network structure: one user network and two item networks. The two item networks are used for computing pointwise and pairwise loss respectively. To alleviate the influence of the annotation bias, we perform a momentum update to ensure a consistent item representation. Extensive experiments on real-world datasets demonstrate the superiority of our method against state-of-the-art recommendation algorithms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Personalized recommendation is becoming a key component in web applications. It is often cast as a learning-to-rank (LTR) problem [4, 6, 11] , where an ordered list of items are selected to meet users' interest. Due to the superior ability to learn from big datasets, deep learning-based recommendation algorithms are becoming the mainstream solution for practitioners.",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 133,
+                    "text": "[4,",
+                    "ref_id": null
+                },
+                {
+                    "start": 134,
+                    "end": 136,
+                    "text": "6,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 137,
+                    "end": 140,
+                    "text": "11]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Since the implicit feedback (e.g., click or not click, purchase or not purchase) is abundant, binary labels are widely chosen in practice. However, user preferences are not stable and often influenced by context. For example, in Fig. 1 we can see that item is annotated as 0 and 1 labels in different contexts but neither of them can accurately represent the user's exact preference 0.7. We call it annotation bias, which is widely ignored in binary pointwise labels. (In reality, zero labels are also collected from users' impression logs, so the annotation bias is different from the well-studied exposure bias [14, 15] ). One drawback of having annotation bias for the deep model is a high fluctuation of learned representations. For example, the two conflict labels of item will give opposite optimizing signals to its item representation.",
+            "cite_spans": [
+                {
+                    "start": 613,
+                    "end": 617,
+                    "text": "[14,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 618,
+                    "end": 621,
+                    "text": "15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 229,
+                    "end": 235,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "On the other hand, pairwise labels are free of the annotation bias. As shown in Fig. 1 , pairwise labels depict preference orders between items; it is a form of soft labeling and avoids annotating binary scores to items. Although pairwise learning is seldom studied in deep recommendations, traditional LTR studies have shown its effectiveness in learning users' comparative preferences. We argue that pointwise and pairwise learning are complementary to each other, and we could combine them to address the annotation bias.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 80,
+                    "end": 86,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Particularly, in this paper, we propose a momentum contrast framework (MP2) with pointwise and pairwise learning for recommendation. MP2 consists of a three-tower network structure: one user network and two item networks. The two item networks are used for computing pointwise and pairwise loss, respectively. MP2 also take two strategies to alleviate the annotation bias: momentum update and weighting label with discrepancy. The momentum update is applied to ensure a consistent item representation for pointwise learning, and weighting label with discrepancy aims to tune the weights of pointwise labels automatically. Extensive experiments we show that MP2 achieves state-of-the-art performance compared with other competi-tive algorithms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Deep Neural Networks in Recommendation. In recent years, deep neural networks (DNNs) have become successful in recommendations, some representative examples are PNN [12] , Wide&Deep [4] , DeepFM [6] , and DLRM [11] . However, these methods fall into pointwise learning, leaving pairwise and listwise learning (beyond the scope of this work) almost blank in deep recommendations. There also exists researches [2, 5, 10, 16] combining pointwise and pairwise learning, most of which focuses on designing a mixed loss function. Instead in this paper, we focus on the backbone design.",
+            "cite_spans": [
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 182,
+                    "end": 185,
+                    "text": "[4]",
+                    "ref_id": null
+                },
+                {
+                    "start": 195,
+                    "end": 198,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 210,
+                    "end": 214,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 408,
+                    "end": 411,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 412,
+                    "end": 414,
+                    "text": "5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 415,
+                    "end": 418,
+                    "text": "10,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 419,
+                    "end": 422,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Representation Learning with Momentum Momentum-based methods [3, 7, 17] are intensively employed in the recent study in deep representation learning, of which the majority approaches require a set of slowly-progressing parameter counterparts, updated with a momentum as reference during training. This idea has been proven to be fully functioning and effective in the context of selfsupervised feature learning and pre-training in computer vision. However, we clarify that our proposed model differs from the aforementioned methods in motivation. Existing methods basically resort to the momentum-based approaches as a memory-saving solution to construct contrastive samples for comparison [17] , while we consider a slower evolving intensity with momentum on the item representations than the user ones throughout the training process for better performance.",
+            "cite_spans": [
+                {
+                    "start": 61,
+                    "end": 64,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 65,
+                    "end": 67,
+                    "text": "7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 68,
+                    "end": 71,
+                    "text": "17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 690,
+                    "end": 694,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "In this section we describe the proposed framework in details. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MP2 FRAMEWORK"
+        },
+        {
+            "text": "From Fig. 2 we can see a three-tower architecture; it consists of a user network (\u00b7, ), an item vanilla network (\u00b7, ), and an item momentum network (\u00b7, ), of which (\u00b7, ) and (\u00b7, ) have the same structure. Below the three towers are a feature embedding layer that deals with numerical and categorical features. The three towers use input feature embeddings to generate compact representations. Let be the user representation generated by (\u00b7, ), be the item representation generated by (\u00b7, ), and be the item representation generated by (\u00b7, ). We then use these representations for pointwise and pairwise learning. For a data sample ( , , , , , > ), we use\u02c6= and = to predict pointwise labels, and use\u02c6= \u2212 to predict pairwise labels.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 5,
+                    "end": 11,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Three-Tower Design"
+        },
+        {
+            "text": "Recalling that we aim to learn a consistent representation for items and this is the reason we design two item networks for representation learning. Intuitively, if the real-value of one item's representation changes a lot during the optimization, it indicates that the item representation fluctuates a lot and there may be an annotation bias in the corresponding labels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Three-Tower Design"
+        },
+        {
+            "text": "We leverage the two item networks to model the fluctuation and then address the annotation bias, which consists of two phases: 1) Momentum update. Since pointwise labels suffer from an annotation bias, may highly fluctuate in traditional gradient-descent style optimizers. The item representation (pointwise learning) is optimized via momentum update rather than normal gradient backpropagation, which ensures a consistent, slowly-evolving update. 2) Weighting label with discrepancy. The fluctuation is measured via the discrepancy of two representations of a same item, which is further served as the confidence term of the pointwise label. A higher fluctuation indicates a lower weight of the corresponding pointwise label, which automatically lower the importance of untrustworthy pointwise labels. Randomly select a mini-batch from D \u2190 Eq. 6 Updating the vanilla and user network: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Three-Tower Design"
+        },
+        {
+            "text": "Different from the item vanilla network (\u00b7, ) that updates its weights via gradient back-propagation, (\u00b7, ) updates by averaging :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Momentum Update"
+        },
+        {
+            "text": "where \u2208 [0, 1) is a momentum coefficient hyper-parameter, whose value controls the smoothness of . The momentum update in Eq. 1 makes evolve more smoothly than . As a result, though some items may have 0 and 1 pointwise labels for a same user due to the annotation bias, the fluctuation of item representations can be made small. In contrast, in a classical recommendation model ( = ) the will receive opposite optimizing signals, which will influence the consistency of item representations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Momentum Update"
+        },
+        {
+            "text": "The learning objective directly communicates (\u00b7, ) through \u2207 by back-propagation. For each step, the update of parameters then is instantly reflected in the user representations in the next batch. On the other hand, the item representations do not strictly follow this procedure with (\u00b7, ). Instead, a momentum replicate (\u00b7, ) processes all items. Heuristically, this results in temporally consistent item encoding to compile our motivation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Momentum Update"
+        },
+        {
+            "text": "After momentum update, we approximate the fluctuation with the discrepancy between two item representations (\u00b7, ) and (\u00b7, ). Formally, the discrepancy is defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Weighting Label with Discrepancy"
+        },
+        {
+            "text": "where is the element-level discrepancy and || is an elementwise absolute value operation. is the vector length of , and\u012b s a single value. We regard this whole discrepancy as the confidence term of the pointwise label. Intuitively, a large\u00afindicates a high uncertainty so we use its reciprocal as the confidence term of pointwise label. Note that we have two items (i.e., and ) in one data sample and they are related, we combine them for the labeling weight:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Weighting Label with Discrepancy"
+        },
+        {
+            "text": "From Eq. 3, the similarity of two representation replica from the corresponding stochastic transformations (\u00b7, ) and (\u00b7, ) reflects the locality of the trained item representation space, which ideologically coheres with temporal ensembling [9] but with different approaches. [9] typically minimizes Eq. 2, while we consider re-weighting the loss functions to relate this discrepancy with the user representations.",
+            "cite_spans": [
+                {
+                    "start": 240,
+                    "end": 243,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 275,
+                    "end": 278,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Weighting Label with Discrepancy"
+        },
+        {
+            "text": "3.3.1 Loss Calculation. As shown in Fig. 2, MP2 consists of two kinds of losses: pointwise loss and pairwise loss. For pointwise loss we use discrepancy term as the confidence to the data sample.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 36,
+                    "end": 47,
+                    "text": "Fig. 2, MP2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Weighting Label with Discrepancy"
+        },
+        {
+            "text": "where = 1 1+exp(\u2212\u02c6) . Note that is the weight for both item and item in a data sample. As for pairwise loss, we use the multiplication of user representation and item representation from momentum network to compute the pairwise.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Weighting Label with Discrepancy"
+        },
+        {
+            "text": "where I(\u00b7) is the indicator function. Finally the total loss function becomes a linear combination of Eq. 4 and Eq. 5. We also add 2-regularization terms to avoid overfitting:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Weighting Label with Discrepancy"
+        },
+        {
+            "text": "In this section, we conduct experiments to evaluate the effectiveness of MP2. We compare MP2 with competitive baselines, including pointwise and pairwise algorithms. Following that, we conduct additional experiments for investigating effectiveness of each component in MP2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "EXPERIMENTS"
+        },
+        {
+            "text": "In this section we introduce the used datasets and experimental settings, including baselines, offline metrics, and reproducibility.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets and Experimental Settings"
+        },
+        {
+            "text": "We selected four datasets for evaluating recommendation performance, two from MovieLens and two from Amazon. The datasets from MovieLens 1 are ml-100k and ml-1m, separately. The other two datasets are Beauty and Office Products, which collect product reviews and metadata from Amazon 2 . The original ratings of the four datasets are explicit integer ratings range from 1 to 5. For pointwise labels, we use specific threshold 3 to binarize the rating scores as labels. For pairwise label, we select item pairs under the same user randomly, and then decide the labels based on relative scores of item pairs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "We evaluate the performance of MP2 against the following baseline models. Baseline models are chosen from three fileds: pointwise methods, pairwise methods, and pointwise+pairwise methods. 1) NeuMF [8] . This is a neural network based collaborative filtering method with binary cross-entropy loss. It consists of a two-tower structure. 2) BPR [13] . This is a pairwise ranking method optimizing the matrix factorization model with a pairwise ranking loss, which is a classical pairwise recommendation model. 3) Ranknet-NN [1] . This is a neural network model applying pairwise loss and a two-tower structure. 4) APPL.",
+            "cite_spans": [
+                {
+                    "start": 198,
+                    "end": 201,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 343,
+                    "end": 347,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 522,
+                    "end": 525,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines."
+        },
+        {
+            "text": "[5] This model is a joint learning model that combines two pointwise losses and one pairwise loss. Its original version is based on matrix factorization, and we implemented a deep learning version that replaces matrix factorization with a two-tower neural network. 5) T3 (Three-Tower). This model is a truncated version of MP2, where we remove the momentum update and discrepancy term from MP2. So this model contains a three-tower structure with two pointwise labels and one pairwise label. Hyperparameter tuning is conducted by grid search, and each method is tested with the best hyperparameters for a fair comparison.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines."
+        },
+        {
+            "text": "We show the experimental results in Table 1 , from which we can find that MP2 outperforms other baselines consistently on each dataset. This demonstrates the effectiveness of our proposed method. Further, we can get the following findings. 1) Models with joint loss (i.e., MP2, T3, and APPL) are generally better than models with pairwise loss (Ranknet-NN and BPR) or pointwise loss (NeuMF), showing that combining pointwise and pairwise learning is a promising approach for recommendation. 2) Pairwise models are empirically better than pointwise models. This is mainly because pairwise models capture relative relations of items and datasets are free of annotation bias. 3) Ranknet-NN (deep pairwise model) outperforms BPR (non-deep pairwise model) with a large margin on four datasets. Their loss function are the same and the difference is that Ranknet-NN applies a neural network, which could learn high-order feature interactions. In contrast, BPR is based on matrix factorization and it can only leverage shallow feature interactions for recommendation. 4) MP2 is superior to three tower and APPL, which indicates the effectiveness of momentum update and the weighting strategy. We also find that T3 is better than APPL, verifying the superiority of the three-tower structure over the two-tower structure. By the above analysis, we can conclude that MP2 is effective and competitive.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 36,
+                    "end": 43,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Performance Evaluation"
+        },
+        {
+            "text": "MP2 applies a momentum update strategy in the item momentum network in order to learn a consistent representation . According to Eq. 1, the momentum coefficient hyper-parameter \u2208 [0, 1) controls the smoothness of . To evaluate the effectiveness of the momentum coefficient , we perform a grid search by varying \u2208 [0, 0.1, 0.5, 0.9, 0.99, 0.999, 0.9999, 1] to find the optimal value. A larger means a slower update of . Note that = 1 indicates the item momentum network is equal to the item vanilla network at all times and there is no difference between and . In other words, MP2 is deteriorated to a two-tower structure. Figure. 3 shows the model performance of MP2 with different . We can find that the performance of MP2 is increasing monotonously when increases, and reaches the peak when = 0.999, which shows a smoother momentum update will yield a better item representation and thus improve the recommendation performance. These results also validate our assumption of a consistent item representation. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 622,
+                    "end": 631,
+                    "text": "Figure. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Effectiveness of Momentum Update"
+        },
+        {
+            "text": "To evaluate the effectiveness of the discrepancy term, we compare our proposed method (denoted as MP2 in this subsection) against its two variants to: MP2 with uniform weights and MP2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effectiveness of Discrepancy"
+        },
+        {
+            "text": "with separate weights for two pointwise labels in a data sample. Specifically, in a data sample ( , , ) the item is assigned a weight of = and MP2 is whether the two pointwise labels of a data sample are used separately or jointly to compute the label weights. Table. 2 shows NDCH@5 and NDCG@20 of the three variants on two datasets: Movielens-100K and Beauty. We can see that MP2",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 261,
+                    "end": 267,
+                    "text": "Table.",
+                    "ref_id": null
+                }
+            ],
+            "section": "Effectiveness of Discrepancy"
+        },
+        {
+            "text": "is the best among the three variants, showing the effectiveness of its weighting strategy. We also find that MP2 is worse than MP2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effectiveness of Discrepancy"
+        },
+        {
+            "text": "; uniform weights seem to be more competitive. One reason is that MP2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effectiveness of Discrepancy"
+        },
+        {
+            "text": "is the most complex model and is prone to overfitting. Meanwhile, MP2 is more like \"pointwise\" weighting while MP2 has a form of \"pairwise\" weighting. MP2 considers relations between two pointwise labels and thus is more robust to the annotation bias.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effectiveness of Discrepancy"
+        },
+        {
+            "text": "In this paper, we study the annotation bias in recommendation, a widely existing but ignored problem caused by the limited expressiveness of binary pointwise labels. We propose MP2, a momentum contrast framework for recommendation that combines pointwise and pairwise learning to alleviate the annotation bias. The offline experiments showed the superiority of MP2 over other competitive methods. In the future, we plan to combine listwise loss and pointwise loss in deep learning for recommendation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Learning to rank using gradient descent",
+            "authors": [
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Burges",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tal",
+                    "middle": [],
+                    "last": "Shaked",
+                    "suffix": ""
+                },
+                {
+                    "first": "Erin",
+                    "middle": [],
+                    "last": "Renshaw",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ari",
+                    "middle": [],
+                    "last": "Lazier",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matt",
+                    "middle": [],
+                    "last": "Deeds",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nicole",
+                    "middle": [],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Greg",
+                    "middle": [],
+                    "last": "Hullender",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "89--96",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Fusing pointwise and pairwise labels for supporting user-adaptive image retrieval",
+            "authors": [
+                {
+                    "first": "Lin",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Peng",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Baoxin",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ICMR",
+            "volume": "",
+            "issn": "",
+            "pages": "67--74",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Ross Girshick, and Kaiming He. 2020. Improved baselines with momentum contrastive learning",
+            "authors": [
+                {
+                    "first": "Xinlei",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Haoqi",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2003.04297"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Wide & deep learning for recommender systems",
+            "authors": [],
+            "year": null,
+            "venue": "Proceedings of the 1st workshop on deep learning for recommender systems",
+            "volume": "",
+            "issn": "",
+            "pages": "7--10",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Adaptive Pointwise-Pairwise Learning-to-Rank for Content-based Personalized Recommendation",
+            "authors": [
+                {
+                    "first": "Gizem",
+                    "middle": [],
+                    "last": "Yagmur",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jean-Michel",
+                    "middle": [],
+                    "last": "Cinar",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Renders",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Recsys",
+            "volume": "",
+            "issn": "",
+            "pages": "414--419",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "DeepFM: a factorization-machine based neural network for CTR prediction",
+            "authors": [
+                {
+                    "first": "Huifeng",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ruiming",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yunming",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhenguo",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiuqiang",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IJCAI",
+            "volume": "",
+            "issn": "",
+            "pages": "1725--1731",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Momentum contrast for unsupervised visual representation learning",
+            "authors": [
+                {
+                    "first": "Kaiming",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Haoqi",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yuxin",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Saining",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ross",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "9729--9738",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Neural collaborative filtering. In WWW",
+            "authors": [
+                {
+                    "first": "Xiangnan",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lizi",
+                    "middle": [],
+                    "last": "Liao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hanwang",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Liqiang",
+                    "middle": [],
+                    "last": "Nie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xia",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tat-Seng",
+                    "middle": [],
+                    "last": "Chua",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "173--182",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Temporal ensembling for semi-supervised learning",
+            "authors": [
+                {
+                    "first": "Samuli",
+                    "middle": [],
+                    "last": "Laine",
+                    "suffix": ""
+                },
+                {
+                    "first": "Timo",
+                    "middle": [],
+                    "last": "Aila",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1610.02242"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Alternating pointwise-pairwise learning for personalized item ranking",
+            "authors": [
+                {
+                    "first": "Yu",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wenjie",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ziyu",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Miao",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ICDM",
+            "volume": "",
+            "issn": "",
+            "pages": "2155--2158",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Deep learning recommendation model for personalization and recommendation systems",
+            "authors": [
+                {
+                    "first": "Maxim",
+                    "middle": [],
+                    "last": "Naumov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dheevatsa",
+                    "middle": [],
+                    "last": "Mudigere",
+                    "suffix": ""
+                },
+                {
+                    "first": "-Jun Michael",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jianyu",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jongsoo",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaodong",
+                    "middle": [],
+                    "last": "Sundaraman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Udit",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carole-Jean",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alisson",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Azzolini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1906.00091"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Product-based neural networks for user response prediction",
+            "authors": [
+                {
+                    "first": "Yanru",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Han",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kan",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "Weinan",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yong",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ying",
+                    "middle": [],
+                    "last": "Wen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jun",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ICDM. IEEE",
+            "volume": "",
+            "issn": "",
+            "pages": "1149--1154",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "BPR: Bayesian personalized ranking from implicit feedback",
+            "authors": [
+                {
+                    "first": "Steffen",
+                    "middle": [],
+                    "last": "Rendle",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christoph",
+                    "middle": [],
+                    "last": "Freudenthaler",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zeno",
+                    "middle": [],
+                    "last": "Gantner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lars",
+                    "middle": [],
+                    "last": "Schmidt-Thieme",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1205.2618"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Modeling dynamic missingness of implicit feedback for recommendation",
+            "authors": [
+                {
+                    "first": "Menghan",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mingming",
+                    "middle": [],
+                    "last": "Gong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaolin",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kun",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "NeurIPS",
+            "volume": "31",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Collaborative filtering with social exposure: A modular approach to social recommendation",
+            "authors": [
+                {
+                    "first": "Menghan",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaolin",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yang",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kun",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "In AAAI",
+            "volume": "32",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Ppp: Joint pointwise and pairwise image label prediction",
+            "authors": [
+                {
+                    "first": "Yilin",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Suhang",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiliang",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Huan",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Baoxin",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "6005--6013",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Unsupervised feature learning via non-parametric instance discrimination",
+            "authors": [
+                {
+                    "first": "Zhirong",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yuanjun",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Stella",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dahua",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "3733--3742",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Graphical architecture of MP2.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "The Training Procedure of MP2 Input: A training dataset D = { ( , , , , , > ) }. Output: Network parameters , and . repeat",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Performance",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Updating the momentum network: \u2190 + (1 \u2212 ) according to Eq. 1 until convergence or reaching the maximum iteration;",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Comparisons of different models on four datasets.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Performance (NDCG) of different labeling weights of MP2.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Yuming Shen is partially supported by the UKRI grant: Turing AI Fellowship EP/W002981/1 and EPSRC/MURI grant: EP/N019474/1. Yuming also acknowledge the philanthropic support of the donors to the University of Oxford's COVID-19 Research Response Fund: BRD00230. Yuming would like to thank the Royal Academy of Engineering and FiveAI. The authors thank the anonymous reviewers for their helpful comments.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ACKNOWLEDGEMENTS"
+        }
+    ]
+}
