@@ -1,0 +1,3936 @@
+{
+    "paper_id": "f0838c412c77bc30e070b3a471bdd4688701962b",
+    "metadata": {
+        "title": "LoL: A Comparative Regularization Loss over Query Reformulation Losses for Pseudo-Relevance Feedback",
+        "authors": [
+            {
+                "first": "Yunchang",
+                "middle": [],
+                "last": "Zhu",
+                "suffix": "",
+                "affiliation": {},
+                "email": "zhuyunchang17s@ict.ac.cn"
+            },
+            {
+                "first": "Liang",
+                "middle": [],
+                "last": "Pang",
+                "suffix": "",
+                "affiliation": {},
+                "email": "pangliang@ict.ac.cn"
+            },
+            {
+                "first": "Yanyan",
+                "middle": [],
+                "last": "Lan",
+                "suffix": "",
+                "affiliation": {},
+                "email": "lanyanyan@tsinghua.edu.cn"
+            },
+            {
+                "first": "Huawei",
+                "middle": [],
+                "last": "Shen",
+                "suffix": "",
+                "affiliation": {},
+                "email": "shenhuawei@ict.ac.cn"
+            },
+            {
+                "first": "Xueqi",
+                "middle": [],
+                "last": "Cheng",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Pseudo-relevance feedback (PRF) has proven to be an effective query reformulation technique to improve retrieval accuracy. It aims to alleviate the mismatch of linguistic expressions between a query and its potential relevant documents. Existing PRF methods independently treat revised queries originating from the same query but using different numbers of feedback documents, resulting in severe query drift. Without comparing the effects of two different revisions from the same query, a PRF model may incorrectly focus on the additional irrelevant information increased in the more feedback, and thus reformulate a query that is less effective than the revision using the less feedback. Ideally, if a PRF model can distinguish between irrelevant and relevant information in the feedback, the more feedback documents there are, the better the revised query will be. To bridge this gap, we propose the Loss-over-Loss (LoL) framework to compare the reformulation losses between different revisions of the same query during training. Concretely, we revise an original query multiple times in parallel using different amounts of feedback and compute their reformulation losses. Then, we introduce an additional regularization loss on these reformulation losses to penalize revisions that use more feedback but gain larger losses. With such comparative regularization, the PRF model is expected to learn to suppress the extra increased irrelevant information by comparing the effects of different revised queries. Further, we present a differentiable query reformulation method to implement this framework. This method revises queries in the vector space and directly * Corresponding author This work is licensed under a Creative Commons Attribution International 4.0 License. optimizes the retrieval performance of query vectors, applicable for both sparse and dense retrieval models. Empirical evaluation demonstrates the effectiveness and robustness of our method for two typical sparse and dense retrieval models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In information retrieval (IR), users often formulate short and ambiguous queries due to the reluctance and the difficulty in expressing their information needs precisely in words [5] . This may specifically arise from several reasons, such as the use of inconsistent terminology, commonly known as vocabulary mismatch [17] , or the lack of knowledge in the area in which information is sought. Decades of IR research demonstrate that such casual queries prevent a search engine from correctly and completely satisfying users' information needs [12] . To mitigate the mismatch of expressions between a query and its potential relevant documents, many query reformulation approaches leveraging on external resources (such as thesaurus and relevance feedback) have been proposed to revise a better query -one that ranks relevant documents higher. Pseudo-Relevance Feedback (PRF) [3] has shown to be one of effective query reformulation technique in various information retrieval settings [16, 38, 63] . As the name implies, no real relevant feedback from users is required in PRF, which makes it more convenient and and widely studied. In the first-pass retrieval of PRF, a small set of top-retrieved documents for an original query, called the feedback set, is assumed to contain relevant information [3, 11] . The \"pseudo\" feedback set is then exploited as external resources in the query reformulation process to form a query revision, which is then run to retrieve the final list of documents presented to the user. An example is shown in Figure 1 where the first document introduces the synonymous term 'COVID-19' into the original query to clarify the original query that contains ambiguous 'Omicron'. Early PRF was widely studied for sparse retrieval like vector space models [50] , probabilistic models [49] , and language modeling methods [21, 25, 26, 35, 53, 61] . Recently, some work has shifted to apply PRF in dense retrieval of single-representation [28, 29, 59] and multi-representation [54] .",
+            "cite_spans": [
+                {
+                    "start": 179,
+                    "end": 182,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 318,
+                    "end": 322,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 544,
+                    "end": 548,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 876,
+                    "end": 879,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 985,
+                    "end": 989,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 990,
+                    "end": 993,
+                    "text": "38,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 994,
+                    "end": 997,
+                    "text": "63]",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 1299,
+                    "end": 1302,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1303,
+                    "end": 1306,
+                    "text": "11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1780,
+                    "end": 1784,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1808,
+                    "end": 1812,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 1845,
+                    "end": 1849,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1850,
+                    "end": 1853,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1854,
+                    "end": 1857,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1858,
+                    "end": 1861,
+                    "text": "35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 1862,
+                    "end": 1865,
+                    "text": "53,",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 1866,
+                    "end": 1869,
+                    "text": "61]",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 1961,
+                    "end": 1965,
+                    "text": "[28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1966,
+                    "end": 1969,
+                    "text": "29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1970,
+                    "end": 1973,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 1999,
+                    "end": 2003,
+                    "text": "[54]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1540,
+                    "end": 1548,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Although PRF methods are generally accepted to improve average retrieval effectiveness [5, 6, 34, 59] , their performance is sometimes inferior to the original query [40, 53, 64] . One of the causes for this robustness problem is query drift: the topic of the revision drifts away from the original intent [40] . This is not surprising, considering that many top-ranked documents can be irrelevant and misleading, and relevant documents may contain irrelevant information. For example in Figure 1 , adding more feedback documents, e.g. the second document, leads to a worse reformulated query, because an irrelevant document introduces the noise term 'Greek' into the reformulated query which totally changes the meaning of the original query. Therefore, PRF models need to learn to suppress the irrelevant information in the feedback set and make the most of the relevant information. Imagine an ideal PRF model, given a larger feedback set in which both relevant and irrelevant information increase, the model should form a better query revision.",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 90,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 91,
+                    "end": 93,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 94,
+                    "end": 97,
+                    "text": "34,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 98,
+                    "end": 101,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 166,
+                    "end": 170,
+                    "text": "[40,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 171,
+                    "end": 174,
+                    "text": "53,",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 175,
+                    "end": 178,
+                    "text": "64]",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 306,
+                    "end": 310,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 488,
+                    "end": 496,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Previous studies cope with query drift mainly by adding preprocessing or post-processing [2, 7, 33, 40] or leveraging state-ofthe-art pre-trained language models [54, 59] . However, additional processing brings more computational cost, and pre-trained language models may not necessarily learn to suppress irrelevant information for retrieval without particular supervision [36] . Moreover, existing PRF methods optimize different revisions of the same query independently by minimizing their own reformulation losses, ignoring the comparison principle between these revisions: the more feedback, the better the revision, a necessary condition for an ideal PRF model.",
+            "cite_spans": [
+                {
+                    "start": 89,
+                    "end": 92,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 93,
+                    "end": 95,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 96,
+                    "end": 99,
+                    "text": "33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 100,
+                    "end": 103,
+                    "text": "40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 162,
+                    "end": 166,
+                    "text": "[54,",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 167,
+                    "end": 170,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 374,
+                    "end": 378,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Thus, to explicitly pursue this principle during training, we propose a conceptual framework, namely Loss-over-Loss (LoL). This is a general optimization framework applicable to any supervised PRF method. First, to enable performance comparisons across revisions, the original query is revised multiple times in a batch using feedback sets of different sizes. Then, we impose a comparative regularization loss on all reformulation losses derived from the same original query to penalize those revisions that use more feedback but obtain larger losses. Specifically, the comparative regularization is a pairwise ranking loss of these reformulation losses, where the ascending order of reformulation losses is expected to coincide with the descending order of the sizes of the feedback sets they use. With such comparative regularization, we expect the PRF model to learn to suppress those extra increased irrelevant in more feedback by comparing the effects of different revisions. Furthermore, we present a differentiable PRF method as a simple implementation of LoL. The method revises queries in the vector space, thus avoiding the hassle of natural language generation and gradient back-propagation, which makes it applicable for sparse retrieval as well as dense retrieval. Besides, this method uses a ranking loss as the query reformulation loss, which ensures the consistency of PRF with its ultimate goal, i.e., improving retrieval effectiveness.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "To verify the effectiveness of our method, we evaluate two implemented LoL models, one for sparse retrieval and the other for dense retrieval, on multiple benchmarks based on MS MARCO passage collection. Experimental results show that the retrieval performance of LoL models is significantly better than their base models and other PRF models. Furthermore, we prove the critical role of comparative regularization through ablation studies and visualization of learning curves. Moreover, our analysis demonstrates that LoL is more robust to the number of feedback documents compared to PRF baselines and is not sensitive to the training hyper-parameters.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "The main contributions can be summarized as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 A comparison principle is pointed out: the more feedback documents, the better the effect of the reformulated query. Ignoring this principle during training may cause PRF models to be misled by irrelevant information that appears in more feedback, leading to query drift. \u2022 A comparative regularization is proposed to enhance the irrelevant information suppression ability of PRF models, applicable for both sparse and dense retrieval. \u2022 With the help of comparative regularization, our PRF models outperform their base retrieval models and state-of-the-art PRF baselines on multiple benchmarks based on MS MARCO. We release the code at https://github.com/zycdev/LoL. Query reformulation is the process of refining a query to improve ranking effectiveness. According to the external resources used in the reformulation process, there are two categories of methods: global and local [57] . The first category of methods typically expands the query based on global resources, such as WordNet [18] , thesauri [52] , Wikipedia [1] , Freebase [55] , and Word2Vec [15] . While the second category, the so-called relevance feedback [50] , is usually more popular. It leverages local relevance feedback for the original query to reformulate a query revision. Relevance feedback information can be obtained through explicit feedback (e.g., document relevance judgments [50] ), implicit feedback (e.g., clickthrough data [22] ), or pseudo-relevance feedback (assuming the top-retrieved documents contain information relevant to the user's information need [3, 11] ). Of these, pseudo-relevance feedback is the most common, since no user intervention is required. Although pseudo-relevance feedback (PRF) is also used for re-ranking [27, 62] , we next focus on PRF methods in sparse and dense retrieval. Finally, we review existing efforts to mitigate query drift.",
+            "cite_spans": [
+                {
+                    "start": 884,
+                    "end": 888,
+                    "text": "[57]",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 992,
+                    "end": 996,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1008,
+                    "end": 1012,
+                    "text": "[52]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 1025,
+                    "end": 1028,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1040,
+                    "end": 1044,
+                    "text": "[55]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 1060,
+                    "end": 1064,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1127,
+                    "end": 1131,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1362,
+                    "end": 1366,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1413,
+                    "end": 1417,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1548,
+                    "end": 1551,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1552,
+                    "end": 1555,
+                    "text": "11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1724,
+                    "end": 1728,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1729,
+                    "end": 1732,
+                    "text": "62]",
+                    "ref_id": "BIBREF61"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Pseudo-relevance feedback methods for sparse retrieval have a long history, dating back to Rocchio [50] . The Rocchio algorithm is originally a relevance feedback method proposed for vector space models [51] but is also applicable to PRF. It constructs the refined query representation through the linear combination of the sparse vectors of the query and feedback documents. After that, many other heuristics were proposed. For probabilistic models [39] , the feedback documents are naturally treated as examples of relevant documents to improve the estimation of model parameters [49] . Whereas for language modeling approaches [45] , PRF can be implemented by exploiting the feedback set to estimate a query language model [35, 61] or relevance model [21, 26] . Overall, these methods expand new terms to the original query or/and reweight query terms by exploiting statistical information on the feedback set and the whole collection. Besides, some recent methods expand the query using static [60] or contextualized embeddings [42] . For instance, CEQE [42] uses BERT [14] to compute contextual representations of terms in the query and feedback documents and then selects those closest to query embeddings as extension terms according to some measure. But these methods are still heuristic because they make strong assumptions to estimate the feedback weight for each term. For example, the divergence minimization model [61] assumes that a term with high frequency in the feedback documents and low frequency in the collection should be assigned a high feedback weight. However, these assumptions are not necessarily in line with the ultimate objective of PRF, i.e., improving retrieval performance. Due to the discrete nature of natural language, the reformulated query text is non-differentiable, making it difficult for supervised learning to optimize retrieval performance directly. Therefore, [41] proposes a general reinforcement learning framework to directly optimize retrieval metrics. To escape the expensive and unstable training of reinforcement learning, a few supervised methods [4, 46] are optimized to generate oracle query revisions by selecting good terms or spans from the feedback documents. However, these \"oracle\" query revisions are constructed heuristically and do not necessarily achieve optimal ranking results. Unlike all the above methods, our introduced method for sparse retrieval refines the query in the vector space, enabling direct optimization of retrieval performance in an end-to-end fashion.",
+            "cite_spans": [
+                {
+                    "start": 99,
+                    "end": 103,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 203,
+                    "end": 207,
+                    "text": "[51]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 450,
+                    "end": 454,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 582,
+                    "end": 586,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 630,
+                    "end": 634,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 726,
+                    "end": 730,
+                    "text": "[35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 731,
+                    "end": 734,
+                    "text": "61]",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 754,
+                    "end": 758,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 759,
+                    "end": 762,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 998,
+                    "end": 1002,
+                    "text": "[60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 1032,
+                    "end": 1036,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 1058,
+                    "end": 1062,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 1073,
+                    "end": 1077,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1427,
+                    "end": 1431,
+                    "text": "[61]",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 1905,
+                    "end": 1909,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 2100,
+                    "end": 2103,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 2104,
+                    "end": 2107,
+                    "text": "46]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "PRF for Sparse Retrieval"
+        },
+        {
+            "text": "Dense retrieval has made great progress in recent years. Since dense retrievers [23, 24, 56] use embedding vectors to represent queries and documents, a few methods [28, 29, 54, 59] have been studied to integrate pseudo-relevance information into reformulated query vectors. ColBERT-PRF [54] first verified the effectiveness of PRF in multi-representation dense retrieval [24] . Specifically, it expands multi-vector query representations with representative feedback embeddings extracted by KMeans clustering. [28] investigated two simple methods, Average and Rocchio [50] , to utilize feedback documents in single-representation dense retrievers (e.g., ANCE [56] ) without introducing new neural models or further training. Instead of refining the query vector heuristically, ANCE-PRF [59] uses RoBERTa [32] to consume the original query and the topretrieved documents from ANCE [56] . Keeping the document index unchanged, ANCE-PRF is trained end-to-end with relevance labels and learns to optimize the query vector by exploiting the relevant information in the feedback documents. Further, [29] investigate the generalisability of the strategy underlying ANCE-PRF [59] to other dense retrievers [20, 31] . Although our presented PRF method for dense retrieval uses the same strategy, all the above methods are optimized to perform well on average, ignoring the performance comparison between different versions of a query.",
+            "cite_spans": [
+                {
+                    "start": 80,
+                    "end": 84,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 85,
+                    "end": 88,
+                    "text": "24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 89,
+                    "end": 92,
+                    "text": "56]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 170,
+                    "end": 173,
+                    "text": "29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 174,
+                    "end": 177,
+                    "text": "54,",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 178,
+                    "end": 181,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 287,
+                    "end": 291,
+                    "text": "[54]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 372,
+                    "end": 376,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 511,
+                    "end": 515,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 569,
+                    "end": 573,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 660,
+                    "end": 664,
+                    "text": "[56]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 787,
+                    "end": 791,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 805,
+                    "end": 809,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 881,
+                    "end": 885,
+                    "text": "[56]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 1094,
+                    "end": 1098,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1168,
+                    "end": 1172,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 1199,
+                    "end": 1203,
+                    "text": "[20,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1204,
+                    "end": 1207,
+                    "text": "31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "PRF for Dense Retrieval"
+        },
+        {
+            "text": "Query drift is a long-standing problem in PRF, where the topic of the reformulated query drifts in an unintended direction mainly due to the introduced irrelevant information from the feedback set [11, 40] . There have been many studies on coping with query drift. The strategies they typically employ include: (i) selectively activating query reformulation to avoid performance damage to some queries [2, 13] ; (ii) refining the feedback set to increase the proportion of relevant information in it [40, 62] ; (iii) varying the impact of the original query and feedback documents to highlight queryrelevant information [33, 53] ; (iv) post-processing the reformulated query to eliminate risky expansions [7] ; (v) model ensemble to fuse results from multiple models [8, 64] ; (vi) leveraging an advanced pre-trained language model [14, 32] with the expectation that the model itself to be immune to noise [54, 59] ; (vii) introducing a regularization term in the optimization objective to constrain some principles [35, 53] . Our presented method belongs to the last two strategies, introducing no additional processing during inference. Unlike the other approaches in strategy (vi) that count on the model to naturally learn to distinguish irrelevant information when learning query reformulation, LoL also provides additional supervision on comparing the effects of revisions. Moreover, to the best of our knowledge, we are the first to impose comparative regularization on multiple revisions of the same query.",
+            "cite_spans": [
+                {
+                    "start": 197,
+                    "end": 201,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 202,
+                    "end": 205,
+                    "text": "40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 402,
+                    "end": 405,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 406,
+                    "end": 409,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 500,
+                    "end": 504,
+                    "text": "[40,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 505,
+                    "end": 508,
+                    "text": "62]",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 620,
+                    "end": 624,
+                    "text": "[33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 625,
+                    "end": 628,
+                    "text": "53]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 705,
+                    "end": 708,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 767,
+                    "end": 770,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 771,
+                    "end": 774,
+                    "text": "64]",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 832,
+                    "end": 836,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 837,
+                    "end": 840,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 906,
+                    "end": 910,
+                    "text": "[54,",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 911,
+                    "end": 914,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 1016,
+                    "end": 1020,
+                    "text": "[35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 1021,
+                    "end": 1024,
+                    "text": "53]",
+                    "ref_id": "BIBREF52"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Coping with Query Drift"
+        },
+        {
+            "text": "This section describes our proposed framework for pseudo-relevant feedback (PRF) and its implementation method. We first formalize the process of PRF and introduce its traditional optimization paradigm. Then, we propose a general conceptual framework for PRF, namely Loss-over-Loss (LoL). Finally, we present an end-to-end query reformulation method based on vector space as an instance of this framework and introduce its special handling for sparse and dense retrieval.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Coping with Query Drift"
+        },
+        {
+            "text": "Given an original textual query and a document collection , a retrieval model returns a ranked list of documents = ( 1 , 2 , \u00b7 \u00b7 \u00b7 , | | ). Let ( ) = \u2264 denote the feedback set containing the first documents, where \u2265 0 is often referred to as the PRF depth. The goal of pseudo-relevant feedback is to reformulate the original query into a new representation ( ) using the query-relevant information in the feedback set ( ) ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminary"
+        },
+        {
+            "text": "where QR is a query reformulation model based on PRF.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminary"
+        },
+        {
+            "text": "Denoting the reformulation loss of the revision ( ) as L rf ( ( ) ), the general form of QR is to optimize by minimizing the following loss function, which take multiple depths of PRF into consideration:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminary"
+        },
+        {
+            "text": "where is the set of PRF depths that QR needs to learn in one epoch. For example, = {1, 3, 5} means that the loss considers the top-1, top-3, and top-5 documents in the ranked list as the feedback set, respectively. However, | | is always set to 1 in many existing methods [59] . Specifically, existing PRF models are trained separately at each PRF depth, where = { } is a constant set and",
+            "cite_spans": [
+                {
+                    "start": 272,
+                    "end": 276,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminary"
+        },
+        {
+            "text": "Taking it a little further, let \u2287 be the set of all PRF depths that a PRF model is designed to handle, e.g., = {1, 2, 3, 4, 5}. If the PRF model needs to be trained jointly at all PRF depths, we can sample a random subset from as in each epoch.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminary"
+        },
+        {
+            "text": "To prevent query drift caused by the increase of (irrelevant) feedback information, we propose the Loss-over-Loss (LoL) framework. We first discover a comparison principle that an ideal PRF model should guarantee but was neglected in previous work. This principle describes the ideal comparative relationship between revisions derived from the same query but using different amounts of feedback. Therefore, we regularize the reformulation losses of these revisions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Loss-over-loss Framework for PRF"
+        },
+        {
+            "text": "Suppose RI( , ) denotes the information relevant to the query in the feedback set , while NRI( , ) represents the information irrelevant to in . Normally, as the PRF depth increases, both relevant and irrelevant information increase, i.e., RI( , ( +1) ) \u2287 RI( , ( ) ) and NRI( , ( +1) ) \u2287 NRI( , ( ) ). In this way, an ideal PRF model immune to irrelevant information should be able to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Loss-over-loss Framework for PRF"
+        },
+        {
+            "text": "< Query Reformulation Loss Figure 2 : The overview of the LoL framework. In the initial stage, the retrieval model first generates a ranking list based on the original query. In the reformulate stage, a list of top-k documents is selected to reformulate the query. In the lossover-loss regularization stage, a constrain is constructed to ensure more feedback documents lead to small query reformulation loss.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 27,
+                    "end": 35,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Comparative Regularization Loss"
+        },
+        {
+            "text": "generate a better revision due to more relevant information, which implies a smaller reformulation loss. In short, the principle can be expressed as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparative Regularization Loss"
+        },
+        {
+            "text": "Comparison Principle. Given a larger feedback set ( +1) \u2287 ( ) , an ideal PRF model should generate a better revision ( +1) whose reformulation loss is less, i.e., L rf ( ( +1) ) \u2264 L rf ( ( ) ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparative Regularization Loss"
+        },
+        {
+            "text": "The above principle describes a necessary condition for an ideal PRF model, i.e., a regular comparative relationship. Therefore, we try to constrain this comparative relationship, which was ignored by the previous work, by means of regularization. Instead of optimizing different revisions of the same query independently, we optimize them collectively with a comparative regularization. First, to allow comparison between multiple revisions, at each epoch, we randomly sample | | > 1 distinct PRF depths from the full set without replacement. Then, | | revisions { ( ) | \u2208 } of the same query are reformulated in parallel by the PRF model in the same batch, and their reformulation losses are calculated as {L ( ( ) )| \u2208 }. Finally, we regularize these losses to pursue the above principle during training. Specifically, we add the following comparative regularization term to the reformulation losses,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparative Regularization Loss"
+        },
+        {
+            "text": "As shown in Figure 2 , the regularization term L cr ( ) can be viewed as a pairwise hinge [19] ranking loss of these reformulation losses, where the ascending order of these losses is expected to coincide with the descending order of the feedback amounts they use. Intuitively, it is reasonable if the revision ( ) using a larger feedback set obtains no larger reformulation loss than the revision ( ) using a smaller feedback set, and we should not penalize revision ( ) . Otherwise, we penalize ( ) with the loss difference L rf ( ( ) ) \u2212 L rf ( ( ) ) between them, while rewarding ( ) at the same time. With such comparative regularization, we expect the PRF model to learn to keep the reformulation loss non-increasing with respect to the size of the feedback set by comparing the losses (effects) of different revisions and consequently learn to suppress increased irrelevant information from a larger feedback set.",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 94,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 12,
+                    "end": 20,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Comparative Regularization Loss"
+        },
+        {
+            "text": "In summary, the loss function of LoL consists of the conventional reformulation loss and the newly proposed comparative regularization term, formally written as follows,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparative Regularization Loss"
+        },
+        {
+            "text": "where is a weight that adjusts the strength of the comparative regularization. When we set to 0 and | | to 1, Equation (5) can degenerate to Equation (3).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparative Regularization Loss"
+        },
+        {
+            "text": "The LoL framework can be used for the training of any PRF model as long as the query reformulation loss is differentiable. Here, we present a simple LoL implementation for both dense and sparse retrieval.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Differentiable PRF Method under LoL"
+        },
+        {
+            "text": "3.3.1 Query Reformulation Loss. The ultimate goal of PRF is to improve retrieval effectiveness. Generally, given a textual query and a document , the similarity score between them in a singlerepresentation retrieval model is calculated as the dot product of their vectors:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Differentiable PRF Method under LoL"
+        },
+        {
+            "text": "where and are their encoded vector representations. In dense retrieval, and are dense low-dimensional vectors, while in sparse retrieval, they are sparse high-dimensional vectors whose dimensions are the size of the vocabulary. Notably, PRF only improves the representation of the query, while the vector representation of all documents in the collection keeps invariant.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Differentiable PRF Method under LoL"
+        },
+        {
+            "text": "To ensure that the training objective of query reformulation is consistent with the ultimate objective of PRF, we define the reformulation loss for a revision ( ) derived from the original query as a ranking loss:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Differentiable PRF Method under LoL"
+        },
+        {
+            "text": "where + is the positive document relevant to and ( ) , and \u2212 is the collection of negative documents for them. Optimizing this reformulation loss is trivial for dense retrieval, which inherently operates in the vector space. However, since natural language queries are non-differentiable, optimizing this loss for sparse retrieval is tricky.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Differentiable PRF Method under LoL"
+        },
+        {
+            "text": "Considering that the query text will eventually be encoded as a vector at retrieval time, we skip the generation of the query text and directly refine the hidden representation of the query in the vector space as in dense retrieval approaches [23, 56] . In other words, the vector ( ) refined by the PRF model QR, hereafter we call it ( ) , will serve as the vector of the reformulated query in the secondpass retrieval. In this way, we eliminate both the natural language generator that generates the textual revision and the query encoder that encodes the revised text. More importantly, we guarantee the differentiability of the reformulation loss in Equation (7), which allows us to train the PRF model end-to-end.",
+            "cite_spans": [
+                {
+                    "start": 243,
+                    "end": 247,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 248,
+                    "end": 251,
+                    "text": "56]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Differentiable PRF Method under LoL"
+        },
+        {
+            "text": "In the following, we describe a simple instance of the PRF model QR in Equation (1), which encodes the original query and the feedback set into a sparse or dense revision vector.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PRF Model."
+        },
+        {
+            "text": "In general, the PRF model consists of an encoder, a vector projector, and a pooler. We first leverage a BERT-style encoder to encode all tokens in the original query and the feedback set ( ) into contextualized embeddings:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PRF Model."
+        },
+        {
+            "text": "Then, contextualized embeddings are projected to vectors with the same dimension as indexed document vectors:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PRF Model."
+        },
+        {
+            "text": "Finally, all vectors are pooled into a single vector representation:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PRF Model."
+        },
+        {
+            "text": "For sparse retrieval, the projector is a MLP with GeLU activation and layer normalization, initialized from a pre-trained masked language model layer. And the pooler is composed of a max pooling operation and a L2 normalization 1 . While for dense retrieval, the projector is a linear layer, and the pooler applies a layer normalization on the first vector ([CLS]) in the sequence, as in the previous work [56, 59] .",
+            "cite_spans": [
+                {
+                    "start": 406,
+                    "end": 410,
+                    "text": "[56,",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 411,
+                    "end": 414,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                }
+            ],
+            "ref_spans": [],
+            "section": "PRF Model."
+        },
+        {
+            "text": "This section describes the datasets, evaluation metrics, baselines, and details of our implementations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "EXPERIMENTAL SETUP"
+        },
+        {
+            "text": "Experiments are conducted on MS MARCO passage [43] collection, which includes 8.8M English passages from web pages gathered from Bing's results to 1M real-world queries. We train our models with the MS MARCO Train set, which includes 530K queries with shallow annotation (~1.1 relevant passages per query in average). The trained models are first evaluated on the MS MARCO Dev set containing 6980 queries to tune hyper-parameters and select model checkpoints. We then evaluate the selected models on the MS MARCO online Eval set and three offline benchmarks (DL-HARD [37] , TREC DL 2019 [10] and TREC DL 2020 [9] ). MS MARCO Eval 2 , TREC DL 2019, TREC DL 2020 and DL-HARD contain 6837, 43, 54 and 50 labeled queries, respectively. Unlike MS MARCO, whose relevance judgments are binary, the other three benchmarks provide fine-grained annotations (relevance grades from 0 to 3) for each query. Among them, DL-HARD [37] is a recent evaluation dataset focusing on challenging and complex queries.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 567,
+                    "end": 571,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 587,
+                    "end": 591,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 609,
+                    "end": 612,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 914,
+                    "end": 918,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "The official metric of MS MARCO [43] is MRR@10, and the main metric of TREC DL [9, 10] and DL-HARD [9] is NDCG@10. MRR@10 is also the criterion used to select our models. Since we focus on PRF for first-stage retrieval, we report Recall@1K for all benchmarks. To compute the recall metric for TREC DL and DL-HARD, we treat documents with relevance grade 1 as irrelevant following [9, 10] . To evaluate the robustness of PRF methods, we use the robustness index (RI) [7] . RI is defined as + \u2212 \u2212 | | , where | | is the total number of queries and + and \u2212 are the number of queries that are improved or degraded by the PRF method. The value of RI is always in the [-1, 1] interval, and methods with higher values are more robust. Statistically significant differences in performance are determined using the paired t-test.",
+            "cite_spans": [
+                {
+                    "start": 32,
+                    "end": 36,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 79,
+                    "end": 82,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 83,
+                    "end": 86,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 99,
+                    "end": 102,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 384,
+                    "end": 387,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 466,
+                    "end": 469,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "Since in this paper we only provide one implementation of LoL for single-representation retrieval, we do not consider baselines of re-ranking and multi-representation retrieval.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "For base retrieval models without feedback, we mainly consider BM25 [48] , uniCOIL + docT5query [30] , and ANCE [56] . The first two are lexical sparse retrieval models, while ANCE is a singlerepresentation dense retrieval model. For the PRF models, we consider three heuristic methods (RM3, Rocchio and Average) and one supervised learning method (ANCE-PRF) based on the retrieval model described above.",
+            "cite_spans": [
+                {
+                    "start": 68,
+                    "end": 72,
+                    "text": "[48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 96,
+                    "end": 100,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 112,
+                    "end": 116,
+                    "text": "[56]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "\u2022 RM3 [21] is an effective relevance model for traditional sparse retrieval. We apply RM3 on BM25, serving as a representative method for classic PRF. \u2022 Rocchio [50] and Average are the other two heuristic PRF methods, and have been investigated for ANCE by [28] . \u2022 ANCE-PRF [59] is currently the strongest PRF method for single-representation retrieval. Keeping the document index of ANCE unchanged, ANCE-PRF is trained end-to-end with relevance labels and learns to optimize the revised query vector by exploiting the relevant information in the feedback documents.",
+            "cite_spans": [
+                {
+                    "start": 6,
+                    "end": 10,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 161,
+                    "end": 165,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 258,
+                    "end": 262,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 276,
+                    "end": 280,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "We also evaluate two variants of standard LoL ( > 0, | | > 1):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "\u2022 LoL w/o Reg ( = 0, | | > 1) does not impose the comparative regularization in Equation (4) but has multiple parallel revisions derived from the same query in each batch. \u2022 LoL w/o Par ( = 0, | | = 1) does not revise the same original query multiple times in parallel in each batch, but unlike ANCE-PRF, it is still trained jointly for all PRF depths.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "To ensure that gradients can be back-propagated during training, we perform real-time retrieval by multiplying the query matrix and the document matrix 3 . The query matrix consists of all revised query vectors in a batch, and the document matrix contains precomputed vectors of all positive and mined negative documents. These negative documents are the union of the top-ranked documents retrieved by BM25, uniCOIL + docT5query, and ANCE. At training time, \u2212 in Equation (7) contains all documents in the document matrix except the relevant documents for that query. Since document vectors do not need to be updated, we can mine as many negative documents as possible, as long as it does not exceed the memory limit of GPUs or retrieval is too slow. We train two PRF models using the presented LoL implementation on 4 Tesla V100 GPUs with 32GB memory for up to 12 | | epochs 4 , one model for sparse retrieval with document expansion (uniCOIL + docT5query) and the other for dense retrieval (ANCE). During training, one GPU is dedicated to retrieval, and the other three are used for the PRF model to revise query vectors. The document matrices are converted from the pre-built inverted or dense indexes provided by pyserini 5 , a wrapper of the Anserini IR toolkit [58] for Python. We optimized the PRF models using the AdamW optimizer with the learning rate selected from {2 \u00d7 10 \u22125 , 1 \u00d7 10 \u22125 , 5 \u00d7 10 \u22126 } for all PRF depths in = {0, 1, 2, 3, 4, 5} 6 . We set the feedback weight to 1 and the number of comparative revisions | | to 2 if not specified. For uniCOIL + docT5query, the PRF model is initialized from BERT base , and the document matrix contains 3,738,207 documents. We set the batch size (number of original queries) to 96 | | , which means the total number of revisions in a batch is always 96. For ANCE, the PRF model is initialized from ANCE FirstP 7 , the document matrix contains 5,284,422 documents, and the batch size is set to 108 | | . We keep the model checkpoint with the best MRR@10 score on the MS MARCO Dev set. In inference, we first obtain top-ranked documents using the base retrieval model. Then we feed them into the trained PRF model in Equation (1) to get a revised query vector, and perform the second-pass retrieval for the final results.",
+            "cite_spans": [
+                {
+                    "start": 862,
+                    "end": 864,
+                    "text": "12",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1267,
+                    "end": 1271,
+                    "text": "[58]",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 1738,
+                    "end": 1740,
+                    "text": "96",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "For baselines BM25 and BM25 with RM3, we set 1 to 0.82 and to 0.6 and reproduce them via pyserini. For uniCOIL + docT5query or ANCE, we convert its pre-built document index to a sparse or ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "In this section, we discuss our experimental results and analysis. We first compare LoL with typical base retrieval models and stateof-the-art PRF models; Then, we verify the role of comparative regularization through ablation studies. Furthermore, we investigate the robustness of LoL to PRF depths and its sensitivity to training hyper-parameters. Finally, we visualize the impact of LoL in training through learning curves. For simplicity, we hereafter refer to the LoL model as the PRF model optimized under the LoL framework, LoL uniCOIL as the LoL model for uniCOIL + docT5query, and LoL ANCE as the LoL model for ANCE. Table 1 shows the overall retrieval results of baselines and LoL models on MARCO Dev, MARCO Eval, TREC DL 2019, TREC DL 2020 and DL-HARD. For both sparse retrieval and dense retrieval, we report the results of LoL models at their best-performing PRF depths (numbers in superscript brackets). For a fair comparison with ANCE-PRF (3) , we also report the results of LoL In the first group in Table 1 , we can see that RM3 improves Recall@1K of BM25 at the expense of MRR@10 and NDCG@10, which reflects the problem of query drift.",
+            "cite_spans": [
+                {
+                    "start": 954,
+                    "end": 957,
+                    "text": "(3)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 626,
+                    "end": 633,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1016,
+                    "end": 1023,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "EXPERIMENTAL RESULTS"
+        },
+        {
+            "text": "From the last two groups in Table 1 , we find that all LoL models outperform their base retrieval models, i.e., uniCOIL + docT5query and ANCE, across all evaluation benchmarks and metrics. This proves the availability of our differentiable PRF implementation of the LoL.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 28,
+                    "end": 35,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Main Results"
+        },
+        {
+            "text": "Compared with recent PRF baseline models for ANCE, LoL ANCE also achieve better retrieval performance, except for the NDCG@10 metric of LoL ANCE on the DL-HARD benchmark is lower than that of ANCE-PRF (3) . However, the Recall@1K of LoL It is worth noting that even though the documents are expanded with T5-generated queries in advance, which to some extent mitigates the expression mismatch problem, LoL uniCOIL still improves on uniCOIL + docT5query. This phenomenon demonstrates the powerful query reformulation capability of LoL and shows that document expansion cannot completely supplant query reformulation.",
+            "cite_spans": [
+                {
+                    "start": 201,
+                    "end": 204,
+                    "text": "(3)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Main Results"
+        },
+        {
+            "text": "In this part, we conduct ablation studies on MARCO Dev for both sparse and dense retrieval to further explore the roles of comparative regularization and multiple parallel revisions in LoL.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ablation Studies"
+        },
+        {
+            "text": "A standard LoL ( = 1, | | = 2) and two LoL variants, i.e., LoL w/o Reg ( = 0, | | = 2) and LoL w/o Par ( = 0, | | = 1), are measured at all PRF depths in . We compare the evaluation results of the standard LoL and LoL w/o Reg to show the role of the comparative regularization in Equation (4). We further introduce LoL w/o Par to eliminate the effect of parallel revision multiple times in one batch. For dense retrieval, we also compare LoL models to ANCE-PRF models, which are equivalent to LoL w/o Par trained separately at each PRF depth. Note that we use different checkpoints for the model of the same type at different PRF depths, which are selected for each PRF depth separately.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ablation Studies"
+        },
+        {
+            "text": "As shown in Table 2 , at each PRF depth, the standard LoL outperforms its two variants and ANCE-PRF in all metrics, with the one exception of recall@1K at = 1, where LoL w/o Reg is slightly better than LoL. The conclusions of the sparse search in Table 3 are similar, although there are four slight drops in recall compared to LoL w/o Reg. We speculate this may be because the ranking loss function in Equation (7) is closer to the shallower metrics like NDCG@10 and MRR@10. And the comparative regularization further increases LoL models' attention to these shallow ranking metrics. Therefore, it is sufficient to show the effectiveness of the comparative regularization. In addition, we find that LoL w/o Reg and LoL w/o Par are generally competitive with each other, which indicates the impact of parallel multiple revisions is not significant and highlights the role of comparative regularization. Moreover, as shown in Table 2 , LoL w/o Par also outperforms the ANCE-PRF across the board, especially the Recall@1K metric. We believe this may be attributed to joint training and the computation of reformulation loss on the entire (mined) document matrix.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 12,
+                    "end": 19,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 247,
+                    "end": 254,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 924,
+                    "end": 931,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Ablation Studies"
+        },
+        {
+            "text": "At the beginning of the design, we expect LoL to alleviate query drift, i.e., make the model more robust to the increasing number of feedback documents. In this part, we verify this expectation. Figure 3 shows the performance of the best checkpoint for multiple PRF models at all PRF depths. Different from using different model checkpoints at different PRF depths in Table 2 and Table 3 , each curve of LoL in Figure 3 is drawn from the performance of the same model checkpoint. Therefore, the MRR@10 values in Table 2 and Table 3 can be viewed as the upper bound of the values in Figure 3a and Figure 3b , respectively. As we can see in Figure 3a and Table 2 , only LoL and LoL w/o Reg are monotonically increasing with respect to the number of documents. ANCE-PRF reaches peak performance at PRF depth 4 and then suffers performance degradation, and LoL w/o Par. encounters a performance dip when the number of feedback documents increased from 3 to 4. As for PRF models applied in sparse retrieval in Figure 3b and Table 3 , LoL w/o Par. and LoL w/o Reg reach peak performance at PRF depth 2, while LoL continues to grow until the PRF depth approaches 4.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 195,
+                    "end": 203,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 368,
+                    "end": 375,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 380,
+                    "end": 387,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 411,
+                    "end": 419,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 512,
+                    "end": 519,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 524,
+                    "end": 531,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 582,
+                    "end": 591,
+                    "text": "Figure 3a",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 596,
+                    "end": 605,
+                    "text": "Figure 3b",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 639,
+                    "end": 648,
+                    "text": "Figure 3a",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 653,
+                    "end": 660,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1005,
+                    "end": 1014,
+                    "text": "Figure 3b",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1019,
+                    "end": 1026,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Robustness to PRF Depth"
+        },
+        {
+            "text": "To quantify the robustness of LoL, we report the robustness indices (RI) of LoL ( ) ANCE with respect to ANCE and LoL ( \u22121) Table 4 and Table 5 , respectively. From Table 4 , we can find that LoL ANCE reformulates more revisions that are better than original queries compared to its variant baselines at all PRF depths. Similarly, as shown in Table 5 , when the number of feedback documents increases from \u2212 1 to , compared to LoL w/o Par and LoL w/o Reg, LoL can more robustly revise better queries than before.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 124,
+                    "end": 131,
+                    "text": "Table 4",
+                    "ref_id": "TABREF4"
+                },
+                {
+                    "start": 136,
+                    "end": 143,
+                    "text": "Table 5",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 165,
+                    "end": 172,
+                    "text": "Table 4",
+                    "ref_id": "TABREF4"
+                },
+                {
+                    "start": 343,
+                    "end": 350,
+                    "text": "Table 5",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Robustness to PRF Depth"
+        },
+        {
+            "text": "From these observations, we may draw two conclusions. (1) Compared to these baselines, LoL is more robust to PRF depths. That is, as the number of feedback documents increases, LoL-reformulated queries have less drift and are less prone to performance degradation. (2) LoL for dense retrieval is more robust than LoL for sparse retrieval. We conjecture that this is because dense query vectors are more fine-grained and are more likely to prevent the introduction of irrelevant information, while sparse query vectors are term-grained and may introduce relevant polysemous terms when reformulating the query, which in turn leads to query drift. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ANCE in"
+        },
+        {
+            "text": "To capture the sensitivity of LoL to the number of comparative revisions | | and the regularization weight , we evaluate multiple LoL ANCE models trained with different | | and on MARCO Dev set. As shown in Table 6 , all LoL ANCE models trained with | | > 1 perform better than that with | | = 1, which indicates that is not sensitive to | | > 1. Comparing the last two rows that share the regularization weight = 0.5, we can find that the smaller | | seems to be better trained than the larger | |. We speculate that this may be because larger | | leads to smaller training batch size under the GPU memory limitation. Using the default setting of | | = 2, although the variance of the values in rows 2 to 4 is not large, setting to 1 performs best at most PRF depths.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 207,
+                    "end": 214,
+                    "text": "Table 6",
+                    "ref_id": "TABREF6"
+                }
+            ],
+            "section": "Sensitivity to Training Hyper-parameters"
+        },
+        {
+            "text": "To visualize the impact of LoL in training, we show the loss curves of LoL ANCE on the MARCO Train and Dev sets in Figure 4 . Figure 4a and 4b plot the query reformulation losses in Equation (7) ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 115,
+                    "end": 123,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 126,
+                    "end": 135,
+                    "text": "Figure 4a",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Analysis of Loss Curves"
+        },
+        {
+            "text": "Further deriving the final loss in Equation (5), we can find that LoL can be viewed as re-weighting multiple reformulation losses of the same query. For simplicity, we denote L rf ( ( ) )) as . Speicially, the loss can be rewrited as follow:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        },
+        {
+            "text": "where 1(\u00b7) is a indicator function and CMP is a function to compare the sizes of the feedback sets and evaluation losses of two revisions derived from the same query. Formally, the CMP function is defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        },
+        {
+            "text": "otherwise.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        },
+        {
+            "text": "From this re-weighting perspective, given the size of the PRF depth set | |, the training complexity of LoL is the same as LoL w/o Reg ( = 0), and the additional comparison overhead is a small constant and negligible. Besides, since LoL is just an optimization framework, PRF models trained under LoL do not have any increase in computational cost at inference time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        },
+        {
+            "text": "Essentially, comparative regularization aims to guarantee the normal order of a set of objects. This normal order is usually supposed to be maintained, i.e. unsupervised, but ignored by the model. Therefore, from this perspective, LoL can be seen as an unsupervised application of leaning-to-rank. As such, one future direction is to explore the application of other leaning-to-rank losses here. Furthermore, these objects should be able to be mapped to differentiable values, such as evaluation metrics or losses. Therefore, future work can also replace the mapping function (reformulation loss) in our method. Moreover, if there are similar neglected normal orders in other tasks, then the comparative regularization may also be used for other tasks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        },
+        {
+            "text": "In this paper, we find that the query drift problem in pseudorelevance feedback is mainly caused by irrelevant information when more pseudo-relevant documents are involved as feedback information to reformulate the query. Ideally, a good pseudo-relevance feedback model should have the ability to use more feedback documents that contain irrelevant information. That is, the more pseudorelevant documents provided, the better quality of the reformulated query. Armed with this intuition, we design a novel comparative regularization loss based on multiple query reformulation losses to ensure that more feedback documents lead to smaller query reformulation losses. The proposed comparative regularization loss over query reformulation losses (LoL) framework can be used in any pseudo-relevance feedback model with any retrieval framework, e.g., sparse retrieval or dense retrieval. Experiments on publicly large-scale dataset MS MARCO and its variant evaluation sets demonstrate that our plug-and-play regularization can bring improvements compared to the baseline methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Query Expansion Using Wikipedia and Dbpedia",
+            "authors": [
+                {
+                    "first": "Nitish",
+                    "middle": [],
+                    "last": "Aggarwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Buitelaar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "CLEF",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Query Difficulty, Robustness, and Selective Application of Query Expansion",
+            "authors": [
+                {
+                    "first": "Giambattista",
+                    "middle": [],
+                    "last": "Amati",
+                    "suffix": ""
+                },
+                {
+                    "first": "Claudio",
+                    "middle": [],
+                    "last": "Carpineto",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giovanni",
+                    "middle": [],
+                    "last": "Romano",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Advances in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "127--137",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-24752-4_10"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Local Feedback in Full-Text Retrieval Systems",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Attar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Fraenkel",
+                    "suffix": ""
+                }
+            ],
+            "year": 1977,
+            "venue": "J. ACM",
+            "volume": "24",
+            "issn": "",
+            "pages": "397--417",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/322017.322021"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Selecting Good Expansion Terms for Pseudo-Relevance Feedback",
+            "authors": [
+                {
+                    "first": "Guihong",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jian-Yun",
+                    "middle": [],
+                    "last": "Nie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jianfeng",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stephen",
+                    "middle": [],
+                    "last": "Robertson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 31st Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '08)",
+            "volume": "",
+            "issn": "",
+            "pages": "243--250",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1390334.1390377"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A Survey of Automatic Query Expansion in Information Retrieval",
+            "authors": [
+                {
+                    "first": "Claudio",
+                    "middle": [],
+                    "last": "Carpineto",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giovanni",
+                    "middle": [],
+                    "last": "Romano",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Comput. Surveys",
+            "volume": "44",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2071389.2071390"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A Theoretical Analysis of Pseudo-Relevance Feedback Models",
+            "authors": [
+                {
+                    "first": "St\u00e9phane",
+                    "middle": [],
+                    "last": "Clinchant",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Gaussier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 2013 Conference on the Theory of Information Retrieval (ICTIR '13)",
+            "volume": "",
+            "issn": "",
+            "pages": "6--13",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2499178.2499179"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Reducing the Risk of Query Expansion via Robust Constrained Optimization",
+            "authors": [
+                {
+                    "first": "Kevyn",
+                    "middle": [],
+                    "last": "Collins-Thompson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the 18th ACM Conference on Information and Knowledge Management (CIKM '09)",
+            "volume": "",
+            "issn": "",
+            "pages": "837--846",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1645953.1646059"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Estimation and Use of Uncertainty in Pseudo-Relevance Feedback",
+            "authors": [
+                {
+                    "first": "Kevyn",
+                    "middle": [],
+                    "last": "Collins-Thompson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jamie",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the 30th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '07)",
+            "volume": "",
+            "issn": "",
+            "pages": "303--310",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1277741.1277795"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Overview of the TREC 2020 Deep Learning Track",
+            "authors": [
+                {
+                    "first": "Nick",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bhaskar",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emine",
+                    "middle": [],
+                    "last": "Yilmaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Campos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2102.07662"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Overview of the TREC 2019 Deep Learning Track",
+            "authors": [
+                {
+                    "first": "Nick",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bhaskar",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emine",
+                    "middle": [],
+                    "last": "Yilmaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Campos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ellen",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Voorhees",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2003.07820"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Using Probabilistic Models of Document Retrieval without Relevance Information",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Harper",
+                    "suffix": ""
+                }
+            ],
+            "year": 1979,
+            "venue": "Journal of Documentation",
+            "volume": "35",
+            "issn": "",
+            "pages": "285--295",
+            "other_ids": {
+                "DOI": [
+                    "10.1108/eb026683"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Search Engines: Information Retrieval in Practice",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bruce",
+                    "middle": [],
+                    "last": "Croft",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donald",
+                    "middle": [],
+                    "last": "Metzler",
+                    "suffix": ""
+                },
+                {
+                    "first": "Trevor",
+                    "middle": [],
+                    "last": "Strohman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "520",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "A Framework for Selective Query Expansion",
+            "authors": [
+                {
+                    "first": "Steve",
+                    "middle": [],
+                    "last": "Cronen-Townsend",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yun",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "Bruce"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the Thirteenth ACM International Conference on Information and Knowledge Management (CIKM '04)",
+            "volume": "",
+            "issn": "",
+            "pages": "236--237",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1031171.1031220"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+            "authors": [
+                {
+                    "first": "Jacob",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ming-Wei",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kenton",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kristina",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "1",
+            "issn": "",
+            "pages": "4171--4186",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/N19-1423"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Query Expansion with Locally-Trained Word Embeddings",
+            "authors": [
+                {
+                    "first": "Fernando",
+                    "middle": [],
+                    "last": "Diaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mitra",
+                    "middle": [],
+                    "last": "Bhaskar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nick",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "1",
+            "issn": "",
+            "pages": "367--377",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/P16-1035"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Pre-Training Methods in Information Retrieval",
+            "authors": [
+                {
+                    "first": "Yixing",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaohui",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yinqiong",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jia",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xinyu",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiangsheng",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ruqing",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiafeng",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yiqun",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2022,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2111.13853"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "The Vocabulary Problem in Human-System Communication",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Furnas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Landauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Gomez",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Dumais",
+                    "suffix": ""
+                }
+            ],
+            "year": 1987,
+            "venue": "Commun. ACM",
+            "volume": "30",
+            "issn": "",
+            "pages": "964--971",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/32206.32212"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Web Query Expansion by Wordnet",
+            "authors": [
+                {
+                    "first": "Zhiguo",
+                    "middle": [],
+                    "last": "Gong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chan",
+                    "middle": [],
+                    "last": "Wa Cheang",
+                    "suffix": ""
+                },
+                {
+                    "first": "U Leong",
+                    "middle": [],
+                    "last": "Hou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 16th International Conference on Database and Expert Systems Applications (DEXA'05)",
+            "volume": "",
+            "issn": "",
+            "pages": "166--175",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/11546924_17"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Large Margin Rank Boundaries for Ordinal Regression",
+            "authors": [
+                {
+                    "first": "Ralf",
+                    "middle": [],
+                    "last": "Herbrich",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thore",
+                    "middle": [],
+                    "last": "Graepel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Klaus",
+                    "middle": [],
+                    "last": "Obermayer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Advances in large margin classifiers",
+            "volume": "88",
+            "issn": "",
+            "pages": "115--132",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Efficiently Teaching an Effective Dense Retriever with Balanced Topic Aware Sampling",
+            "authors": [
+                {
+                    "first": "Sebastian",
+                    "middle": [],
+                    "last": "Hofst\u00e4tter",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sheng-Chieh",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jheng-Hong",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jimmy",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Allan",
+                    "middle": [],
+                    "last": "Hanbury",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 44th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "113--122",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3404835.3462891"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "UMass at TREC 2004: Novelty and HARD",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Jaleel",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Allan",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Croft",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fernando",
+                    "middle": [],
+                    "last": "Diaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Larkey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaoyan",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Smucker",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wade",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "TREC",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.21236/ada460118"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Optimizing Search Engines Using Clickthrough Data",
+            "authors": [
+                {
+                    "first": "Thorsten",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the Eighth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining (KDD '02)",
+            "volume": "",
+            "issn": "",
+            "pages": "133--142",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/775047.775067"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Dense Passage Retrieval for Open-Domain Question Answering",
+            "authors": [
+                {
+                    "first": "Vladimir",
+                    "middle": [],
+                    "last": "Karpukhin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Barlas",
+                    "middle": [],
+                    "last": "Oguz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sewon",
+                    "middle": [],
+                    "last": "Min",
+                    "suffix": ""
+                },
+                {
+                    "first": "Patrick",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ledell",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sergey",
+                    "middle": [],
+                    "last": "Edunov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Danqi",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wen-Tau",
+                    "middle": [],
+                    "last": "Yih",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "6769--6781",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/2020.emnlp-main.550"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT",
+            "authors": [
+                {
+                    "first": "Omar",
+                    "middle": [],
+                    "last": "Khattab",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matei",
+                    "middle": [],
+                    "last": "Zaharia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 43rd International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "39--48",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3397271.3401075"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Document Language Models, Query Models, and Risk Minimization for Information Retrieval",
+            "authors": [
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengxiang",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of the 24th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '01)",
+            "volume": "",
+            "issn": "",
+            "pages": "111--119",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/383952.383970"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Relevance Based Language Models",
+            "authors": [
+                {
+                    "first": "Victor",
+                    "middle": [],
+                    "last": "Lavrenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "W. Bruce",
+                    "middle": [],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of the 24th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '01)",
+            "volume": "",
+            "issn": "",
+            "pages": "120--127",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/383952.383972"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "NPRF: A Neural Pseudo Relevance Feedback Framework for Ad-hoc Information Retrieval",
+            "authors": [
+                {
+                    "first": "Canjia",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yingfei",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ben",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Le",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kai",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "Le",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jungang",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "4482--4491",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/D18-1478"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Pseudo Relevance Feedback with Deep Language Models and Dense Retrievers: Successes and Pitfalls",
+            "authors": [
+                {
+                    "first": "Hang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ahmed",
+                    "middle": [],
+                    "last": "Mourad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shengyao",
+                    "middle": [],
+                    "last": "Zhuang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bevan",
+                    "middle": [],
+                    "last": "Koopman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guido",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2108.11044"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Improving Query Representations for Dense Retrieval with Pseudo Relevance Feedback: A Reproducibility Study",
+            "authors": [
+                {
+                    "first": "Hang",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shengyao",
+                    "middle": [],
+                    "last": "Zhuang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ahmed",
+                    "middle": [],
+                    "last": "Mourad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xueguang",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jimmy",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guido",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2112.06400"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "2021. A Few Brief Notes on DeepImpact, COIL, and a Conceptual Framework for Information Retrieval Techniques",
+            "authors": [
+                {
+                    "first": "Jimmy",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xueguang",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2106.14807"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Distilling Dense Representations for Ranking Using Tightly-Coupled Teachers",
+            "authors": [
+                {
+                    "first": "Jheng-Hong",
+                    "middle": [],
+                    "last": "Sheng-Chieh Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jimmy",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2010.11386"
+                ]
+            }
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "RoBERTa: A Robustly Optimized BERT Pretraining Approach",
+            "authors": [
+                {
+                    "first": "Yinhan",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Myle",
+                    "middle": [],
+                    "last": "Ott",
+                    "suffix": ""
+                },
+                {
+                    "first": "Naman",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jingfei",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mandar",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Danqi",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Omer",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mike",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Luke",
+                    "middle": [],
+                    "last": "Zettlemoyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veselin",
+                    "middle": [],
+                    "last": "Stoyanov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1907.11692"
+                ]
+            }
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Adaptive Relevance Feedback in Information Retrieval",
+            "authors": [
+                {
+                    "first": "Yuanhua",
+                    "middle": [],
+                    "last": "Lv",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengxiang",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the 18th ACM Conference on Information and Knowledge Management (CIKM '09)",
+            "volume": "",
+            "issn": "",
+            "pages": "255--264",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1645953.1645988"
+                ]
+            }
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "A Comparative Study of Methods for Estimating Query Language Models with Pseudo Feedback",
+            "authors": [
+                {
+                    "first": "Yuanhua",
+                    "middle": [],
+                    "last": "Lv",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengxiang",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the 18th ACM Conference on Information and Knowledge Management (CIKM '09)",
+            "volume": "",
+            "issn": "",
+            "pages": "1895--1898",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1645953.1646259"
+                ]
+            }
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Revisiting the Divergence Minimization Feedback Model",
+            "authors": [
+                {
+                    "first": "Yuanhua",
+                    "middle": [],
+                    "last": "Lv",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengxiang",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 23rd ACM International Conference on Conference on Information and Knowledge Management (CIKM '14)",
+            "volume": "",
+            "issn": "",
+            "pages": "1863--1866",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2661829.2661900"
+                ]
+            }
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "PROP: Pre-Training with Representative Words Prediction for Ad-Hoc Retrieval",
+            "authors": [
+                {
+                    "first": "Xinyu",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jiafeng",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ruqing",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yixing",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiang",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xueqi",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 14th ACM International Conference on Web Search and Data Mining (WSDM '21)",
+            "volume": "",
+            "issn": "",
+            "pages": "283--291",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3437963.3441777"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "How Deep Is Your Learning: The DL-HARD Annotated Deep Learning Dataset",
+            "authors": [
+                {
+                    "first": "Iain",
+                    "middle": [],
+                    "last": "Mackie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [],
+                    "last": "Dalton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 44th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "2335--2341",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3404835.3463262"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "troduction to Information Retrieval",
+            "authors": [
+                {
+                    "first": "Christopher",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                },
+                {
+                    "first": "Prabhakar",
+                    "middle": [],
+                    "last": "Raghavan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hinrich",
+                    "middle": [],
+                    "last": "Sch\u00fctze",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1017/CBO9780511809071"
+                ]
+            }
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "On Relevance, Probabilistic Indexing and Information Retrieval",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Maron",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Kuhns",
+                    "suffix": ""
+                }
+            ],
+            "year": 1960,
+            "venue": "J. ACM",
+            "volume": "7",
+            "issn": "3",
+            "pages": "216--244",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/321033.321035"
+                ]
+            }
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Improving Automatic Query Expansion",
+            "authors": [
+                {
+                    "first": "Mandar",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "Amit",
+                    "middle": [],
+                    "last": "Singhal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Buckley",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Proceedings of the 21st Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '98)",
+            "volume": "",
+            "issn": "",
+            "pages": "206--214",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/290941.290995"
+                ]
+            }
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "A Reinforcement Learning Framework for Relevance Feedback",
+            "authors": [
+                {
+                    "first": "Ali",
+                    "middle": [],
+                    "last": "Montazeralghaem",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hamed",
+                    "middle": [],
+                    "last": "Zamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Allan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 43rd International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "59--68",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3397271.3401099"
+                ]
+            }
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "CEQE: Contextualized Embeddings for Query Expansion",
+            "authors": [
+                {
+                    "first": "Shahrzad",
+                    "middle": [],
+                    "last": "Naseri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [],
+                    "last": "Dalton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Allan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Advances in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "467--482",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-72113-8_31"
+                ]
+            }
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "MS MARCO: A Human Generated Machine Reading Comprehension Dataset",
+            "authors": [
+                {
+                    "first": "Tri",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mir",
+                    "middle": [],
+                    "last": "Rosenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xia",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jianfeng",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Saurabh",
+                    "middle": [],
+                    "last": "Tiwary",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rangan",
+                    "middle": [],
+                    "last": "Majumder",
+                    "suffix": ""
+                },
+                {
+                    "first": "Li",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CoCo@ NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "From Doc2query to docTTTTTquery",
+            "authors": [
+                {
+                    "first": "Rodrigo",
+                    "middle": [],
+                    "last": "Nogueira",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jimmy",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Epistemic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "A Language Modeling Approach to Information Retrieval",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jay",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "Bruce"
+                    ],
+                    "last": "Ponte",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Proceedings of the 21st Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '98)",
+            "volume": "",
+            "issn": "",
+            "pages": "275--281",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/290941.291008"
+                ]
+            }
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Answering Complex Open-domain Questions Through Iterative Query Generation",
+            "authors": [
+                {
+                    "first": "Peng",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiaowen",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leo",
+                    "middle": [],
+                    "last": "Mehr",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zijian",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christopher",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "2590--2602",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/D19-1261"
+                ]
+            }
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer",
+            "authors": [
+                {
+                    "first": "Colin",
+                    "middle": [],
+                    "last": "Raffel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Noam",
+                    "middle": [],
+                    "last": "Shazeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                },
+                {
+                    "first": "Katherine",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sharan",
+                    "middle": [],
+                    "last": "Narang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Matena",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yanqi",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wei",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Peter",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of Machine Learning Research",
+            "volume": "21",
+            "issn": "",
+            "pages": "1--67",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "The Probabilistic Relevance Framework: BM25 and Beyond",
+            "authors": [
+                {
+                    "first": "Stephen",
+                    "middle": [],
+                    "last": "Robertson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hugo",
+                    "middle": [],
+                    "last": "Zaragoza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Foundations and Trends\u00ae in Information Retrieval",
+            "volume": "3",
+            "issn": "",
+            "pages": "333--389",
+            "other_ids": {
+                "DOI": [
+                    "10.1561/1500000019"
+                ]
+            }
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Relevance Weighting of Search Terms",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Robertson",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sparck",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                }
+            ],
+            "year": 1976,
+            "venue": "Journal of the American Society for Information Science",
+            "volume": "27",
+            "issn": "",
+            "pages": "129--146",
+            "other_ids": {
+                "DOI": [
+                    "10.1002/asi.4630270302"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Relevance Feedback in Information Retrieval. The Smart retrieval system-experiments in automatic document processing",
+            "authors": [
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Rocchio",
+                    "suffix": ""
+                }
+            ],
+            "year": 1971,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "313--323",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "A Vector Space Model for Automatic Indexing",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Salton",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Wong",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 1975,
+            "venue": "Commun. ACM",
+            "volume": "18",
+            "issn": "",
+            "pages": "613--620",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/361219.361220"
+                ]
+            }
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Query Expansion Behavior within a Thesaurus-Enhanced Search Environment: A User-Centered Evaluation",
+            "authors": [
+                {
+                    "first": "Ali",
+                    "middle": [],
+                    "last": "Shiri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Crawford",
+                    "middle": [],
+                    "last": "Revie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Journal of the American Society for Information Science and Technology",
+            "volume": "57",
+            "issn": "4",
+            "pages": "462--478",
+            "other_ids": {
+                "DOI": [
+                    "10.1002/asi.20319"
+                ]
+            }
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Regularized Estimation of Mixture Models for Robust Pseudo-Relevance Feedback",
+            "authors": [
+                {
+                    "first": "Tao",
+                    "middle": [],
+                    "last": "Tao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chengxiang",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the 29th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '06)",
+            "volume": "",
+            "issn": "",
+            "pages": "162--169",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1148170.1148201"
+                ]
+            }
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Pseudo-Relevance Feedback for Multiple Representation Dense Retrieval",
+            "authors": [
+                {
+                    "first": "Xiao",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Craig",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nicola",
+                    "middle": [],
+                    "last": "Tonellotto",
+                    "suffix": ""
+                },
+                {
+                    "first": "Iadh",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 2021 ACM SIGIR International Conference on Theory of Information Retrieval (ICTIR '21)",
+            "volume": "",
+            "issn": "",
+            "pages": "297--306",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3471158.3472250"
+                ]
+            }
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Query Expansion with Freebase",
+            "authors": [
+                {
+                    "first": "Chenyan",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jamie",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 2015 International Conference on The Theory of Information Retrieval (ICTIR '15)",
+            "volume": "",
+            "issn": "",
+            "pages": "111--120",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2808194.2809446"
+                ]
+            }
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Approximate Nearest Neighbor Negative Contrastive Learning for Dense Text Retrieval",
+            "authors": [
+                {
+                    "first": "Lee",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chenyan",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ye",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kwok-Fung",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jialin",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Paul",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Bennett",
+                    "suffix": ""
+                },
+                {
+                    "first": "Junaid",
+                    "middle": [],
+                    "last": "Ahmed",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arnold",
+                    "middle": [],
+                    "last": "Overwijk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Query Expansion Using Local and Global Document Analysis",
+            "authors": [
+                {
+                    "first": "Jinxi",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W. Bruce",
+                    "middle": [],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Proceedings of the 19th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '96)",
+            "volume": "",
+            "issn": "",
+            "pages": "4--11",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/243199.243202"
+                ]
+            }
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Anserini: Enabling the Use of Lucene for Information Retrieval Research",
+            "authors": [
+                {
+                    "first": "Peilin",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hui",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jimmy",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 40th International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '17)",
+            "volume": "",
+            "issn": "",
+            "pages": "1253--1256",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3077136.3080721"
+                ]
+            }
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Improving Query Representations for Dense Retrieval with Pseudo Relevance Feedback",
+            "authors": [
+                {
+                    "first": "Hongchien",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chenyan",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jamie",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 30th ACM International Conference on Information & Knowledge Management (CIKM '21)",
+            "volume": "",
+            "issn": "",
+            "pages": "3592--3596",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3459637.3482124"
+                ]
+            }
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Embedding-Based Query Language Models",
+            "authors": [
+                {
+                    "first": "Hamed",
+                    "middle": [],
+                    "last": "Zamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "W. Bruce",
+                    "middle": [],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 ACM International Conference on the Theory of Information Retrieval (ICTIR '16)",
+            "volume": "",
+            "issn": "",
+            "pages": "147--156",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2970398.2970405"
+                ]
+            }
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Model-Based Feedback in the Language Modeling Approach to Information Retrieval",
+            "authors": [
+                {
+                    "first": "Chengxiang",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of the Tenth International Conference on Information and Knowledge Management (CIKM '01)",
+            "volume": "",
+            "issn": "",
+            "pages": "403--410",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/502585.502654"
+                ]
+            }
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "BERT-QE: Contextualized Query Expansion for Document Re-ranking",
+            "authors": [
+                {
+                    "first": "Zhi",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kai",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ben",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xianpei",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "Le",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Findings of the Association for Computational Linguistics: EMNLP 2020",
+            "volume": "",
+            "issn": "",
+            "pages": "4718--4728",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/2020.findings-emnlp.424"
+                ]
+            }
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Adaptive Information Seeking for Open-Domain Question Answering",
+            "authors": [
+                {
+                    "first": "Yunchang",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Liang",
+                    "middle": [],
+                    "last": "Pang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yanyan",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Huawei",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xueqi",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "3615--3626",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/2021.emnlp-main.293"
+                ]
+            }
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Query-Drift Prevention for Robust Query Expansion",
+            "authors": [
+                {
+                    "first": "Liron",
+                    "middle": [],
+                    "last": "Zighelnic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Oren",
+                    "middle": [],
+                    "last": "Kurland",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 31st Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '08)",
+            "volume": "",
+            "issn": "",
+            "pages": "825--826",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1390334.1390524"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "An example of pseudo-relevant feedback. When the top 1 document (potentially relevant) is used as the feedback, the reformulated query is better than the original. But if more documents, such as the second (potentially irrelevant), are added to the feedback set, it may cause query drift.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "which use the top 3 feedback documents.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "ANCE on DL-HARD is improved by 4.3% compared to ANCE-PRF(3) , and outperforms the base ANCE without PRF. Moreover, when five feedback documents are fed into LoL ANCE , LoL",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "ANCE-PRF(3) on the NDCG@10 metric. Considering that ANCE-PRF can be regarded as a special case ( = 0 and | | = | | = 1) under the LoL framework, the above results demonstrate the effectiveness of the Loss-over-Loss framework.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "The MRR@10 curve of the same PRF model using different numbers of documents. The horizontal dotted line represents the MRR@10 value of the base retrieval model.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "w/o Reg 0.52 0.53 0.58 0.59 0.61 LoL 0.54 0.56 0.63 0.63 0.66",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "The loss curves of standard LoL, LoL w/o Reg and LoL w/o Par for ANCE on MS MARCO.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Overall retrieval results. The best results in each group are marked in bold. We reproduce all baseline results, except for ANCE-PRF, Rocchio, and Average, whose results are reported in previous work and not available for significance tests. Superscript * indicates statistically significant improvements over its base retrieval model with \u2264 0.05.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Ablation on comparative regularization for ANCE at all PRF depths. The best results in each group are marked in bold. Superscripts \u2020, \u2021 and \u00a7 indicate statistically significant improvements over LoL w/o Par, LoL w/o Reg and LoL at the same PRF depth with \u2264 0.1, respectively.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Ablation on comparative regularization for uniCOIL + docT5query at all PRF depths. The best results in each group are marked in bold. Superscripts \u2020, \u2021 and \u00a7 indicate statistically significant improvements over LoL w/o Par, LoL w/o Reg and LoL at the same PRF depth with \u2264 0.1, respectively.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "RI of LoL ANCE with respect to ANCE on MARCO Dev at all PRF depths.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "RI of LoL ANCE on MARCO Dev at all PRF depths.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "MRR@10 of LoL ANCE with different training hyperparameters at all PRF depths on MARCO Dev.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "on Train and Dev sets at training time. We can find that the training reformulation loss of LoL w/o Par drops the fastest and lowest, followed by LoL w/o Reg, and LoL the slowest. And their performance on Dev set is just the opposite, where the evaluation reformulation loss of LoL w/o Par and LoL w/o Reg starts to increase successively after reaching the lowest point, while the evaluation loss of LoL rises slightly at the end. This indicates that both comparative regularization and multiple parallel revisions have the effect of mitigating overfitting, and comparative regularization has more impact.Figure 4cshows the comparative regularization terms of LoL and LoL w/o Reg. They both revise a query multiple times in parallel. Without regularizing the reformulation losses of these parallel revisions, the regularization loss of LoL w/o Reg also drops but not to a level as low as LoL. This implies that a PRF model cannot naturally learn to guarantee the normal comparison relationship among multiple revisions without explicitly imposing regularization. Even with regularization imposed, we can see that guaranteeing this normal comparison relationship is not easy for the model, because this regularization loss drops slowly in the middle and late stages of training.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

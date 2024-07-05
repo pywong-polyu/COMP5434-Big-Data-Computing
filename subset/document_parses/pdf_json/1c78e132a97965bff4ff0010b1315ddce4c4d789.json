@@ -1,0 +1,3466 @@
+{
+    "paper_id": "1c78e132a97965bff4ff0010b1315ddce4c4d789",
+    "metadata": {
+        "title": "An SMT-Based Approach for Verifying Binarized Neural Networks",
+        "authors": [
+            {
+                "first": "Guy",
+                "middle": [],
+                "last": "Amir",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The Hebrew University of Jerusalem",
+                    "location": {
+                        "settlement": "Jerusalem",
+                        "country": "Israel"
+                    }
+                },
+                "email": "guy.amir2@mail.huji.ac.il"
+            },
+            {
+                "first": "Haoze",
+                "middle": [],
+                "last": "Wu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {
+                        "settlement": "Stanford",
+                        "country": "USA"
+                    }
+                },
+                "email": "haozewu@cs.stanford.edu"
+            },
+            {
+                "first": "Clark",
+                "middle": [],
+                "last": "Barrett",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Stanford University",
+                    "location": {
+                        "settlement": "Stanford",
+                        "country": "USA"
+                    }
+                },
+                "email": "barrett@cs.stanford.edu"
+            },
+            {
+                "first": "Guy",
+                "middle": [],
+                "last": "Katz",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The Hebrew University of Jerusalem",
+                    "location": {
+                        "settlement": "Jerusalem",
+                        "country": "Israel"
+                    }
+                },
+                "email": "g.katz@mail.huji.ac.il"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Deep learning has emerged as an effective approach for creating modern software systems, with neural networks often surpassing hand-crafted systems. Unfortunately, neural networks are known to suffer from various safety and security issues. Formal verification is a promising avenue for tackling this difficulty, by formally certifying that networks are correct. We propose an SMT-based technique for verifying binarized neural networks -a popular kind of neural network, where some weights have been binarized in order to render the neural network more memory and energy efficient, and quicker to evaluate. One novelty of our technique is that it allows the verification of neural networks that include both binarized and non-binarized components. Neural network verification is computationally very difficult, and so we propose here various optimizations, integrated into our SMT procedure as deduction steps, as well as an approach for parallelizing verification queries. We implement our technique as an extension to the Marabou framework, and use it to evaluate the approach on popular binarized neural network architectures.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In recent years, deep neural networks (DNNs) [21] have revolutionized the state of the art in a variety of tasks, such as image recognition [12, 37] , text classification [39] , and many others. These DNNs, which are artifacts that are generated automatically from a set of training data, generalize very well -i.e., are very successful at handling inputs they had not encountered previously. The success of DNNs is so significant that they are increasingly being incorporated into highly-critical systems, such as autonomous vehicles and aircraft [7, 30] .",
+            "cite_spans": [
+                {
+                    "start": 45,
+                    "end": 49,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 140,
+                    "end": 144,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 145,
+                    "end": 148,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 171,
+                    "end": 175,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 548,
+                    "end": 551,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 552,
+                    "end": 555,
+                    "text": "30]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In order to tackle increasingly complex tasks, the size of modern DNNs has also been increasing, sometimes reaching many millions of neurons [46] . Consequently, in some domains, DNN size has become a restricting factor: huge networks have a large memory footprint, and evaluating them consumes both time and energy. Thus, resource-efficient networks are required in order to allow DNNs to be deployed on resource-limited, embedded devices [23, 42] .",
+            "cite_spans": [
+                {
+                    "start": 141,
+                    "end": 145,
+                    "text": "[46]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 440,
+                    "end": 444,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 445,
+                    "end": 448,
+                    "text": "42]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "One promising approach for mitigating this problem is via DNN quantization [4, 27] . Ordinarily, each edge in a DNN has an associated weight, typically stored as a 32-bit floating point number. In a quantized network, these weights are stored using fewer bits. Additionally, the activation functions used by the network are also quantized, so that their outputs consist of fewer bits. The network's memory footprint thus becomes significantly smaller, and its evaluation much quicker and cheaper. When the weights and activation function outputs are represented using just a single bit, the resulting network is called a binarized neural network (BNN ) [26] . BNNs are a highly popular variant of a quantized DNN [10, 40, 56, 57] , as their computing time can be up to 58 times faster, and their memory footprint 32 times smaller, than that of traditional DNNs [45] . There are also network architectures in which some parts of the network are quantized, and others are not [45] . While quantization leads to some loss of network precision, quantized networks are sufficiently precise in many cases [45] .",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 78,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 79,
+                    "end": 82,
+                    "text": "27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 653,
+                    "end": 657,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 713,
+                    "end": 717,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 718,
+                    "end": 721,
+                    "text": "40,",
+                    "ref_id": null
+                },
+                {
+                    "start": 722,
+                    "end": 725,
+                    "text": "56,",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 726,
+                    "end": 729,
+                    "text": "57]",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 861,
+                    "end": 865,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 974,
+                    "end": 978,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1099,
+                    "end": 1103,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In recent years, various security and safety issues have been observed in DNNs [33, 48] . This has led to the development of a large variety of verification tools and approaches (e.g., [16, 25, 33, 52] , and many others). However, most of these approaches have not focused on binarized neural networks, although they are just as vulnerable to safety and security concerns as other DNNs. Recent work has shown that verifying quantized neural networks is PSPACE-hard [24] , and that it requires different methods than the ones used for verifying non-quantized DNNs [18] . The few existing approaches that do handle binarized networks focus on the strictly binarized case, i.e., on networks where all components are binary, and verify them using a SAT solver encoding [29, 43] . Neural networks that are only partially binarized [45] cannot be readily encoded as SAT formulas, and thus verifying these networks remains an open problem.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 84,
+                    "end": 87,
+                    "text": "48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 185,
+                    "end": 189,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 190,
+                    "end": 193,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 194,
+                    "end": 197,
+                    "text": "33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 198,
+                    "end": 201,
+                    "text": "52]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 465,
+                    "end": 469,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 563,
+                    "end": 567,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 765,
+                    "end": 769,
+                    "text": "[29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 770,
+                    "end": 773,
+                    "text": "43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 826,
+                    "end": 830,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Here, we propose an SMT-based [5] approach and tool for the formal verification of binarized neural networks. We build on top of the Reluplex algorithm [33] , 3 and extend it so that it can support the sign function, sign(x) =",
+            "cite_spans": [
+                {
+                    "start": 30,
+                    "end": 33,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 152,
+                    "end": 156,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 159,
+                    "end": 160,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "x < 0 \u22121 x \u2265 0 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We show how this extension, when integrated into Reluplex, is sufficient for verifying BNNs. To the best of our knowledge, the approach presented here is the first capable of verifying BNNs that are not strictly binarized. Our technique is implemented as an extension to the open-source Marabou framework [2, 34] . We discuss the principles of our approach and the key components of our implementation. We evaluate it both on the XNOR-Net BNN architecture [45] , which combines binarized and non-binarized parts, and on a strictly binarized network. The rest of this paper is organized as follows. In Section 2, we provide the necessary background on DNNs, BNNs, and the SMT-based formal verification of DNNs. Next, we present our SMT-based approach for supporting the sign activation function in Section 3, followed by details on enhancements and optimizations for the approach in Section 4. We discuss the implementation of our tool in Section 5, and its evaluation in Section 6. Related work is discussed in Section 7, and we conclude in Section 8.",
+            "cite_spans": [
+                {
+                    "start": 305,
+                    "end": 308,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 309,
+                    "end": 312,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 456,
+                    "end": 460,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Deep Neural Networks. A deep neural network (DNN) is a directed graph, where the nodes (also called neurons) are organized in layers. The first layer is the input layer, the last layer is the output layer, and the intermediate layers are the hidden layers. When the network is evaluated, the input neurons are assigned initial values (e.g., the pixels of an image), and these values are then propagated through the network, layer by layer, all the way to the output layer. The values of the output neurons determine the result returned to the user: often, the neuron with the greatest value corresponds to the output class that is returned. A network is called feed-forward if outgoing edges from neurons in layer i can only lead to neurons in layer j if j > i. For simplicity, we will assume here that outgoing edges from layer i only lead to the consecutive layer, i + 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "Each layer in the neural network has a layer type, which determines how the values of its neurons are computed (using the values of the preceding layer's neurons). One common type is the weighted sum layer: neurons in this layer are computed as a linear combination of the values of neurons from the preceding layer, according to predetermined edge weights and biases. Another common type of layer is the rectified linear unit (ReLU ) layer, where each node y is connected to precisely one node x from the preceding layer, and its value is computed by y = ReLU(x) = max(0, x). The max-pooling layer is also common: each neuron y in this layer is connected to multiple neurons x 1 , . . . , x k from the preceding layer, and its value is given by y = max(x 1 , . . . , x k ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "More formally, a DNN N with k inputs and m outputs is a mapping R k \u2192 R m . It is given as a sequence of layers L 1 , . . . , L n , where L 1 and L n are the input and output layers, respectively. We denote the size of layer L i as s i , and its individual neurons as v 1 i , . . . , v si i . We use V i to denote the column vector [v 1 i , . . . , v si i ] T . During evaluation, the input values V 1 are given, and V 2 , . . . , V n are computed iteratively. The network also includes a mapping T N : N \u2192 T , such that T (i) indicates the type of hidden layer i. For our purposes, we focus on layer types T = {weighted sum, ReLU, max}, but of course other types could be included. If T n (i) = weighted sum, then layer L i has a weight matrix W i of dimensions s i \u00d7 s i\u22121 and a bias vector B i of size s i , and its values are computed",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "If T n (i) = max, then each neuron v j i in layer L i has a list src of source indices, and its value is computed as v j i = max k\u2208src v k i\u22121 . A simple illustration appears in Fig. 1 . This network has a weighted sum layer and a ReLU layer as its hidden layers, and a weighted sum layer as its output layer. Binarized Neural Networks. In a binarized neural network (BNN ), the layers are typically organized into binary blocks, regarded as units with binary inputs and outputs. Following the definitions of Hubara et al. [26] and Narodytska et al. [43] , a binary block is comprised of three layers: (i) a weighted sum layer, where each entry of the weight matrix W is either 1 or \u22121; (ii) a batch normalization layer, which normalizes the values from its preceding layer (this layer can be regarded as a weighted sum layer, where the weight matrix W has real-valued entries in its diagonal, and 0 for all other entries); and (iii) a sign layer, which applies the sign function to each neuron in the preceding layer. Because each block ends with a sign layer, its output is always a binary vector, i.e. a vector whose entries are \u00b11. Thus, when several binary blocks are concatenated, the inputs and outputs of each block are always binary. Here, we call a network strictly binarized if it is composed solely of binary blocks (except for the output layer). If the network contains binary blocks but also additional layers (e.g., ReLU layers), we say that it is a partially binarized neural network. BNNs can be made to fit into our definitions by extending the set T to include the sign function. An example appears in Fig. 2 ; for input V 1 = [\u22121, 3] T , the network's output is",
+            "cite_spans": [
+                {
+                    "start": 523,
+                    "end": 527,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 550,
+                    "end": 554,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 178,
+                    "end": 184,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1621,
+                    "end": 1627,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Background"
+        },
+        {
+            "text": "SMT-Based Verification of Deep Neural Networks. Given a DNN N that transforms an input vector x into an output vector y = N (x), a pre-condition P on x, and a post-condition Q on y, the DNN verification problem [33] is to determine whether there exists a concrete input x 0 such that P (x 0 ) \u2227 Q(N (x 0 )). Typically, Q represents an undesirable output of the DNN, and so the existence of such an x 0 constitutes a counterexample. A sound and complete verification engine should return a suitable x 0 if the problem is satisfiable (SAT), or reply that it is unsatisfiable (UNSAT). As in most DNN verification literature, we will restrict ourselves to the case where P and Q are conjunctions of linear constraints over the input and output neurons, respectively [16, 33, 52] . Here, we focus on an SMT-based approach for DNN verification, which was introduced in the Reluplex algorithm [33] and extended in the Marabou framework [2, 34] . It entails regarding the DNN's node values as variables, and the verification query as a set of constraints on these variables. The solver's goal is to find an assignment of the DNN's nodes that satisfies P and Q. The constraints are partitioned into two sets: linear constraints, i.e. equations and variable lower and upper bounds, which include the input constraints in P , the output constraints in Q, and the weighted sum layers within the network; and piecewise-linear constraints, which include the activation function constraints, such as ReLU or max constraints. The linear constraints are easier to solve (specifically, they can be phrased as a linear program [6] , solvable in polynomial time); whereas the piecewise-linear constraints are more difficult, and render the problem NP-complete [33] . We observe that sign constraints are also piecewiselinear.",
+            "cite_spans": [
+                {
+                    "start": 211,
+                    "end": 215,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 762,
+                    "end": 766,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 767,
+                    "end": 770,
+                    "text": "33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 771,
+                    "end": 774,
+                    "text": "52]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 886,
+                    "end": 890,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 929,
+                    "end": 932,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 933,
+                    "end": 936,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1608,
+                    "end": 1611,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1740,
+                    "end": 1744,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "In Reluplex, the linear constraints are solved iteratively, using a variant of the Simplex algorithm [13] . Specifically, Reluplex maintains a variable assignment, and iteratively corrects the assignments of variables that violate a linear constraint. Once the linear constraints are satisfied, Reluplex attempts to correct any violated piecewise-linear constraints -again by making iterative adjustments to the assignment. If these steps re-introduce violations in the linear constraints, these constraints are addressed again. Often, this process converges; but if it does not, Reluplex performs a case split, which transforms one piecewise-linear constraint into a disjunction of linear constraints. Then, one of the disjuncts is applied and the others are stored, and the solving process continues; and if UNSAT is reached, Reluplex backtracks, removes the disjunct it has applied and applies a different disjunct instead. The process terminates either when one of the search paths returns SAT (the entire query is SAT), or when they all return UNSAT (the entire query is UNSAT). It is desirable to perform as few case splits as possible, as they significantly enlarge the search space to be explored.",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 105,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "The Reluplex algorithm is formally defined as a sound and complete calculus of derivation rules [33] . We omit here the derivation rules aimed at solving the linear constraints, and bring only the rules aimed at addressing the piecewiselinear constraints; specifically, ReLU constraints [33] . These derivation rules are given in Fig. 3 , where: (i) X is the set of all variables in the query; (ii) R is the set of all ReLU pairs; i.e., b, f \u2208 R implies that it should hold that f = ReLU(b); (iii) \u03b1 is the current assignment, mapping variables to real values; (iv) l and u map variables to their current lower and upper bounds, respectively; and (v) the update(\u03b1, x, v) procedure changes the current assignment \u03b1 by setting the value of x to v. The ReluCorrect b and ReluCorrect f rules are used for correcting an assignment in which a ReLU constraint is currently violated, by adjusting either the value of b or f , respectively. The ReluSplit rule transforms a ReLU constraint into a disjunction, by forcing either b's lower bound to be non-negative, or its upper bound to be non-positive. This forces the constraint into either its active phase (the identity function) or its inactive phase (the zero function). In the case when we guess that a ReLU is active, we also apply the addEq operation to add the equation f = b, in order to make sure the ReLU is satisfied in the active phase. The Success rule terminates the search procedure when all variable assignments are within their bounds (i.e., all linear constraints hold), and all ReLU constraints are satisfied. The rule for reaching an UNSAT conclusion is part of the linear constraint derivation rules which are not depicted; see [33] for additional details.",
+            "cite_spans": [
+                {
+                    "start": 96,
+                    "end": 100,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 287,
+                    "end": 291,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1691,
+                    "end": 1695,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 330,
+                    "end": 336,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Background"
+        },
+        {
+            "text": "The aforementioned derivation rules describe a search procedure: the solver incrementally constructs a satisfying assignment, and performs case splitting Fig. 3 : Derivation rules for the Reluplex algorithm (simplified; see [33] for more details).",
+            "cite_spans": [
+                {
+                    "start": 224,
+                    "end": 228,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 154,
+                    "end": 160,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Background"
+        },
+        {
+            "text": "when needed. Another key ingredient in modern SMT solvers is deduction steps, aimed at narrowing down the search space by ruling out possible case splits. In this context, deductions are aimed at obtaining tighter bounds for variables: i.e., finding greater values for l(x) and smaller values for u(x) for each variable x \u2208 X . These bounds can indeed remove case splits by fixing activation functions into one of their phases; for example, if f = ReLU(b) and we deduce that b \u2265 3, we know that the ReLU is in its active phase, and no case split is required. We provide additional details on some of these deduction steps in Section 4.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "In order to extend Reluplex to support sign constraints, we follow a similar approach to how ReLUs are handled. We encode every sign constraint f = sign(b) as two separate variables, f and b. Variable b represents the input to the sign function, whereas f represents the sign's output. In the toy example from Fig. 2 , b will represent the assignment for neuron v 1 3 , and f will represent v 1 4 . Initially, a sign constraint poses no bound constraints over b, i.e. l(b) = \u2212\u221e and u(b) = \u221e. Because the values of f are always \u00b11, we set l(f ) = \u22121 and u(f ) = 1. If, during the search and deduction process, tighter bounds are discovered that imply that b \u2265 0 or f > \u22121, we say that the sign constraint has been fixed to the positive phase; in this case, it can be regarded as a linear constraint, namely b \u2265 0 \u2227 f = 1. Likewise, if it is discovered that b < 0 or f < 1, the constraint is fixed to the negative phase, and is regarded as b < 0 \u2227 f = \u22121. If neither case applies, we say that the constraint's phase has not yet been fixed.",
+            "cite_spans": [
+                {
+                    "start": 364,
+                    "end": 367,
+                    "text": "1 3",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 310,
+                    "end": 316,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Extending Reluplex to Support Sign Constraints"
+        },
+        {
+            "text": "In each iteration of the search procedure, a violated constraint is selected and corrected, by altering the variable assignment. A violated sign constraint is corrected by assigning f the appropriate value: \u22121 if the current assignment of b is negative, and 1 otherwise. Case splits (which are needed to ensure completeness and termination) are handled similarly to the ReLU case: we allow the solver to assert that a sign constraint is in either the positive or negative phase, and then backtrack and flip that assertion if the search hits a dead-end.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extending Reluplex to Support Sign Constraints"
+        },
+        {
+            "text": "More formally, we define this extension to Reluplex by modifying the derivation rules described in Fig. 3 as follows. The rules for handling linear con- Fig. 4 : The extended Reluplex derivation rules, with support for sign constraints.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 99,
+                    "end": 105,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 153,
+                    "end": 159,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Extending Reluplex to Support Sign Constraints"
+        },
+        {
+            "text": "straints and ReLU constraints are unchanged -the approach is modular and extensible in that sense, as each type of constraint is addressed separately. In Fig. 4 , we depict new derivation rules, capable of addressing sign constraints. The SignCorrect \u2212 and SignCorrect + rules allow us to adjust the assignment of f to account for the current assignment of b -i.e., set f to \u22121 if b is negative, and to 1 otherwise. The SignSplit is used for performing a case split on a sign constraint, introducing a disjunction for enforcing that either b is non-negative (l(b) \u2265 0) and f = 1, or b is negative (u(b) \u2264 \u2212 ; epsilon is a small positive constant, chosen to reflect the desired precision) and f = \u22121. Finally, the Success rule replaces the one from Fig. 3 : it requires that all linear, ReLU and sign constraints be satisfied simultaneously.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 154,
+                    "end": 160,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 748,
+                    "end": 754,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Extending Reluplex to Support Sign Constraints"
+        },
+        {
+            "text": "We demonstrate this process with a simple example. Observe again the toy example for Fig. 2 , the pre-condition P = (1 \u2264 v 1 1 \u2264 2) \u2227 (\u22121 \u2264 v 2 1 \u2264 1), and the post-condition Q = (v 1 5 \u2264 5). Our goal is to find an assignment to the variables",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 85,
+                    "end": 91,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Extending Reluplex to Support Sign Constraints"
+        },
+        {
+            "text": ", v 1 5 } that satisfies P , Q, and also the constraints imposed by the BNN itself, namely the weighted sums v 1 Initially, we invoke derivation rules that address the linear constraints (see [33] ), and come up with an assignment that satisfies them, depicted as assignment 1 in Fig. 5 . However, this assignment violates the sign constraint: v 1 4 = \u22121 = sign(v 1 3 ) = sign(1) = 1. We can thus invoke the SignCorrect + rule, which adjusts the assignment, leading to assignment 2 in the figure. The sign constraint is now satisfied, but the linear constraint v 1 5 = 2v 1 4 is violated. We thus let the solver correct the linear constraints again, this time obtaining assignment 3 in the figure, which satisfies all constraints. The Success rule now applies, and we return SAT and the satisfying variable assignment.",
+            "cite_spans": [
+                {
+                    "start": 192,
+                    "end": 196,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 280,
+                    "end": 286,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Extending Reluplex to Support Sign Constraints"
+        },
+        {
+            "text": "The above-described calculus is sound and complete (assuming the used in the SignSplit rule is sufficiently small): when it answers SAT or UNSAT, that statement is correct, and for any input query there is a sequence of derivation steps that will lead to either SAT or UNSAT. The proof is quite similar to that of the original Reluplex procedure [33] , and is omitted. A naive strategy that will always lead to termination is to apply the SignSplit rule to saturation; this effectively transforms the problem into an (exponentially long) sequence of linear programs. Then, each of these linear programs can be solved quickly (linear programming is known to be in P). However, this strategy is typically quite slow. In the next section we discuss how many of these case splits can be avoided by applying multiple optimizations.",
+            "cite_spans": [
+                {
+                    "start": 346,
+                    "end": 350,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Extending Reluplex to Support Sign Constraints"
+        },
+        {
+            "text": "Weighted Sum Layer Elimination. The SMT-based approach introduces a new variable for each node in a weighted sum layer, and an equation to express that node's value as a weighted sum of nodes from the preceding layer. In BNNs, we often encounter consecutive weighted sum layers -specifically because of the binary block structure, in which a weighted sum layer is followed by a batch normalization layer, which is also encoded as weighted sum layer. Thus, a straightforward way to reduce the number of variables and equations, and hence to expedite the solution process, is to combine two consecutive weighted sum layers into a single layer. Specifically, the original layers can be regarded as transforming input x into y = W 2 (W 1 \u00b7 x + B 1 ) + B 2 , and the simplification as computing y = W 3 \u00b7 x + B 3 , where W 3 = W 2 \u00b7 W 1 and B 3 = W 2 \u00b7 B 1 + B 2 . An illustration appears in Fig. 6 (for simplicity, all bias values are assumed to be 0). On the right, an equivalent DNN with these two layers merged into one.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 887,
+                    "end": 893,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Optimizations"
+        },
+        {
+            "text": "LP Relaxation. Given a constraint f = sign(b), it is beneficial to deduce tighter bounds on the b and f variables -especially if these tighter bounds fix the constraints into one of its linear phases. We thus introduce a preprocessing phase, prior to the invocation of our enhanced Reluplex procedure, in which tighter bounds are computed by invoking a linear programming (LP) solver. The idea, inspired by similar relaxations for ReLU nodes [14, 49] , is to overapproximate each constraint in the network, including sign constraints, as a set of linear constraints. Then, for every variable v in the encoding, an LP solver is used to compute an upper bound u (by maximizing) and a lower bound l (by minimizing) for v. Because the LP encoding is an over-approximation, v is indeed within the range [l, u] for any input to the network.",
+            "cite_spans": [
+                {
+                    "start": 442,
+                    "end": 446,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 447,
+                    "end": 450,
+                    "text": "49]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Optimizations"
+        },
+        {
+            "text": "Let f = sign(b), and suppose we initially know that l \u2264 b \u2264 u. The linear over-approximation that we introduce for f is a trapezoid (see Fig. 7) , with the following edges:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 137,
+                    "end": 144,
+                    "text": "Fig. 7)",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Optimizations"
+        },
+        {
+            "text": "It is straightforward to show that these four equations form the smallest convex polytope containing the values of f .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimizations"
+        },
+        {
+            "text": "We demonstrate this process on the simple BNN depicted on the left-hand side of Fig. 7 . Suppose we know that the input variable, x, is bounded in the range \u22121 \u2264 x \u2264 1, and we wish to compute a lower bound for y. Simple, intervalarithmetic based bound propagation [33] shows that b 1 = 3x+1 is bounded in the range \u22122 \u2264 b 1 \u2264 4, and similarly that b 2 = \u22124x + 2 is in the range \u22122 \u2264 b 2 \u2264 6. Because neither b 1 nor b 2 are strictly negative or positive, we only know that \u22121 \u2264 f 1 , f 2 \u2264 1, and so the best bound obtainable for y is y \u2265 \u22122. However, by formulating the LP relaxation of the problem (right-hand side of Fig. 7) , we get the optimal solution x = \u2212 1 3 , b 1 = 0, b 2 = 10 3 , f 1 = \u22121, f 2 = 1 9 , y = \u2212 8 9 , implying the tighter bound y \u2265 \u2212 8 9 . The aforementioned linear relaxation technique is effective but expensive -because it entails invoking the LP solver twice for each neuron in the BNN encoding. Consequently, in our tool, the technique is applied only once per query, as a preprocessing step. Later, during the search procedure, we apply a related but more lightweight technique, called symbolic bound tightening [52] , which we enhanced to support sign constraints.",
+            "cite_spans": [
+                {
+                    "start": 264,
+                    "end": 268,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 759,
+                    "end": 762,
+                    "text": "8 9",
+                    "ref_id": null
+                },
+                {
+                    "start": 1143,
+                    "end": 1147,
+                    "text": "[52]",
+                    "ref_id": "BIBREF51"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 80,
+                    "end": 86,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 620,
+                    "end": 627,
+                    "text": "Fig. 7)",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Optimizations"
+        },
+        {
+            "text": "Symbolic Bound Tightening. In symbolic bound tightening, we compute for each neuron v a symbolic lower bound sl(x) and a symbolic upper bound su(x), which are linear combinations of the input neurons. Upper and lower bounds can then be derived from their symbolic counterparts using simple interval arithmetic. For example, suppose the network's input nodes are x 1 and x 2 , and that for some neuron v we have:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimizations"
+        },
+        {
+            "text": "and that the currently known bounds are x 1 \u2208 [\u22121, 2], x 2 \u2208 [\u22121, 1] and v \u2208 [\u22122, 11]. Using the symbolic bounds and the input bounds, we can derive that the upper bound of v is at most 6 + 4 \u2212 1 = 9, and that its lower bound is at least \u22125 \u2212 2 + 3 = \u22124. In this case, the upper bound we have discovered for v is tighter than the previous one, and so we can update v's range to be [\u22122, 9] . The symbolic bound expressions are propagated layer by layer [52] . Propagation through weighted sum layers is straightforward: the symbolic bounds are simply multiplied by the respective edge weights and summed up. Efficient approaches for propagations through ReLU layers have also been proposed [51] . Our contribution here is an extension of these techniques for propagating symbolic bounds also through sign layers. The approach again uses a trapezoid, although a more coarse one -so that we can approximate each neuron from above and below using a single linear expression. More specifically, for f = sign(b) with b \u2208 [l, u] and previously-computed symbolic bounds su(b) and sl(b), the symbolic bounds for f are given by:",
+            "cite_spans": [
+                {
+                    "start": 381,
+                    "end": 388,
+                    "text": "[\u22122, 9]",
+                    "ref_id": null
+                },
+                {
+                    "start": 452,
+                    "end": 456,
+                    "text": "[52]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 689,
+                    "end": 693,
+                    "text": "[51]",
+                    "ref_id": "BIBREF50"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Optimizations"
+        },
+        {
+            "text": "An illustration appears in Fig. 8 . The blue trapezoid is the relaxation we use for the symbolic bound computation, whereas the gray trapezoid is the one used for the LP relaxation discussed previously. The blue trapezoid is larger, and hence leads to looser bounds than the gray trapezoid; but it is computationally cheaper to compute and use, and our evaluation demonstrates its usefulness.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 27,
+                    "end": 33,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Optimizations"
+        },
+        {
+            "text": "Polarity-based Splitting. The Marabou framework supports a parallelized solving mode, using the Split-and-Conquer (S&C) algorithm [54] . At a high level, S&C partitions a verification query \u03c6 into a set of sub-queries \u03a6 := {\u03c6 1 , ...\u03c6 n }, such that \u03c6 and \u03c6 \u2208\u03a6 \u03c6 are equi-satisfiable, and handles each sub-query independently. Each sub-query is solved with a timeout value; and if that value is reached, the sub-query is again split into additional sub-queries, and each is solved with a greater timeout value. The process repeats until one of the subqueries is determined to be SAT, or until all sub-queries are proven UNSAT. One Marabou strategy for creating sub-queries is by splitting the ranges of input neurons. For example, if in query \u03c6 an input neuron x is bounded in the range x \u2208 [0, 4] and \u03c6 times out, it might be split into \u03c6 1 and \u03c6 2 such that x \u2208 [0, 2] in \u03c6 1 and x \u2208 [2, 4] in \u03c6 2 . This strategy is effective when the neural network being verified has only a few input neurons.",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 134,
+                    "text": "[54]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 886,
+                    "end": 889,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 890,
+                    "end": 892,
+                    "text": "4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Optimizations"
+        },
+        {
+            "text": "Another way to create sub-queries is to perform case-splits on piecewise-linear constraints -sign constraints, in our case. For instance, given a verification query \u03c6 :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimizations"
+        },
+        {
+            "text": "The heuristics for picking which sign constraint to split on have a significant impact on the difficulty of the resulting sub-problems [54] . Specifically, it is desirable that the sub-queries be easier than the original query, and also that they be balanced in terms of runtime -i.e., we wish to avoid the case where \u03c6 1 is very easy and \u03c6 2 is very hard, as that makes poor use of parallel computing resources. To create easier sub-problems, we propose to split on sign constraints that occur in the earlier layers of the BNN, as that leads to efficient bound propagation when combined with our symbolic bound tightening mechanism. To create balanced sub-problems, we use a metric called polarity, which was proposed in [54] for ReLUs and is extended here to support sign constraints. Definition 1. Given a sign constraint f = sign(b), and the bounds l \u2264 b \u2264 u, where l < 0, and u > 0, the polarity of the sign constraint is defined as p = u+l u\u2212l . Intuitively, the closer the polarity is to 0, the more balanced the resulting queries will be if we perform a case-split on this constraint. For example, if \u03c6 = \u03c6 \u2227\u221210 \u2264 b \u2264 10 and we create \u03c6 1 = \u03c6 \u2227\u221210 \u2264 b < 0, \u03c6 2 = \u03c6 \u22270 \u2264 b \u2264 10, then queries \u03c6 1 and \u03c6 2 are roughly balanced. However, if initially \u221210 \u2264 b \u2264 1, we obtain \u03c6 1 = \u03c6 \u2227 \u221210 \u2264 b < 0 and \u03c6 2 = \u03c6 \u2227 0 \u2264 b \u2264 1. In this case, \u03c6 2 might prove significantly easier than \u03c6 1 because the smaller range of b in \u03c6 2 could lead to very effective bound tightening. Consequently, we use a heuristic that picks the sign constraint with the smallest polarity among the first k candidates (in topological order), where k is a configurable parameter. In our experiments, we empirically selected k = 5.",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "[54]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 722,
+                    "end": 726,
+                    "text": "[54]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Optimizations"
+        },
+        {
+            "text": "We implemented our approach as an extension to Marabou [34] , which is an opensource, freely available SMT-based DNN verification framework [2] . Marabou implements the Reluplex algorithm, but with multiple extensions and optimizations -e.g., support for additional activation functions, deduction methods, and parallelization [54] . It has been used for a variety of verification tasks, such as network simplification [19] and optimization [47] , verification of video streaming protocols [35] , DNN modification [20] , adversarial robustness evaluation [9, 22, 32] verification of recurrent networks [28] , and others. However, to date Marabou could not support sign constraints, and thus, could not be used to verify BNNs. Below we describe our main contributions to the code base. Our complete code is available as an artifact accompanying this paper [1] , and has also been merged into the main Marabou repository [2] .",
+            "cite_spans": [
+                {
+                    "start": 55,
+                    "end": 59,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 140,
+                    "end": 143,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 327,
+                    "end": 331,
+                    "text": "[54]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 419,
+                    "end": 423,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 441,
+                    "end": 445,
+                    "text": "[47]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 490,
+                    "end": 494,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 514,
+                    "end": 518,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 555,
+                    "end": 558,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 559,
+                    "end": 562,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 563,
+                    "end": 566,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 602,
+                    "end": 606,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 855,
+                    "end": 858,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 919,
+                    "end": 922,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Basic Support for Sign Constraints (SignConstraint.cpp). During execution, Marabou maintains a set of piecewise-linear constraints that are part of the query being solved. To support various activation functions, these constraints are represented using classes that inherit from the abstract Piecewise-LinearConstraint class. Here, we added a new sub-class, SignConstraint, that inherits from PiecewiseLinearConstraint. The methods of this class check whether the piecewise-linear sign constraint is satisfied, and in case it is not -which possible changes to the current assignment could fix the violation. This class' methods also extend Marabou's deduction mechanism for bound tightening.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Input Interfaces for Sign Constraints (MarabouNetworkTF.py ). Marabou supports various input interfaces, most notable of which is the Ten-sorFlow interface, which automatically translates a DNN stored in TensorFlow protobuf or savedModel formats into a Marabou query. As part of our extensions, we enhanced this interface so that it can properly handle BNNs and sign constraints. Additionally, users can create queries using Marabou's native C++ interface, by instantiating the SignConstraint class discussed previously.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Network-Level Reasoner (NetworkLevelReasoner.cpp, Layer.cpp, LP-Formulator.cpp). The Network-Level Reasoner (NLR) is the part of Marabou that is aware of the topology of the neural network being verified, as opposed to just the individual constraints that comprise it. We extended Marabou's NLR to support sign constraints and implement the optimizations discussed in Section 4. Specifically, one extension that we added allows this class to identify consecutive weighted sum layers and merge them. Another extension creates a linear over-approximation of the network, including the trapezoid-shaped overapproximation of each sign constraint. As part of the symbolic bound propagation process, the NLR traverses the network, layer by layer, each time computing the symbolic bound expressions for each neuron in the current layer.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Polarity-Based Splitting (DnCManager.cpp). We extended the methods of this class, which is part of Marabou's S&C mechanism, to compute the polarity value of each sign constraint (see Definition 1), based on the current bounds.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "All the benchmarks described in this section are included in our artifact, and are publicly available online [1] .",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Strictly Binarized Networks. We began by training a strictly binarized network over the MNIST digit recognition dataset. 4 This dataset includes 70,000 images of handwritten digits, each given as a 28 \u00d7 28 pixeled image, with normalized brightness values ranging from 0 to 1. The network that we trained has an input layer of size 784, followed by six binary blocks (four blocks of size 50, two blocks of size 10), and a final output layer with 10 neurons. Note that in the first block we omitted the sign layer in order to improve the network's accuracy. 5 The model was trained for 300 epochs using the Larq library [17] and the Adam optimizer [36] , achieving 90% accuracy. After training, we used Larq's export mechanism to save the trained network in a TensorFlow format, and then used our newly added Marabou interface to load it. For our verification queries, we first chose 500 samples from the test set which were classified correctly by the network. Then, we used these samples to formulate adversarial robustness queries [33, 48] : queries that ask Marabou to find a slightly perturbed input which is misclassified by the network, i.e. is assigned a different label than the original. We formulated 500 queries, constructed from 50 queries for each of ten possible perturbation values \u03b4 \u2208 {0.1, 0.15, 0.2, 0.3, 0.5, 1, 3, 5, 10, 15} in L \u221e norm, one query per input sample. An UNSAT answer from Marabou indicates that no adversarial perturbation exists (for the specified \u03b4), whereas a SAT answer includes, as the counterexample, an actual perturbation that leads to misclassification. Such adversarial robustness queries are the most widespread verification benchmarks in the literature (e.g., [16, 25, 33, 52] ). An example appears in Fig. 9 : the image on the left is the original, correctly classified as 1, and the image on the right is the perturbed image discovered by Marabou, misclassified as 3.",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 122,
+                    "text": "4",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 556,
+                    "end": 557,
+                    "text": "5",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 618,
+                    "end": 622,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 646,
+                    "end": 650,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1032,
+                    "end": 1036,
+                    "text": "[33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1037,
+                    "end": 1040,
+                    "text": "48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 1706,
+                    "end": 1710,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1711,
+                    "end": 1714,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1715,
+                    "end": 1718,
+                    "text": "33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1719,
+                    "end": 1722,
+                    "text": "52]",
+                    "ref_id": "BIBREF51"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1748,
+                    "end": 1754,
+                    "text": "Fig. 9",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Through our experiments we set out to evaluate our tool's performance, and also measured the contribution of each of the features that we introduced: (i) weighted sum (ws) layer elimination; (ii) LP relaxation; (iii) symbolic bound tightening (sbt); and (iv) polarity-based splitting. We thus defined five configurations of the tool: the all category, in which all four features are enabled, and four all-X configurations for X \u2208 {ws, lp, sbt, polarity}, indicating that feature X is turned off and the other features are enabled. All five configurations utilized Marabou's parallelization features, except for all-polarity -where instead of polarity-based splitting we used Marabou's default splitting strategy, which splits the input domain in half in each step. Fig. 10 depicts Marabou's results using each of the five configurations. Each experiment was run on an Intel Xeon E5-2637 v4 CPUs machine, running Ubuntu 16.04 and using eight cores, with a wall-clock timeout of 5,000 seconds. Most notably, the results show the usefulness of polarity-based splitting when compared to Marabou's default splitting strategy: whereas the all-polarity configuration only solved 218 instances, the all configuration solved 458. It also shows that the weighted sum layer elimination feature significantly improves performance, from 436 solved instances in all-ws to 458 solved instances in all, and with significantly faster solving speed. With the remaining two features, namely LP relaxations and symbolic bound tightening, the results are less clear: although the all-lp and all-sbt configurations both slightly outperform the all configuration, indicating that these two features slowed down the solver, we observe that for many instances they do lead to an improvement; see Fig. 11 . Specifically, on UNSAT instances, the all configuration was able to solve one more benchmark than either all-lp or all-sbt; and it strictly outperformed all-lp on 13% of the instances, and all-sbt on 21% of the instances. Gaining better insights into the causes for these differences is a work in progress. XNOR-Net. XNOR-Net [45] is a BNN architecture for image recognition networks. XNOR-Nets consist of a series of binary convolution blocks, each containing a sign layer, a convolution layer, and a max-pooling layer (here, we regard convolution layers as a specific case of weighted sum layers). We constructed such a network with two binary convolution blocks: the first block has three layers, including a convolution layer with three filters, and the second block has four layers, including a convolution layer with two filters. The two binary convolution blocks are followed by a batch normalization layer and a fully-connected weighted sum layer (10 neurons) for the network's output, as depicted in Fig. 12 . Our network was trained on the Fashion-MNIST dataset, which includes 70,000 images from ten different clothing categories [55] , each given as a 28 \u00d7 28 pixeled image. The model was trained for 30 epochs, and achieved a modest accuracy of 70.97%. For our verification queries, we chose 300 correctly classified samples from the test set, and used them to formulate adversarial robustness queries. Each query was formulated using one sample and a perturbation value \u03b4 \u2208 {0.05, 0.1, 0.15, 0.2, 0.25, 0.3} in L \u221e norm. Fig. 13 depicts the adversarial image that Marabou produced for one of these queries. The image on the left is a correctly classified image of a shirt, and the image on the right is the perturbed image, now misclassified as a coat.",
+            "cite_spans": [
+                {
+                    "start": 2107,
+                    "end": 2111,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 2922,
+                    "end": 2926,
+                    "text": "[55]",
+                    "ref_id": "BIBREF54"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 765,
+                    "end": 772,
+                    "text": "Fig. 10",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1771,
+                    "end": 1778,
+                    "text": "Fig. 11",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 2790,
+                    "end": 2797,
+                    "text": "Fig. 12",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 3316,
+                    "end": 3323,
+                    "text": "Fig. 13",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Based on the results from the previous set of experiments, we used Marabou with weighted sum layer elimination and polarity-based splitting turned on, but with symbolic bound tightening and LP relaxation turned off. Each experiment ran on an Intel Xeon E5-2637 v4 machine, using eight cores and a wall-clock timeout of 7,200 seconds. The results are depicted in Table 1 . The results demonstrate that UNSAT queries tended to be solved significantly faster than SAT ones, indicating that Marabou's search procedure for these cases needs further optimization. Overall, Marabou was able to solve 203 out of 300 queries. To the best of our knowledge, this is the first effort to formally verify an XNOR-Net. We note that these results demonstrate the usefulness of an SMT-based approach for BNN verification, as it allows the verification of DNNs with multiple types of activation functions, such as a combination of sign and max-pooling.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 362,
+                    "end": 369,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "DNNs have become pervasive in recent years, and the discovery of various faults and errors has given rise to multiple approaches for verifying them. These in- clude various SMT-based approaches (e.g., [25, 33, 34, 38] ), approaches based on LP and MILP solvers (e.g., [8, 14, 41, 49] ), approaches based on symbolic interval propagation or abstract interpretation (e.g., [16, 50, 52, 53] ), abstractionrefinement (e.g., [3, 15] ), and many others. Most of these lines of work have focused on non-quantized DNNs. Verification of quantized DNNs is PSPACEhard [24] , and requires different tools than the ones used for their non-quantized counterparts [18] . Our technique extends an existing line of SMT-based verifiers to support also the sign activation functions needed for verifying BNNs; and these new activations can be combined with various other layers. Work to date on the verification of BNNs has relied exclusively on reducing the problem to Boolean satisfiability, and has thus been limited to the strictly binarized case [11, 29, 43, 44] . Our approach, in contrast, can be applied to binarized neural networks that include activation functions beyond the sign function, as we have demonstrated by verifying an XNOR-Net. Comparing the performance of Marabou and the SAT-based approaches is left for future work.",
+            "cite_spans": [
+                {
+                    "start": 201,
+                    "end": 205,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 206,
+                    "end": 209,
+                    "text": "33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 210,
+                    "end": 213,
+                    "text": "34,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 214,
+                    "end": 217,
+                    "text": "38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 268,
+                    "end": 271,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 272,
+                    "end": 275,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 276,
+                    "end": 279,
+                    "text": "41,",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 280,
+                    "end": 283,
+                    "text": "49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 371,
+                    "end": 375,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 376,
+                    "end": 379,
+                    "text": "50,",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "52,",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 384,
+                    "end": 387,
+                    "text": "53]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 420,
+                    "end": 423,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 424,
+                    "end": 427,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 557,
+                    "end": 561,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 649,
+                    "end": 653,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1032,
+                    "end": 1036,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1037,
+                    "end": 1040,
+                    "text": "29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1041,
+                    "end": 1044,
+                    "text": "43,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 1045,
+                    "end": 1048,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "BNNs are a promising avenue for leveraging deep learning in devices with limited resources. However, it is highly desirable to verify their correctness prior to deployment. Here, we propose an SMT-based verification approach that enables the verification of BNNs. This approach, which we have implemented as part of the Marabou framework [2] , seamlessly integrates with the other components of the SMT solver in a modular way. Using Marabou, we have verified, for the first time, a network that uses both binarized and non-binarized layers. In the future, we plan to improve the scalability of our approach, by enhancing it with stronger bound deduction capabilities, based on abstract interpretation [16] .",
+            "cite_spans": [
+                {
+                    "start": 338,
+                    "end": 341,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 702,
+                    "end": 706,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Artifact repository",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Marabou repository",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "DeepAbstract: Neural Network Abstraction for Accelerating Verification",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ashok",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Hashemi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kretinsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "M\u00fchlberger",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proc. 18th Int. Symposium on Automated Technology for Verification and Analysis (ATVA)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Accuracy, Training Time and Hardware Efficiency Trade-Offs for Quantized Neural Networks on FPGAs",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bacchus",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Stewart",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Komendantskaya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. 16th Int. Symposium on Applied Reconfigurable Computing (ARC)",
+            "volume": "",
+            "issn": "",
+            "pages": "121--135",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Satisfiability modulo theories",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tinelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Measuring Neural Net Robustness with Constraints",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bastani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Ioannou",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lampropoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Vytiniotis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Nori",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Criminisi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 30th Conf. on Neural Information Processing Systems (NIPS)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "End to End Learning for Self-Driving Cars",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bojarski",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Testa",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dworakowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Firner",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Flepp",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jackel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Monfort",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Muller",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zieba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "A Unified View of Piecewise Linear Neural Network Verification",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Bunel",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Turkaslan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Torr",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kohli",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mudigonda",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. 32nd Conf. on Neural Information Processing Systems (NeurIPS)",
+            "volume": "",
+            "issn": "",
+            "pages": "4795--4804",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Provably Minimally-Distorted Adversarial Examples",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Carlini",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dill",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Binarized Neural Architecture Search for Efficient Object Recognition",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhuo",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Verification of Binarized Neural Networks via Inter-Neuron Factoring",
+            "authors": [
+                {
+                    "first": "C.-H",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "N\u00fchrenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-H",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ruess",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Multi-Column Deep Neural Networks for Image Classification",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ciregan",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Meier",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proc. IEEE Conf. on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "3642--3649",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Linear Programming and Extensions",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Dantzig",
+                    "suffix": ""
+                }
+            ],
+            "year": 1963,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Formal Verification of Piece-Wise Linear Feed-Forward Neural Networks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ehlers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 15th Int. Symp. on Automated Technology for Verification and Analysis (ATVA)",
+            "volume": "",
+            "issn": "",
+            "pages": "269--286",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "An Abstraction-Based Framework for Neural Network Verification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Elboher",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gottschlich",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. 32nd Int. Conf. on Computer Aided Verification (CAV)",
+            "volume": "",
+            "issn": "",
+            "pages": "43--65",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "AI2: Safety and Robustness Certification of Neural Networks with Abstract Interpretation",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gehr",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mirman",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Drachsler-Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Tsankov",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chaudhuri",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Vechev",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. 39th IEEE Symposium on Security and Privacy (S&P)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Larq: An Open-Source Library for Training Binarized Neural Networks",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Geiger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Team",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of Open Source Software",
+            "volume": "5",
+            "issn": "45",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "How Many Bits Does it Take to Quantize Your Neural Network?",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Giacobbe",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Henzinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lechner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. 26th Int. Conf. on Tools and Algorithms for the Construction and Analysis of Systems (TACAS)",
+            "volume": "",
+            "issn": "",
+            "pages": "79--97",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Simplifying Neural Networks using Formal Verification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gokulanathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Feldsher",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Malca",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. 12th NASA Formal Methods Symposium (NFM)",
+            "volume": "",
+            "issn": "",
+            "pages": "85--93",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Minimal Modifications of Deep Neural Networks using Verification",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Goldberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Adi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Keshet",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. 23rd Int. Conf. on Logic for Programming, Artificial Intelligence and Reasoning (LPAR)",
+            "volume": "",
+            "issn": "",
+            "pages": "260--278",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Deep learning",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Courville",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "DeepSafe: A Data-driven Approach for Assessing Robustness of Neural Networks",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gopinath",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "P\u01ces\u01cereanu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. 16th. Int. Symposium on on Automated Technology for Verification and Analysis (ATVA)",
+            "volume": "",
+            "issn": "",
+            "pages": "3--19",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Deep Compression: Compressing Deep Neural Networks with Pruning, Trained Quantization and Huffman Coding",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Dally",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 4th Int. Conf. on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Scalable Verification of Quantized Neural Networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Henzinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lechner",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zikelic",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Safety Verification of Deep Neural Networks",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kwiatkowska",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 29th Int. Conf. on Computer Aided Verification (CAV)",
+            "volume": "",
+            "issn": "",
+            "pages": "3--29",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Binarized Neural Networks",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Hubara",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Courbariaux",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Soudry",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "El-Yaniv",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 30th Conf. on Neural Information Processing Systems (NIPS)",
+            "volume": "",
+            "issn": "",
+            "pages": "4107--4115",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Quantized Neural Networks: Training Neural Networks with Low Precision Weights and Activations",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Hubara",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Courbariaux",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Soudry",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "El-Yaniv",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "The Journal of Machine Learning Research",
+            "volume": "18",
+            "issn": "1",
+            "pages": "6869--6898",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Verifying Recurrent Neural Networks using Invariant Inference",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Jacoby",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proc. 18th Int. Symposium on Automated Technology for Verification and Analysis (ATVA)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Efficient Exact Verification of Binarized Neural Networks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Jia",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rinard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Policy Compression for Aircraft Collision Avoidance Systems",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lopez",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Brush",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Owen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kochenderfer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 35th Digital Avionics Systems Conf. (DASC)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Reluplex: An Efficient SMT Solver for Verifying Deep Neural Networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dill",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kochenderfer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 29th Int. Conf. on Computer Aided Verification (CAV)",
+            "volume": "",
+            "issn": "",
+            "pages": "97--117",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Towards Proving the Adversarial Robustness of Deep Neural Networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dill",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kochenderfer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 1st Workshop on Formal Verification of Autonomous Vehicles (FVAV)",
+            "volume": "",
+            "issn": "",
+            "pages": "19--26",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Reluplex: a Calculus for Reasoning about Deep Neural Networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dill",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kochenderfer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "The Marabou Framework for Verification and Analysis of Deep Neural Networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ibeling",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lazarus",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Lim",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Shah",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Thakoor",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zelji\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Dill",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kochenderfer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. 31st Int. Conf. on Computer Aided Verification (CAV)",
+            "volume": "",
+            "issn": "",
+            "pages": "443--452",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Verifying Deep-RL-Driven Systems",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Kazak",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schapira",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. 1st ACM SIGCOMM Workshop on Network Meets AI & ML (Ne-tAI)",
+            "volume": "",
+            "issn": "",
+            "pages": "83--89",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Adam: a Method for Stochastic Optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Imagenet Classification with Deep Convolutional Neural Networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krizhevsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proc. 26th Conf. on Neural Information Processing Systems (NIPS)",
+            "volume": "",
+            "issn": "",
+            "pages": "1097--1105",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Toward Scalable Verification for Safety-Critical Deep Networks",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Kuper",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gottschlich",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kochenderfer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Recurrent Convolutional Neural Networks for Text Classification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lai",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 29th AAAI Conf. on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Fixed Point Quantization of Deep Convolutional Networks",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Talathi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Annapureddy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 33rd Int. Conf. on Machine Learning (ICML)",
+            "volume": "",
+            "issn": "",
+            "pages": "2849--2858",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "An Approach to Reachability Analysis for Feed-Forward ReLU Neural Networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lomuscio",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Maganti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Pruning Convolutional Neural Networks for Resource Efficient Inference",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Molchanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Tyree",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Karras",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Aila",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kautz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Verifying Properties of Binarized Deep Neural Networks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Narodytska",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kasiviswanathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ryzhyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sagiv",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Walsh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Search for a SAT-friendly Binarized Neural Network Architecture",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Narodytska",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Walsh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "XNOR-Net: Imagenet Classification using Binary Convolutional Neural Networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rastegari",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Ordonez",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Redmon",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Farhadi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 14th European Conf. on Computer Vision (ECCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "525--542",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Very Deep Convolutional Networks for Large-Scale Image Recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zisserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 3rd Int. Conf. on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Global Optimization of Objective Functions Represented by ReLU networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Strong",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zelji\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kochenderfer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Intriguing Properties of Neural Networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Szegedy",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zaremba",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bruna",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Erhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Fergus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Evaluating Robustness of Neural Networks with Mixed Integer Programming",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Tjeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tedrake",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. 7th Int. Conf. on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Verification of Deep Convolutional Neural Networks Using ImageStars",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Tran",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bak",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. 32nd Int. Conf. on Computer Aided Verification (CAV)",
+            "volume": "",
+            "issn": "",
+            "pages": "18--42",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Efficient Formal Safety Analysis of Neural Networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Pei",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Whitehouse",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jana",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Formal Security Analysis of Neural Networks using Symbolic Intervals",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Pei",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Whitehouse",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jana",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. 27th USENIX Security Symposium",
+            "volume": "",
+            "issn": "",
+            "pages": "1599--1614",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Towards Fast Computation of Certified Robustness for ReLU Networks",
+            "authors": [
+                {
+                    "first": "T.-W",
+                    "middle": [],
+                    "last": "Weng",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-J",
+                    "middle": [],
+                    "last": "Hsieh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Boning",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Dhillon",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Parallelization Techniques for Verifying Neural Networks",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ozdemir",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zelji\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Irfan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Julian",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gopinath",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Fouladi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "P\u0203s\u0203reanu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. 20th Int. Conf. on Formal Methods in Computer-Aided Design (FMCAD)",
+            "volume": "",
+            "issn": "",
+            "pages": "128--137",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Fashion-Mnist: a Novel Image Dataset for Benchmarking Machine Learning Algorithms",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Rasul",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Vollgraf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Quantization Networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xing",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Tian",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X.-S",
+                    "middle": [],
+                    "last": "Hua",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. IEEE Conf. on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "7308--7316",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Adaptive Quantization for Deep Neural Network",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.-M",
+                    "middle": [],
+                    "last": "Moosavi-Dezfooli",
+                    "suffix": ""
+                },
+                {
+                    "first": "N.-M",
+                    "middle": [],
+                    "last": "Cheung",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Frossard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons license and indicate if changes were made. The images or other third party material in this chapter are included in the chapter's Creative Commons license, unless indicated otherwise in a credit line to the material. If material is not included in the chapter's Creative Commons license and your intended use is not permitted by statutory regulation or exceeds the permitted use",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "A toy DNN.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "For the weighted sum layers, the weights and biases are listed in the figure.On input V 1 = [1, 2] T , A toy BNN with a single binary block composed of three layers: a weighted sum layer, a batch normalization layer, and a sign layer.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "An iterative solution for a BNN verification query.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "On the left, a (partial) DNN with two consecutive weighted sum layers.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "A simple BNN (left), the trapezoid relaxation of f 1 = sign(b 1 ) (center), and its LP encoding (right). The trapezoid relaxation of f 2 is not depicted.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Symbolic bounds for f=sign(b).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "An adversarial example for the MNIST network.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "Fig. 12: The XNOR-Net architecture of our network.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "An original image (left) and its perturbed, misclassified image (right).",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Marabou's performance on the XNOR-Net queries. SAT UNSAT # Solved Avg. Time (s) # Solved Avg. Time (s) # Timeouts",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

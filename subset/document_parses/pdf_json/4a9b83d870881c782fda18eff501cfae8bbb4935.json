@@ -1,0 +1,4320 @@
+{
+    "paper_id": "4a9b83d870881c782fda18eff501cfae8bbb4935",
+    "metadata": {
+        "title": "WildWood: a new Random Forest algorithm",
+        "authors": [
+            {
+                "first": "St\u00e9phane",
+                "middle": [],
+                "last": "Ga\u00efffas",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Paris",
+                    "location": {}
+                },
+                "email": ""
+            },
+            {
+                "first": "Yiyang",
+                "middle": [],
+                "last": "Yu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Paris",
+                    "location": {}
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We introduce WildWood (WW), a new ensemble algorithm for supervised learning of Random Forest (RF) type. While standard RF algorithms use bootstrap out-of-bag samples to compute out-of-bag scores, WW uses these samples to produce improved predictions given by an aggregation of the predictions of all possible subtrees of each fully grown tree in the forest. This is achieved by aggregation with exponential weights computed over out-of-bag samples, that are computed exactly and very efficiently thanks to an algorithm called context tree weighting. This improvement, combined with a histogram strategy to accelerate split finding, makes WW fast and competitive compared with other well-established ensemble methods, such as standard RF and extreme gradient boosting algorithms. * stephane.gaiffas@lpsm.paris \u2020 imerad@lpsm.paris \u2021 yyu@lpsm.paris arXiv:2109.08010v1 [cs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "LG] 16 Sep 2021",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "This paper introduces WildWood (WW), a new ensemble method of Random Forest (RF) type [9] . The main contributions of the paper and the main advantages of WW are as follows. Firstly, we use out-of-bag samples (trees in a RF use different bootstrapped samples) very differently than what is done in standard RF [43, 7] . Indeed, WW uses these samples to compute an aggregation of the predictions of all possible subtrees of each tree in the forest, using aggregation with exponential weights [14] . This leads to much improved predictions: while only leaves contribute to the predictions of a tree in standard RF, the full tree structure contributes to predictions in WW. An illustration of this effect is given in Figure 1 on a toy binary classification example, where we can observe that subtrees aggregation leads to improved and regularized decision functions for each individual tree and for the forest. We further illustrate in Figure 2 that each tree becomes a stronger learner, and that excellent performance can be achieved even when WW uses few trees. A remarkable aspect of WW is that this improvement comes only at a small computational cost, thanks to a technique called \"context tree weighting\", used in lossless compression or online learning to aggregate all subtrees of a given tree [73, 72, 34, 14, 50] . Also, the predictions of WW do not rely on MCMC approximations required with Bayesian variants of RF [21, 26, 22, 66] , which is a clear distinction from such methods. : Mean test AUC and standard-deviations (y-axis) using 10 train/test splits for WW and scikit-learn's implementations of RF [43] and Extra Trees [32] , using default hyperparameters, on several datasets. Thanks to subtrees aggregation, WW improves these baselines, even with few trees (x-axis is the number of trees).",
+            "cite_spans": [
+                {
+                    "start": 86,
+                    "end": 89,
+                    "text": "[9]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 310,
+                    "end": 314,
+                    "text": "[43,",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 315,
+                    "end": 317,
+                    "text": "7]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 491,
+                    "end": 495,
+                    "text": "[14]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1299,
+                    "end": 1303,
+                    "text": "[73,",
+                    "ref_id": "BIBREF74"
+                },
+                {
+                    "start": 1304,
+                    "end": 1307,
+                    "text": "72,",
+                    "ref_id": "BIBREF73"
+                },
+                {
+                    "start": 1308,
+                    "end": 1311,
+                    "text": "34,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1312,
+                    "end": 1315,
+                    "text": "14,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1316,
+                    "end": 1319,
+                    "text": "50]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 1423,
+                    "end": 1427,
+                    "text": "[21,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1428,
+                    "end": 1431,
+                    "text": "26,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1432,
+                    "end": 1435,
+                    "text": "22,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1436,
+                    "end": 1439,
+                    "text": "66]",
+                    "ref_id": "BIBREF67"
+                },
+                {
+                    "start": 1614,
+                    "end": 1618,
+                    "text": "[43]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1635,
+                    "end": 1639,
+                    "text": "[32]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 714,
+                    "end": 722,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 933,
+                    "end": 941,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Secondly, WW uses feature binning (\"histogram\" strategy), similarly to what is done in extreme gradient boosting (EGB) libraries such as XGBoost [18] , LightGBM [38] and CatBoost [56, 28] . This strategy helps to accelerate computations in WW compared with standard RF algorithms, that typically require to sort features locally in nodes and try a larger number of splits [43] . This combination of subtrees aggregation and of the histogram strategy makes WW comparable with state-of-the-art implementations of EGB libraries, as illustrated in Figure 3 . Moreover, WW supports optimal split finding for categorical features and missing values, with no need for particular pre-processing (such as one-hot encoding [18] or target encoding [56, 28] ). Finally, WW is supported by some theoretical evidence, since we prove that for a general loss function, the subtrees aggregation considered in WW leads indeed to a performance close to that of the best subtree.",
+            "cite_spans": [
+                {
+                    "start": 145,
+                    "end": 149,
+                    "text": "[18]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 161,
+                    "end": 165,
+                    "text": "[38]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 179,
+                    "end": 183,
+                    "text": "[56,",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 184,
+                    "end": 187,
+                    "text": "28]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 372,
+                    "end": 376,
+                    "text": "[43]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 713,
+                    "end": 717,
+                    "text": "[18]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 737,
+                    "end": 741,
+                    "text": "[56,",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 742,
+                    "end": 745,
+                    "text": "28]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 544,
+                    "end": 552,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Related works. Since their introduction [9] , RF algorithms have become one of the most popular supervised learning algorithm thanks to their ease of use, robustness to hyperparameters [7, 55] and applicability to a wide range of domains, recent examples include bioinformatics [57] , genomic data [19] , predictive medicine [65, 1] , intrusion detection [20] , astronomy [35] , car safety [67] , differential privacy [53] , COVID-19 [64] among many others. A non-exhaustive list of developments about RF methodology include soft-pruning [12] , extremely randomized forests [32] , decision forests [24] , prediction intervals [60, 74, 13] , ranking [76] , nonparametric smoothing [70] , variable importance [44, 37, 45] , combination with boosting [33] , generalized RF [3] , robust forest [41] , global refinement [59] , online learning [39, 50] and results aiming at a better theoretical understanding of RF [6, 5, 31, 2, 63, 61, 62, 49, 48, 75] .",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 43,
+                    "text": "[9]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 185,
+                    "end": 188,
+                    "text": "[7,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 189,
+                    "end": 192,
+                    "text": "55]",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 278,
+                    "end": 282,
+                    "text": "[57]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 298,
+                    "end": 302,
+                    "text": "[19]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 325,
+                    "end": 329,
+                    "text": "[65,",
+                    "ref_id": "BIBREF66"
+                },
+                {
+                    "start": 330,
+                    "end": 332,
+                    "text": "1]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 355,
+                    "end": 359,
+                    "text": "[20]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 372,
+                    "end": 376,
+                    "text": "[35]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 390,
+                    "end": 394,
+                    "text": "[67]",
+                    "ref_id": "BIBREF68"
+                },
+                {
+                    "start": 418,
+                    "end": 422,
+                    "text": "[53]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 434,
+                    "end": 438,
+                    "text": "[64]",
+                    "ref_id": "BIBREF65"
+                },
+                {
+                    "start": 538,
+                    "end": 542,
+                    "text": "[12]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 574,
+                    "end": 578,
+                    "text": "[32]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 598,
+                    "end": 602,
+                    "text": "[24]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 626,
+                    "end": 630,
+                    "text": "[60,",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 631,
+                    "end": 634,
+                    "text": "74,",
+                    "ref_id": "BIBREF75"
+                },
+                {
+                    "start": 635,
+                    "end": 638,
+                    "text": "13]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 649,
+                    "end": 653,
+                    "text": "[76]",
+                    "ref_id": "BIBREF77"
+                },
+                {
+                    "start": 680,
+                    "end": 684,
+                    "text": "[70]",
+                    "ref_id": "BIBREF71"
+                },
+                {
+                    "start": 707,
+                    "end": 711,
+                    "text": "[44,",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 712,
+                    "end": 715,
+                    "text": "37,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 716,
+                    "end": 719,
+                    "text": "45]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 748,
+                    "end": 752,
+                    "text": "[33]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 770,
+                    "end": 773,
+                    "text": "[3]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 790,
+                    "end": 794,
+                    "text": "[41]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 815,
+                    "end": 819,
+                    "text": "[59]",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 838,
+                    "end": 842,
+                    "text": "[39,",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 843,
+                    "end": 846,
+                    "text": "50]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 910,
+                    "end": 913,
+                    "text": "[6,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 914,
+                    "end": 916,
+                    "text": "5,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 917,
+                    "end": 920,
+                    "text": "31,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 921,
+                    "end": 923,
+                    "text": "2,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 924,
+                    "end": 927,
+                    "text": "63,",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 928,
+                    "end": 931,
+                    "text": "61,",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 932,
+                    "end": 935,
+                    "text": "62,",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 936,
+                    "end": 939,
+                    "text": "49,",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 940,
+                    "end": 943,
+                    "text": "48,",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 944,
+                    "end": 947,
+                    "text": "75]",
+                    "ref_id": "BIBREF76"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A recent empirical study [75] suggests that tree depth limitation in RF is an effective regularization mechanism which improves performance on low signal-to-noise ratio datasets. Tree . WW's performance, which uses only 10 trees in this display, is only slightly below such strong baselines, but is faster (training times are on a logarithmic scale) on the considered datasets.",
+            "cite_spans": [
+                {
+                    "start": 25,
+                    "end": 29,
+                    "text": "[75]",
+                    "ref_id": "BIBREF76"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "regularization is usually performed by pruning methods such as CCP, REP or MEP [58, 11] . Although they are fairly effective at reducing tree over-fitting, these methods are mostly based on heuristics so that little is known about their theoretical properties. A form of soft-pruning was earlier proposed by [12] and referred to as tree smoothing. The latter efficiently computes predictions as approximate Bayesian posteriors over the set of possible prunings, however, the associated complexity is of the order of the tree-size, which makes the computation of predictions slow. In [50] , an improvement of Mondrian Forests [39] is introduced for online learning, using subtrees aggregation with exponential weights, which is particularly convenient in the online learning setting. However, this paper considers only the online setting, with purely random trees (splits are not optimized using training data), leading to poor performances compared with realistic decision trees. In WW, we use a similar subtrees aggregation mechanism for batch learning in a different way: we exploit the bootstrap, one of the key ingredients of RF, which provides in-the-bag and out-of-bag samples, to perform aggregation with exponential weights, together with efficient decision trees grown using the histogram strategy. Extreme boosting algorithms are another type of ensemble methods. XGBoost [18] provides an extremely popular scalable tree boosting system which has been widely adopted in industry. LightGBM [38] introduced the \"histogram strategy\" for faster split finding, together with clever downsampling and features grouping algorithms in order to achieve high performance in reduced computation times. CatBoost [55] is another boosting library which pays particular attention to categorical features using target encoding, while addressing the potential bias issues associated to such an encoding.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[58,",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 84,
+                    "end": 87,
+                    "text": "11]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 308,
+                    "end": 312,
+                    "text": "[12]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 583,
+                    "end": 587,
+                    "text": "[50]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 625,
+                    "end": 629,
+                    "text": "[39]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 1382,
+                    "end": 1386,
+                    "text": "[18]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1499,
+                    "end": 1503,
+                    "text": "[38]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1709,
+                    "end": 1713,
+                    "text": "[55]",
+                    "ref_id": "BIBREF56"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Limitations. Our implementation of WW is still evolving and is not yet at the level of maturity of state-of-the-art EGB libraries such as [18, 38, 55] . It does not outperform such strong baselines, but proposes an improvement of RF algorithms, and gives an interesting balance between performance and computational efficiency.",
+            "cite_spans": [
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[18,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 143,
+                    "end": 146,
+                    "text": "38,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 147,
+                    "end": 150,
+                    "text": "55]",
+                    "ref_id": "BIBREF56"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We consider batch supervised learning, where data comes as a set of i.i.d training samples (x i , y i ) for i = 1, . . . , n with vectors of numerical or categorical features x i \u2208 X \u2282 R d and y i \u2208 Y. Our aim is to design a RF predictor\u011d( \u00b7 ; \u03a0) = 1 M M m=1f ( \u00b7 ; \u03a0 m ) : X \u2192\u0176 computed from training samples, where\u0176 is the prediction space. Such a RF computes the average of M randomized trees predictionsf ( \u00b7 ; \u03a0 m ) following the principle of bagging [8, 51] , with \u03a0 = (\u03a0 1 , . . . , \u03a0 M ) where \u03a0 1 , . . . , \u03a0 M are i.i.d realizations of a random variable corresponding to bootstrap and feature subsampling (see Section 2.1 below). Each tree is trained independently of each other, in parallel. In what follows we describe only the construction of a single tree and omit from now on the dependence on m = 1, . . . , M .",
+            "cite_spans": [
+                {
+                    "start": 456,
+                    "end": 459,
+                    "text": "[8,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 460,
+                    "end": 463,
+                    "text": "51]",
+                    "ref_id": "BIBREF52"
+                }
+            ],
+            "ref_spans": [],
+            "section": "WildWood: a new Random Forest algorithm"
+        },
+        {
+            "text": "Feature binning. The split finding strategy described in Section 2.2 below works on binned features. While this technique is of common practice in EGB libraries [18, 38, 56] , we are not aware of an implementation of it for RF. The input n \u00d7 d matrix X of features is transformed into another same-size matrix of \"binned\" features denoted X bin . To each input feature j = 1, . . . , d is associated a set B j = {1, . . . , b j } of bins, where b j b max with b max a hyperparameter corresponding to the maximum number of bins a feature can use (default is b max = 256 similarly to [38] , so that a single byte can be used for entries of X bin ). When a feature is continuous, it is binned into b max bins using inter-quantile intervals. If it is categorical, each modality is mapped to a bin whenever b max is larger than its number of modalities, otherwise sparsest modalities end up binned together. If a feature j contains missing values, its rightmost bin in B j is used to encode them. After binning, each column satisfies X bin \u2022,j \u2208 B n j .",
+            "cite_spans": [
+                {
+                    "start": 161,
+                    "end": 165,
+                    "text": "[18,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 166,
+                    "end": 169,
+                    "text": "38,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 170,
+                    "end": 173,
+                    "text": "56]",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 582,
+                    "end": 586,
+                    "text": "[38]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "WildWood: a new Random Forest algorithm"
+        },
+        {
+            "text": "Let C = d j=1 B j be the binned feature space. A random decision tree is a pair (T , \u03a3), where T is a finite ordered binary tree and \u03a3 contains information about each node in T , such as split information. The tree is random and its source of randomness \u03a0 comes from the bootstrap and feature subsampling as explained below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Random decision trees"
+        },
+        {
+            "text": "Finite ordered binary trees. A finite ordered binary tree T is represented as a finite subset of the set {0, 1} * = n 0 {0, 1} n of all finite words on {0, 1}. The set {0, 1} * is endowed with a tree structure (and called the complete binary tree): the empty word root is the root, and for any v \u2208 {0, 1} * , the left (resp. right) child of v is v0 (resp. v1). We denote by intnodes(T ) = {v \u2208 T : v0, v1 \u2208 T } the set of its interior nodes and by leaves(T ) = {v \u2208 T : v0, v1 \u2208 T } the set of its leaves, both sets are disjoint and the set of all nodes is nodes(T ) = intnodes(T ) \u222a leaves(T ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Random decision trees"
+        },
+        {
+            "text": "Splits and cells. The split \u03c3 v = (j v , t v ) \u2208 \u03a3 of each v \u2208 intnodes(T ) is characterized by its dimension j v \u2208 {1, . . . , d} and a subset of bins t v {1, . . . , b jv }. We associate to each v \u2208 T a cell C v \u2286 C which is defined recursively: C root = C and for each v \u2208 intnodes(T ) we define",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Random decision trees"
+        },
+        {
+            "text": "When j v corresponds to a continuous feature, bins have a natural order and t v = {1, 2, . . . , s v } for some bin threshold s v \u2208 B jv ; while for a categorical split, the whole set t v is required. By construction, (C v ) v\u2208leaves(T ) is a partition of C.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Random decision trees"
+        },
+        {
+            "text": "Bootstrap and feature subsampling. Let I = {1, . . . , n} be the training samples indices. The randomization \u03a0 of the tree uses bootstrap: it samples uniformly at random, with replacement, elements of I corresponding to in-the-bag (itb) samples. If we denote as I itb the indices of unique itb samples, we can define the indices of out-of-bag (otb) samples as I otb = I \\ I itb . A standard argument shows that P[i \u2208 I itb ] = 1 \u2212 (1 \u2212 1/n) n \u2192 1 \u2212 e \u22121 \u2248 0.632 as n \u2192 +\u221e, known as the 0.632 rule [30] . The randomization \u03a0 uses also feature subsampling: each time we need to find a split, we do not try all the features {1, . . . , d} but only a subset of them of size d max , chosen uniformly at random. This follows what standard RF algorithms do [9, 7, 43] , with the default d max = \u221a d.",
+            "cite_spans": [
+                {
+                    "start": 497,
+                    "end": 501,
+                    "text": "[30]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 750,
+                    "end": 753,
+                    "text": "[9,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 754,
+                    "end": 756,
+                    "text": "7,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 757,
+                    "end": 760,
+                    "text": "43]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Random decision trees"
+        },
+        {
+            "text": "For K-class classification, when looking for a split for some node v, we compute the node's \"histogram\" hist v [j, b, k] = i\u2208Iitb:x i \u2208Cv 1 x i,j =b,y i =k for each sampled feature j, each bin b and label class k seen in the node's samples (actually weighted counts to handle bootstrapping and sample weights). Of course, one has hist v = hist v0 + hist v1 , so that we don't need to compute two histograms for siblings v0 and v1, but only a single one. Then, we loop over the set of non-constant (in the node) sampled features {j : #{b : k hist v [j, b, k] 1} 2} and over the set of non-empty bins {b : k hist v [j, b, k] 1} to find a split, by comparing standard impurity criteria computed on the histogram's statistics, such as gini or entropy for classification and variance for regression.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Split finding on histograms"
+        },
+        {
+            "text": "Bin order and categorical features. The order of the bins used in the loop depends on the type of the feature. If it is continuous, we use the natural order of bins. If it is categorical and the task is binary classification (labels in {0, 1}) we use the bin order that sorts",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Split finding on histograms"
+        },
+        {
+            "text": "with respect to b, namely the proportion of labels 1 in each bin. This allows to find the optimal split with complexity O(b j log b j ), see Theorem 9.6 in [10] , the logarithm coming from the sorting operation, while there are 2 b j \u22121 \u22121 possible splits. This trick is used by EGB libraries as well, using an order of gradient/hessian statistics of the loss considered [18, 38, 56] . For K-class classification with K > 2, we consider two strategies: (1) one-versus-rest, where we train M K trees instead of M , each tree trained with a binary one-versus-rest label, so that trees can find optimal categorical splits and (2) heuristic, where we train M trees and where split finding uses K loops over bin orders that sort hist v [j, b, k]/ k hist v [j, b, k ] (w.r.t b) for k = 0, . . . , K \u2212 1. If a feature contains missing values, we do not loop only left to right (along bin order), but right to left as well, in order to compare splits that put missing values on the left or on the right.",
+            "cite_spans": [
+                {
+                    "start": 156,
+                    "end": 160,
+                    "text": "[10]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 371,
+                    "end": 375,
+                    "text": "[18,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 376,
+                    "end": 379,
+                    "text": "38,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "56]",
+                    "ref_id": "BIBREF57"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Split finding on histograms"
+        },
+        {
+            "text": "Split requirements. Nodes must hold at least one itb and one otb sample to apply aggregation with exponential weights, see Section 2.3 below. A split is discarded if it leads to children with less than n min-leaf itb or otb samples and we do not split a node with less than n min-split itb or otb samples. These hyperparameters only weakly impact WW's performances and sticking to default values (n min-leaf = 1 and n min-split = 2, following scikit-learn's [43, 54] ) is usually enough (see Section 11 below).",
+            "cite_spans": [
+                {
+                    "start": 458,
+                    "end": 462,
+                    "text": "[43,",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 463,
+                    "end": 466,
+                    "text": "54]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Split finding on histograms"
+        },
+        {
+            "text": "Related works on categorical splits. In [23] , an interesting characterization of an optimal categorical split for multiclass classification is introduced, but no efficient algorithm is, to the best of our understanding, available for it. A heuristic algorithm is proposed therein, but it requires to compute, for each split, the top principal component of the covariance matrix of the conditional distribution of labels given bins, which is computationally too demanding for an RF algorithm intended for large datasets. Regularized target encoding is shown in [52] to perform best when compared with many alternative categorical encoding methods. Catboost [56] uses target encoding, which replaces feature modalities by label statistics, so that a natural bin order can be used for split finding. To avoid overfitting on uninformative categorical features, a debiasing technique uses random permutations of samples and computes the target statistic of each element based only on its predecessors in the permutation. However, for multiclass classification, target encoding is influenced by the arbitrarily chosen ordinal encoding of the labels. LightGBM [38] uses a one-versus-rest strategy, which is also one of the approaches used in WW for categorical splits on multiclass tasks. For categorical splits, where bin order depends on labels statistics, WW does not use debiasing as in [56] , since aggregation with exponential weights computed on otb samples allows to deal with overfitting.",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 44,
+                    "text": "[23]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 561,
+                    "end": 565,
+                    "text": "[52]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 657,
+                    "end": 661,
+                    "text": "[56]",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 1154,
+                    "end": 1158,
+                    "text": "[38]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1385,
+                    "end": 1389,
+                    "text": "[56]",
+                    "ref_id": "BIBREF57"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Split finding on histograms"
+        },
+        {
+            "text": "Tree growth stopping. We do not split a node and make it a leaf if it contains less than n min-split itb or otb samples. The same applies when a node's impurity is not larger than a threshold \u03b5 (\u03b5 = 0 by default). When only leaves or non-splittable nodes remain, the growth of the tree is stopped. Trees grow in a depth-first fashion so that childs v0 and v1 have memory indexes larger than their parent v (as required by Algorithm 1 below).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Split finding on histograms"
+        },
+        {
+            "text": "Given a tree T grown as described in Sections 2.1 and 2.2, its prediction function is an aggregation of the predictions given by all possible subtrees rooted at root, denoted {T : T \u2282 T }. While T is grown using itb samples, we use otb samples to perform aggregation with exponential weights, with a branching process prior over subtrees, that gives more importance to subtrees with a good predictive otb performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "Node and subtree prediction.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "The prediction of a node v \u2208 nodes(T ) and of a subtree T \u2282 T is given b\u0177",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "where h : \u222a n 0 Y n \u2192\u0176 is a generic \"forecaster\" used in each cell and where a subtree prediction is the one of its leaf containing x. A standard choice for regression (Y =\u0176 = R) is the empirical",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": ". . , K} and Y = P(Y), the set of probability distributions over Y, a standard choice is a Bayes predictive posterior with a prior on P(Y) equal to the Dirichlet distribution Dir(\u03b1, . . . , \u03b1), namely the Jeffreys prior on the multinomial model P(Y), which leads t\u00f4",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "By default, WW uses \u03b1 = 1/2 (the Krichevsky-Trofimov forecaster [68] ), but one can perfectly use any \u03b1 > 0, so that all the coordinates of\u0177 v are positive. This is motivated by the fact that WW uses as default the log loss to assess otb performance for classification, which requires an arbitrarily chosen clipping value for zero probabilities. Different choices of \u03b1 only weakly impact WW's performance, as illustrated in Appendix 11. We use otb samples to define the cumulative losses of the predictions of all T \u2282 T",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 68,
+                    "text": "[68]",
+                    "ref_id": "BIBREF69"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "where :\u0176 \u00d7 Y \u2192 R + is a loss function. For regression problems, a default choice is the quadratic loss (\u0177, y) = (\u0177 \u2212 y) 2 while for multiclass classification, a default is the log-loss (\u0177, y) = \u2212 log\u0177(y), where\u0177(y) \u2208 (0, 1] when using (3), but other loss choices are of course possible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "Prediction function. Let x \u2208 C. The prediction functionf of a tree T in WW is given b\u0177",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "where the sum is over all subtrees T of T rooted at root, where \u03b7 > 0 is temperature parameter and T is the number of nodes in T minus its number of leaves that are also leaves of T . Note that \u03c0 is the distribution of the branching process with branching probability 1/2 at each node of T , with exactly two children when it branches. A default choice is \u03b7 = 1 for the log-loss (see in particular Corollary 1 in Section 3 below), but it can also be tuned through hyperoptimization, although we do not observe strong performance gains, see Section 11 below. The prediction function (5) is an aggregation of the predictions\u0177 T (x) of all subtrees T rooted at root, weighted by their performance on otb samples. This aggregation procedure can be understood as a non-greedy way to prune trees: the weights depend not only on the quality of one single split but also on the performance of each subsequent split.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "Computingf from Equation (5) is computationally and memory-wise infeasible for a large T , since it involves a sum over all T \u2282 T rooted at root and requires one weight for each T . Indeed, the number of subtrees of a minimal tree that separates n points is exponential in the number of nodes, and hence exponential in n. However, it turns out that one can compute exactly and very efficientlyf thanks to the prior choice \u03c0 together with an adaptation of context tree weighting [73, 72, 34, 14] .",
+            "cite_spans": [
+                {
+                    "start": 478,
+                    "end": 482,
+                    "text": "[73,",
+                    "ref_id": "BIBREF74"
+                },
+                {
+                    "start": 483,
+                    "end": 486,
+                    "text": "72,",
+                    "ref_id": "BIBREF73"
+                },
+                {
+                    "start": 487,
+                    "end": 490,
+                    "text": "34,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 491,
+                    "end": 494,
+                    "text": "14]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "where w den v are weights satisfying the recursion",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "otherwise.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "The proof of Theorem 1 is given in Section 6 below, a consequence of this Theorem being a very efficient computation off (x) is described in Algorithms 1 and 2 below. Algorithm 1 computes the weights w den v using the fact that trees in WW are grown in a depth-first fashion, so that we can loop once, leading to a O(|nodes(T )|) complexity in time and in memory usage, over nodes from a data structure that respects the parenthood order. Direct computations can lead to numerical over-or under-flows (many products of exponentially small or large numbers are involved), so Algorithm 1 works recursively over the logarithms of the weights (line 6 uses a log-sum-exp function that can be made overflow-proof). Algorithm 1 is applied once T is fully grown, so that WW is ready to produce predictions using Algorithm 2 below. Note that hyperoptimization of \u03b7 or \u03b1, if required, does not need to grow T again, but only to update w den v for all v \u2208 nodes(T ) with Algorithm 1, making hyperoptimization of these parameters particularly efficient. The recursion used in Algorithm 2 has a complexity O(|path(x)|) which is the complexity required to find the leaf v T (x) containing x \u2208 C: Algorithm 2 only increases by a factor 2 the prediction complexity of a standard RF (in order to go down to v T (x) and up again to root along path(x)). More details about the construction of Algorithms 1 and 2 can be found in Section 6 below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Prediction function: aggregation with exponential weights"
+        },
+        {
+            "text": "v ) for all v \u2208 nodes(T ). 1: Inputs: T , \u03b7 > 0 and losses L v for all v \u2208 nodes(T ). Nodes from nodes(T ) are stored in a data structure nodes that respects parenthood order: for",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Computation of log(w den"
+        },
+        {
+            "text": "if v is a leaf then 4:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1 Computation of log(w den"
+        },
+        {
+            "text": "This section proposes some theoretical guarantees on the subtrees aggregation used in WW, see (5) . We say that a loss function is \u03b7-exp-concave for some \u03b7 > 0 whenever z \u2192 exp(\u2212\u03b7 (z, y)) is concave for any y \u2208 Y. We consider a fully-grown tree T computed using itb samples and the set of otb samples (x i , y i ) i\u2208Iotb on which L T is computed using (4), and we denote n otb := |I otb |.",
+            "cite_spans": [
+                {
+                    "start": 94,
+                    "end": 97,
+                    "text": "(5)",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "Theorem 2 (Oracle inequality). Assume that the loss function is \u03b7-exp-concave. Then, the prediction functionf given by (5) satisfies the oracle inequality",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "where the infimum is over any subtree T \u2282 T and where we recall that T is the number of nodes in T minus its number of leaves that are also leaves of T .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "Theorem 2 proves that for a general loss function, the prediction function of WW is able to perform nearly as well as the best oracle subtree T \u2282 T on otb samples, with a O( T /n otb ) rate which is optimal for model-selection oracle inequalities [69] ( T = O(log N T ) with a number of \"experts\" N T = |{T : T \u2282 T }| for a well-balanced T ). Let us stress again that, while finding an oracle argmin T \u2282T i\u2208Iotb (\u0177 T (x i ), y i ) is computationally infeasible, since it requires to try out all possible subtrees, WW's prediction function (5) comes at a cost comparable to that of a standard Random Forest, as explained in Section 2.3 above.",
+            "cite_spans": [
+                {
+                    "start": 247,
+                    "end": 251,
+                    "text": "[69]",
+                    "ref_id": "BIBREF70"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "The proof of Theorem 2 is given in Section 7 below, and relies on techniques from PAC-Baysesian theory [46, 47, 15] . Compared with [50] about online learning, our proof differs significantly: we do not use results specialized to online learning such as [71] nor online-to-batch conversion [16] . Note that Theorem 2 does not address the generalization error, since it would require to study the generalization error of the random forest itself (and of the fully grown tree T ), which is a topic way beyond the scope of this paper, and still a very difficult open problem: recent results [31, 2, 63, 61, 62, 49] only study stylized versions of RF (called purely random forests).",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 107,
+                    "text": "[46,",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "47,",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 112,
+                    "end": 115,
+                    "text": "15]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "[50]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 254,
+                    "end": 258,
+                    "text": "[71]",
+                    "ref_id": "BIBREF72"
+                },
+                {
+                    "start": 290,
+                    "end": 294,
+                    "text": "[16]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 588,
+                    "end": 592,
+                    "text": "[31,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 593,
+                    "end": 595,
+                    "text": "2,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 596,
+                    "end": 599,
+                    "text": "63,",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 600,
+                    "end": 603,
+                    "text": "61,",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 604,
+                    "end": 607,
+                    "text": "62,",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 608,
+                    "end": 611,
+                    "text": "49]",
+                    "ref_id": "BIBREF50"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "Consequences of Theorem 2 are Corollary 1 for the log-loss (classification) and Corollary 2 for the least-squares loss (regression).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "Corollary 1 (Classification). Consider K-class classification (Y = {1, . . . , K}) and consider the prediction functionf given by (5), where node predictions are given by (3) with \u03b1 = 1/2 (WW's default), where is the log-loss and where \u03b7 = 1. Then, we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "where g T is any constant function on the leaves of T .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "Corollary 2 (Regression). Consider regression with Y = [\u2212B, B] for some B > 0 and the prediction functionf given by (5), where node predictions are given by (2), where is the leastsquares loss and where \u03b7 = 1/(8B 2 ). Then, we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "where g T is any function constant on the leaves of T .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "The proofs of Corollaries 1 and 2 are given in Section 7. These corollaries motivate the default hyperparameter values of \u03b7, in particular \u03b7 = 1 for classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theoretical guarantees"
+        },
+        {
+            "text": "Our implementation of WildWood is available at the GitHub repository https://github. com/pyensemble/wildwood.git under the BSD3-Clause license on GitHub and available through PyPi. It is a Python package that follows scikit-learn's API conventions, that is JIT-compiled to machine code using numba [40] . Trees in the forest are grown in parallel using joblib [36] and CPU threads, GPU training will be supported in future updates. We compare WildWood (denoted WWn for n trees) with several strong baselines including RFn: scikit-learn's implementation of Random Forest [54, 43] using n trees; HGB: an histogram-based implementation of extreme gradient boosting (inspired by LightGBM) from scikit-learn; and several state-of-the-art and widely adopted extreme gradient boosting libraries including XGB: XGBoost [18] ; LGBM: LightGBM [38] and CB: CatBoost [56, 28] . We used a 32-cores server with two Intel Xeon Gold CPUs, two Tesla V100 GPUs and 384GB RAM for the experiments involving hyperoptimization (Table 1 ) and used a 12-cores Intel i7 MacBook Pro with 32GB RAM and no GPU to obtain training times achievable by a \"standard user\" ( Table 2) . All experiments can be reproduced using Python scripts on the repository.",
+            "cite_spans": [
+                {
+                    "start": 298,
+                    "end": 302,
+                    "text": "[40]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 360,
+                    "end": 364,
+                    "text": "[36]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 570,
+                    "end": 574,
+                    "text": "[54,",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 575,
+                    "end": 578,
+                    "text": "43]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 811,
+                    "end": 815,
+                    "text": "[18]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 833,
+                    "end": 837,
+                    "text": "[38]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 855,
+                    "end": 859,
+                    "text": "[56,",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 860,
+                    "end": 863,
+                    "text": "28]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1005,
+                    "end": 1013,
+                    "text": "(Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1141,
+                    "end": 1149,
+                    "text": "Table 2)",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Description of the experiments. We use publicly available and open-source datasets from the UCI repository [29] , including small datasets (hundreds of rows) and large datasets (millions of rows), their main characteristics are given in Table 5 together with URLs in Table 6 , see Section 10 below. Each dataset is randomly split into a training set (70%) and a test set (30%). We specify which features are categorical to algorithms that natively support it (HGB, LGBM, CB and WWn) and simply integer-encode them, while we use one-hot encoding for other algorithms (RFn, XGB). For each algorithm and dataset, hyperoptimization is performed as follows: from the training set, we use 4/5 for training and 1/5 for validation and do 50 steps of sequential optimization using the Tree Parzen Estimator implemented in the hyperopt library [4] . More details about hyperoptimization are provided in Section 9 below. Then, we refit on the whole training set with the best hyperparameters and report scores on the test set. This is performed 5 times in order to report standard deviations. We use the area under the ROC curve (AUC), for K-class datasets with K > 2 we average the AUC of each class versus the rest. This leads to the test AUC scores displayed in Table 1 (the same scores with standard deviations are available in Table 3 ). We report also in Table 2 (see also Table 4 for standard deviations) the test AUC scores obtained with default hyperparameters of all algorithms on the 5 largest considered datasets together with their training times (timings can vary by several orders of magnitude with varying hyperparameters for EGB libraries, as observed by the timing differences between Figure 3 and Table 2 ). Table 3 . We observe that WW has better (or identical in some cases) performances than RF on all datasets and that it is close to that of EGB libraries (bold is for best EGB performance, underline for best RFn or WWn performance). Discussion of the results. We observe in Table 1 that EGB algorithms, when hyperoptimized, lead to the best performances over the considered datasets compared with RF algorithms, and we observe that WW always improves the performance of RF, at the exception of few datasets for which the performance is identical. When using default hyperparameters for all algorithms, we observe in Table 2 that the test AUC scores can decrease significantly for EGB libraries while RF algorithms seem more stable, and that there is no clear best performing algorithm in this case. The results on both tables show that WW is competitive with respect to all baselines both in terms of performance and computational times: it manages to always reach at least comparable performance with the best algorithms despite only using 10 trees as a default. In this respect, WW maintains high scores at a lower computational cost. ",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[29]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 834,
+                    "end": 837,
+                    "text": "[4]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 237,
+                    "end": 244,
+                    "text": "Table 5",
+                    "ref_id": "TABREF7"
+                },
+                {
+                    "start": 267,
+                    "end": 274,
+                    "text": "Table 6",
+                    "ref_id": "TABREF8"
+                },
+                {
+                    "start": 1254,
+                    "end": 1261,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1321,
+                    "end": 1328,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 1350,
+                    "end": 1375,
+                    "text": "Table 2 (see also Table 4",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1692,
+                    "end": 1700,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1705,
+                    "end": 1712,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1716,
+                    "end": 1723,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 1988,
+                    "end": 1995,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 2330,
+                    "end": 2337,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "We introduced WildWood, a new Random Forest algorithm for batch supervised learning. Tree predictions in WildWood are aggregation with exponential weights of the predictions of all subtrees, with weights computed on bootstrap out-of-bag samples. This leads to improved predictions in each individual tree, at a small computational cost, since WildWood's prediction complexity is similar to that of a standard Random Forest. Moreover, thanks to the histogram strategy, WildWood's implementation is competitive with strong baselines including popular extreme boosting libraries, both in terms of performance and training times. Note also that WildWood has few hyperparameters to tune and that the performances obtained with default hyperparameters are usually good enough in our experiments. WildWood's implementation is still evolving and many improvements coming with future updates are planned, including the computation of feature importance, GPU training, distributed training (we only support single-machine training for now), among other enhancements that will further improve performances and accelerate computations. Room for improvement in WildWood comes from the fact that the overall forest prediction is a simple arithmetic mean of each tree prediction, while we could perform also exponentially weighted aggregation between trees. Future works include a WildWood-based implementation of isolation-forest [42] , using the same subtrees aggregation mechanism with the log loss for density estimation, to propose a new algorithm for outliers detection. Lemma 1. Let g : nodes(T ) \u2192 R be an arbitrary function and define G : nodes(T ) \u2192 R as",
+            "cite_spans": [
+                {
+                    "start": 1416,
+                    "end": 1420,
+                    "text": "[42]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "where the sum over T \u2282 T v means the sum over all subtrees T of T rooted at v. Then, G(v) can be computed recursively as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "For the sake of completeness, we include a proof of this statement.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Proof. First, let us notice that the case v \u2208 leaves(T ) is straightforward since there is only one pruning T of T v which satisfies T = 0 (recall that T is the number of internal nodes and leaves in T minus the number of leaves in T that are also leaves of T v ). For the second case, we can expand G(v) by taking into account the pruning which only leaves v as a leaf, the rest of the prunings can be expressed through pairs of prunings T 0 and T 1 of T v0 and T v1 respectively. Moreover, it can be shown that such a pruning T satisfies T = 1 + T 0 + T 1 , thus we get the following expansion :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "This concludes the proof of Lemma 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Let us introduce w T = \u03c0(T ) exp(\u2212\u03b7L T ) for any T \u2282 T , so that Equation (5) write\u015d",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "where the sums hold over all the subtrees T of T rooted at root (the root of the full tree T ). We will show how to efficiently compute and update the numerator and denominator in Equation (9) . Note that w T may be written as",
+            "cite_spans": [
+                {
+                    "start": 189,
+                    "end": 192,
+                    "text": "(9)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "where we recall that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Equality (10) comes from the fact that the set of cells {C v : v \u2208 leaves(T )} is a partition of C by construction, and that the stopping criterion used to build T ensures that each leaf node in leaves(T ) contains at least one sample from I otb (see Section 2.2). Equality (11) comes from the fact that the prediction of a node is constant and equal to\u0177 v for any x \u2208 C v .",
+            "cite_spans": [
+                {
+                    "start": 274,
+                    "end": 278,
+                    "text": "(11)",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Denominator of Equation (9) . For each node v \u2208 nodes(T ), denote",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 27,
+                    "text": "(9)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "where once again the sum over T \u2282 T v means the sum over all subtrees T of T rooted at v. We have that (12) entails",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "So, we can compute recursively w den root very efficiently, using a recursion on the weights w den v using Lemma 1 with g(v) = w v . This leads to the recursion stated in Theorem 1, see Equation (7). Now, we can exploit the fact that decision trees are built in a depth-first fashion in WildWood: all the nodes v \u2208 T are stored in a \"flat\" array, and by construction both the child nodes v0 and v1 have indexes that are larger than the one of v. So, we can simply loop over the array of nodes in reverse order, and compute w den v = w v if v \u2208 leaves(T ) and w den v = 1 2 w v + 1 2 w den v0 w den v1 otherwise: we are guaranteed to have computed w den v0 and w den v1 before computing w den v . This algorithm is described in Algorithm 1. Since these computations involve a large number of products with exponentiated numbers, it typically leads to strong over-and under-flows: we describe in Algorithm 1 a version of this algorithm which works recursively over the logarithms of the weights. At the end of this loop, we end up at v = root and have computed w den root = T \u2282T w T with a very efficient O(|nodes(T )|) complexity. Note also that it is sufficient to store both w v and w den v for all v \u2208 T , which makes for a O(|nodes(T )|) memory consumption.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Numerator of Equation (9) . The numerator of Equation (9) almost follows the exact same argument as the denominator, but since it depends on the input vector x \u2208 C of features for which we want to produce a prediction, it is performed at inference time. Recall that path(x) is the sequence of nodes that leads to the leaf v T (x) containing x \u2208 C and define, for any v \u2208 nodes(T ),",
+            "cite_spans": [
+                {
+                    "start": 22,
+                    "end": 25,
+                    "text": "(9)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Note that (15) comes from (12) while (16) comes from the definition of\u0175 v (x) (note that a single term from the product over v \u2208 leaves(T )",
+            "cite_spans": [
+                {
+                    "start": 26,
+                    "end": 30,
+                    "text": "(12)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 37,
+                    "end": 41,
+                    "text": "(16)",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "is a partition of C). We are now in position to use again Lemma 1 with g(v) =\u0175 v (x). Defining",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "and that the following recurrence holds:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "This recurrence allows to compute w num v (x) from\u0175 v (x), but note that a direct use of this formula would lead to a complexity O(|nodes(T )|) to produce a prediction for a single input x \u2208 C. It turns out can we can do much better than that.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Indeed, whenever v / \u2208 path(x), we have by definition that\u0175 v (x) = w v and that\u0175 v (x) = w v for any descendant v of v, which entails by induction that w num v (x) = w den v for any v / \u2208 path(x). Therefore, we only need to explain how to compute w num v (x) for v \u2208 path(x). This is achieved recursively, thanks to (18) , starting at the leaf v T (x) and going up in the tree to root:",
+            "cite_spans": [
+                {
+                    "start": 317,
+                    "end": 321,
+                    "text": "(18)",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Let us explain where this comes from: firstly, one has obviously that leaves(",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": ". Secondly, we go up in the tree along path(x) and use again (18): whenever v \u2208 intnodes(T ) and va \u2208 path(x) for a \u2208 {0, 1}, we have w num v(1\u2212a) (x) = w den v(1\u2212a) since v(1 \u2212 a) / \u2208 path(x). This recursion has a complexity O(|path(x)|) where |path(x)| is the number of nodes in path(x), and is typically orders of magnitude smaller than |nodes(T )| (in a well-balanced binary tree, one has the relation |path(x)| = O(log 2 (|nodes(T )|))). Moreover, we observe that the recursions used in (7) and (19) only need to save both w v and w den v for any v \u2208 nodes(T ). Finally, we have using (14) and (17) that",
+            "cite_spans": [
+                {
+                    "start": 500,
+                    "end": 504,
+                    "text": "(19)",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 590,
+                    "end": 594,
+                    "text": "(14)",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "where (20) comes from (19) while (22) comes from (7). This proves the recursion stated in Equation (6) from Theorem 1, and to Algorithm 2. This concludes the proof of Theorem 1.",
+            "cite_spans": [
+                {
+                    "start": 6,
+                    "end": 10,
+                    "text": "(20)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 22,
+                    "end": 26,
+                    "text": "(19)",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 33,
+                    "end": 37,
+                    "text": "(22)",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "The proof of Theorem 2 is partly inspired from the proof of Theorem 2 in [25] , that we generalize to exp-concave losses, while only least-squares regression is considered therein. Let E be a measurable space and P, Q be probability measures on it. The Kullback-Leibler divergence between P and Q is defined by",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 77,
+                    "text": "[25]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "whenever P is absolutely continuous with respect to Q and equal to +\u221e otherwise. Also, if h : E \u2192 R is a measurable function such that E hdP is well-defined on R \u222a {\u2212\u221e, +\u221e}, we introduce",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "the probability measure on E with density h/ hdP with respect to P . A classical result is the Donsker-Varadhan variational formula [27] , which is at the core of the proofs of many PAC-Bayesian theorems [47, 15] and that we use here as well in the proof of Theorem 2. Its states that",
+            "cite_spans": [
+                {
+                    "start": 132,
+                    "end": 136,
+                    "text": "[27]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 204,
+                    "end": 208,
+                    "text": "[47,",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 209,
+                    "end": 212,
+                    "text": "15]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "holds for any probability measures P and Q on E and any measurable function h : E \u2192 R. This entails in particular that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "where the supremum is over all probability measures on E, and where the supremum is achieved for P = Q exp(h) whenever the term on the left-hand side is finite.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "Proof of Theorem 2. Recall that the otb loss of a subtree T \u2282 T is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "and let us introduce",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "for any subtree T \u2282 T . First, we use the fact that is a \u03b7-exp-concave loss function, hence \u03b7-mixable, see Section 3.3 from [17] , which entails, since p T is a probability measure over the set of all subtrees T \u2282 T , that",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 128,
+                    "text": "[17]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "where the sums over T are over all subtrees T \u2282 T . Now, summing this inequality over i \u2208 I otb and using the convexity of the log-sum-exp function leads to i\u2208Iotb T",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "By plugging the definition of p T into the previous expression, and by introducing \u03c1(T ) := \u03b7L T /n otb , we obtain",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "The H\u00f6lder inequality implies that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "Using (23) with h(T ) = \u2212(n otb + 1)\u03c1(T ) and Q = \u03c0, we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "for any probability measure P over the set of subtrees of T . This leads to 1 n otb i\u2208Iotb (f (x i ), y i ) 1 n otb T P (T )L T + 1 \u03b7(n otb + 1) KL(P, \u03c0)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "for any P , since KL(P, \u03c0 exp(h) ) 0. So for the particular choice P = \u03b4 T (the Dirac mass at T ) for any subtree T \u2282 T , we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "which concludes the proof of Theorem 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "The proof of Corollary 1 requires the next Lemma. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "where n v = K k=1 n v (k) and the log loss (y , y) = \u2212 log y (y). Then, the inequality",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "holds.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "Proof. We know that the optimal p is given by p k = n v (k)/n v . Indeed, it is the solution to the following constrained convex optimization problem",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "where we consider non-negativity to be already enforced by the objective and imposing p k 1 is redundant with the constraint K k=1 p k = 1. We can write the Lagrangian function as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "and one can check the KKT conditions when taking p k = n v (k)/n v and \u03bb = n v . Since we are dealing with a convex problem with linear constraints, this is a sufficient optimality condition. Straightforward computations give",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "Now, using the concavity of the logarithm gives",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": ", and the fact that x \u2192 x/(x + 1/2) is non-decreasing and n v (k) n v leads to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "This concludes the proof of Lemma 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "Proof of Corollary 1. The log-loss is trivially 1-exp-concave, so that we can choose \u03b7 = 1. Following Theorem 2, it remains to bound the regret of the tree forecaster T with respect to the optimal labeling of its leaves. For classification and the log loss, we use Lemma 2 to obtain i\u2208Iotb:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "for any subtree T and any v \u2208 leaves(T ). Now, summing over v \u2208 leaves(T ), of cardinality",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "which concludes the proof of Corollary 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "Proof of Corollary 2. The square loss is 1/(8B 2 )-exp-concave on [\u2212B, B], see [17] , so we can choose \u03b7 = 1/(8B 2 ). Following Theorem 2, it remains to bound the regret of the tree forecaster T with respect to the optimal labeling of its leaves. For regression with the least-squares loss, since we use the empirical mean forecaster (2), we have i\u2208Iotb:",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[17]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "for any subtree T and any leaf v \u2208 leaves(T ). The rest of the proof follows that of Corollary 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proofs of the results from Section 3"
+        },
+        {
+            "text": "We report in Table 3 the same test AUC scores as in Table 1 of all algorithms after hyperoptimization on the considered datasets. Standard-deviations displayed between parentheses are computed from 5 trainings with different random seeds. We observe that WW has better (or identical in some cases) performances than RF on all datasets and that it is close to that of EGB libraries (bold is for best EGB performance, underline for best RFn or WWn performance). We report also in Table 4 the same training time and test AUC as in Table 2 , with standarddeviations displayed between parentheses computed from 5 trainings with different random seeds, all with default hyperparameters of each algorithm. We observe that WW is almost always the fastest algorithm, for performances comparable to ones of all baselines (bold is for best EGB training time or performance, underline for best RF or WW training time or performance).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 13,
+                    "end": 20,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 52,
+                    "end": 59,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 478,
+                    "end": 485,
+                    "text": "Table 4",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 528,
+                    "end": 535,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Supplementary details on experiments"
+        },
+        {
+            "text": "In this Section, we provide extra information about hyperparameters optimization. For XGBoost, LightGBM and CatBoost, with all other hyperparameters fixed, we use early stopping by monitoring the log loss on the validation set, the maximum number of boosting iterations being set at 5, 000. The best number of iterations is used together with other best hyperparameters to refit over the whole training set before evaluation on the test set. For scikit-learn's Random Forest and WildWood, we report results both for 10 and 100 trees, note that the default choice is 10 for WildWood (since subtrees aggregation allows to use fewer trees than RF) while default is 100 in scikit-learn. We list the hyperparameters search space of each algorithm below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Supplementary details about hyperparameters tuning"
+        },
+        {
+            "text": "\u2022 eta: log-uniform distribution [e \u22127 , 1];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "XGBoost"
+        },
+        {
+            "text": "\u2022 max depth: discrete uniform distribution [2, 10] ;",
+            "cite_spans": [
+                {
+                    "start": 43,
+                    "end": 46,
+                    "text": "[2,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 47,
+                    "end": 50,
+                    "text": "10]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "XGBoost"
+        },
+        {
+            "text": "\u2022 subsample: uniform [0.5, 1];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "XGBoost"
+        },
+        {
+            "text": "\u2022 colsample bytree: uniform [0.5, 1]; Table 1 of all algorithms after hyperoptimization on the considered datasets. Standard-deviations displayed between parentheses are computed from 5 trainings with different random seeds. We observe that WW has better (or identical in some cases) performances than RF on all datasets and that it is close to that of EGB libraries (bold is for best EGB performance, underline for best RFn or WWn performance). \u2022 alpha: 0 with probability 0.5, and log-uniform distribution [e \u221216 , e 2 ] with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 38,
+                    "end": 45,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "XGBoost"
+        },
+        {
+            "text": "\u2022 lambda: 0 with probability 0.5, and log-uniform distribution [e \u221216 , e 2 ] with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "XGB"
+        },
+        {
+            "text": "\u2022 gamma: 0 with probability 0.5, and log-uniform distribution [e \u221216 , e 2 ] with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "XGB"
+        },
+        {
+            "text": "\u2022 learning rate: log-uniform distribution [e \u22127 , 1];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 num leaves: discrete log-uniform distribution [1, e 7 ];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 feature fraction: uniform [0.5, 1];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 bagging fraction: uniform [0.5, 1];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 min data in leaf: discrete log-uniform distribution [1, e 6 ];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 min sum hessian in leaf: log-uniform distribution [e \u221216 , e 5 ];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 lambda l1: 0 with probability 0.5, and log-uniform distribution [e \u221216 , e 2 ] with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 lambda l2: 0 with probability 0.5, and log-uniform distribution [e \u221216 , e 2 ] with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "LightGBM"
+        },
+        {
+            "text": "\u2022 learning rate: log-uniform distribution [e \u22127 , 1];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CatBoost"
+        },
+        {
+            "text": "\u2022 random strength: discrete uniform distribution over {1, 20};",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CatBoost"
+        },
+        {
+            "text": "\u2022 one hot max size: discrete uniform distribution over {0, 25};",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CatBoost"
+        },
+        {
+            "text": "\u2022 l2 leaf reg: log-uniform distribution [1, 10] ;",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 43,
+                    "text": "[1,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 44,
+                    "end": 47,
+                    "text": "10]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "CatBoost"
+        },
+        {
+            "text": "\u2022 bagging temperature: uniform [0, 1].",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CatBoost"
+        },
+        {
+            "text": "\u2022 learning rate: log-uniform distribution [e \u22124 , 1];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "HistGradientBoosting"
+        },
+        {
+            "text": "\u2022 max leaf nodes: discrete log-uniform distribution [1, e 7 ];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "HistGradientBoosting"
+        },
+        {
+            "text": "\u2022 min samples leaf: discrete log-uniform distribution [1, e 6 ];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "HistGradientBoosting"
+        },
+        {
+            "text": "\u2022 l2 regularization: 0 with probability 0.5, and log-uniform distribution [e \u221216 , e 2 ] with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "HistGradientBoosting"
+        },
+        {
+            "text": "\u2022 max features: None with probability 0.5, and sqrt with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RandomForest"
+        },
+        {
+            "text": "\u2022 min samples leaf: uniform over {1, 5, 10} and we set min samples split = 2 \u00d7 min samples leaf;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RandomForest"
+        },
+        {
+            "text": "\u2022 multiclass: multinomial with probability 0.5, and ovr with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "WildWood"
+        },
+        {
+            "text": "\u2022 min samples leaf: uniform over {1, 5, 10} and we set min samples split = 2 \u00d7 min samples leaf;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "WildWood"
+        },
+        {
+            "text": "\u2022 step: log-uniform distribution [e \u22123 , e 6 ];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "WildWood"
+        },
+        {
+            "text": "\u2022 dirichlet: log-uniform distribution [e \u22127 , e 2 ];",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "WildWood"
+        },
+        {
+            "text": "\u2022 cat split strategy: binary with probability 0.5, and all with probability 0.5;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "WildWood"
+        },
+        {
+            "text": "\u2022 max features: None with probability 0.5, and sqrt with probability 0.5.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "WildWood"
+        },
+        {
+            "text": "The main characteristics of the datasets used in the paper are summarized in Table 5 . We provide in Table 6 the URL of all the datasets used, most of them are from the UCI machine learning repository [29] .",
+            "cite_spans": [
+                {
+                    "start": 201,
+                    "end": 205,
+                    "text": "[29]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 77,
+                    "end": 84,
+                    "text": "Table 5",
+                    "ref_id": "TABREF7"
+                },
+                {
+                    "start": 101,
+                    "end": 108,
+                    "text": "Table 6",
+                    "ref_id": "TABREF8"
+                }
+            ],
+            "section": "Datasets"
+        },
+        {
+            "text": "In Table 7 : Areas under the ROC curves (AUC) obtained on test samples with WildWood (using 100 trees in the forest) on the adult, bank and car datasets with combinations of several hyper parameters. We observe that WildWood's performance does not vary significantly with respect to these hyperparameters.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 7",
+                    "ref_id": "TABREF6"
+                }
+            ],
+            "section": "Sensitivity of hyperparameters of Wildwood"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "BSD-3-Clause License \u2022 lightgbm (3.2.1), MIT License \u2022 matplotlib",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "\u2022 numba (0.52), BSD 2-Clause \"Simplified\" License",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Predicting intensive care unit length of stay and mortality using patient vital signs: Machine learning model development and validation",
+            "authors": [
+                {
+                    "first": "Khalid",
+                    "middle": [],
+                    "last": "Alghatani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nariman",
+                    "middle": [],
+                    "last": "Ammar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Abdelmounaam",
+                    "middle": [],
+                    "last": "Rezgui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arash",
+                    "middle": [],
+                    "last": "Shaban-Nejad",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "JMIR Medical Informatics",
+            "volume": "9",
+            "issn": "5",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Analysis of purely random forests bias",
+            "authors": [
+                {
+                    "first": "Sylvain",
+                    "middle": [],
+                    "last": "Arlot",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robin",
+                    "middle": [],
+                    "last": "Genuer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1407.3939"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Generalized random forests",
+            "authors": [
+                {
+                    "first": "Susan",
+                    "middle": [],
+                    "last": "Athey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Julie",
+                    "middle": [],
+                    "last": "Tibshirani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stefan",
+                    "middle": [],
+                    "last": "Wager",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Hyperopt: a python library for model selection and hyperparameter optimization",
+            "authors": [
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Bergstra",
+                    "suffix": ""
+                },
+                {
+                    "first": "Brent",
+                    "middle": [],
+                    "last": "Komer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Eliasmith",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Yamins",
+                    "suffix": ""
+                },
+                {
+                    "first": "David D",
+                    "middle": [],
+                    "last": "Cox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Computational Science & Discovery",
+            "volume": "8",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Analysis of a random forests model",
+            "authors": [
+                {
+                    "first": "G\u00e9rard",
+                    "middle": [],
+                    "last": "Biau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "The Journal of Machine Learning Research",
+            "volume": "13",
+            "issn": "1",
+            "pages": "1063--1095",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Consistency of random forests and other averaging classifiers",
+            "authors": [
+                {
+                    "first": "G\u00e9rard",
+                    "middle": [],
+                    "last": "Biau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Luc",
+                    "middle": [],
+                    "last": "Devroye",
+                    "suffix": ""
+                },
+                {
+                    "first": "G\u00e4bor",
+                    "middle": [],
+                    "last": "Lugosi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Journal of Machine Learning Research",
+            "volume": "9",
+            "issn": "9",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "A random forest guided tour",
+            "authors": [
+                {
+                    "first": "G\u00e9rard",
+                    "middle": [],
+                    "last": "Biau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Erwan",
+                    "middle": [],
+                    "last": "Scornet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "TEST",
+            "volume": "25",
+            "issn": "2",
+            "pages": "197--227",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Bagging predictors. Machine learning",
+            "authors": [
+                {
+                    "first": "Leo",
+                    "middle": [],
+                    "last": "Breiman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "",
+            "volume": "24",
+            "issn": "",
+            "pages": "123--140",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Random forests",
+            "authors": [
+                {
+                    "first": "Leo",
+                    "middle": [],
+                    "last": "Breiman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Machine Learning",
+            "volume": "45",
+            "issn": "",
+            "pages": "5--32",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Classification and regression trees. The Wadsworth statistics/probability series",
+            "authors": [
+                {
+                    "first": "Leo",
+                    "middle": [],
+                    "last": "Breiman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jerome",
+                    "middle": [],
+                    "last": "Friedman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Richard",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Olshen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Charles",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Stone",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "CRC",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Simplifying decision trees: A survey",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Leonard",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Breslow",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Aha",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "The Knowledge Engineering Review",
+            "volume": "12",
+            "issn": "01",
+            "pages": "1--40",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Learning classification trees",
+            "authors": [
+                {
+                    "first": "Wray",
+                    "middle": [],
+                    "last": "Buntine",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "Statistics and computing",
+            "volume": "2",
+            "issn": "2",
+            "pages": "63--73",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "On random-forest-based prediction intervals",
+            "authors": [
+                {
+                    "first": "Aida",
+                    "middle": [],
+                    "last": "Calvi\u00f1o",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Intelligent Data Engineering and Automated Learning -IDEAL 2020",
+            "volume": "",
+            "issn": "",
+            "pages": "172--184",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Statistical Learning Theory and Stochastic Optimization: Ecole d'Et\u00e9 de Probabilit\u00e9s de Saint-Flour XXXI -2001",
+            "authors": [
+                {
+                    "first": "Olivier",
+                    "middle": [],
+                    "last": "Catoni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Lecture Notes in Mathematics",
+            "volume": "1851",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "PAC-Bayesian Supervised Classification: The Thermodynamics of Statistical Learning",
+            "authors": [
+                {
+                    "first": "Olivier",
+                    "middle": [],
+                    "last": "Catoni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "IMS Lecture Notes Monograph Series. Institute of Mathematical Statistics",
+            "volume": "56",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "On the generalization ability of on-line learning algorithms",
+            "authors": [
+                {
+                    "first": "Nicol\u00f2",
+                    "middle": [],
+                    "last": "Cesa-Bianchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alex",
+                    "middle": [],
+                    "last": "Conconi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Claudio",
+                    "middle": [],
+                    "last": "Gentile",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "IEEE Transactions on Information Theory",
+            "volume": "50",
+            "issn": "9",
+            "pages": "2050--2057",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Prediction, Learning, and Games",
+            "authors": [
+                {
+                    "first": "Nicol\u00f2",
+                    "middle": [],
+                    "last": "Cesa",
+                    "suffix": ""
+                },
+                {
+                    "first": "-",
+                    "middle": [],
+                    "last": "Bianchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G\u00e1bor",
+                    "middle": [],
+                    "last": "Lugosi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Xgboost: A scalable tree boosting system",
+            "authors": [
+                {
+                    "first": "Tianqi",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carlos",
+                    "middle": [],
+                    "last": "Guestrin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Random forests for genomic data analysis",
+            "authors": [
+                {
+                    "first": "Xi",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hemant",
+                    "middle": [],
+                    "last": "Ishwaran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Genomics",
+            "volume": "99",
+            "issn": "6",
+            "pages": "323--329",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Adasyn-random forest based intrusion detection model",
+            "authors": [
+                {
+                    "first": "Zhewei",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Linyue",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wenwen",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Bayesian CART model search",
+            "authors": [
+                {
+                    "first": "Hugh",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Chipman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Edward",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "George",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Mcculloch",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "93",
+            "issn": "443",
+            "pages": "935--948",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "BART: Bayesian additive regression trees",
+            "authors": [
+                {
+                    "first": "Hugh",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Chipman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Edward",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "George",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Mcculloch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "The Annals of Applied Statistics",
+            "volume": "4",
+            "issn": "1",
+            "pages": "266--298",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Partitioning nominal attributes in decision trees",
+            "authors": [
+                {
+                    "first": "Don",
+                    "middle": [],
+                    "last": "Coppersmith",
+                    "suffix": ""
+                },
+                {
+                    "first": "Se",
+                    "middle": [],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jonathan",
+                    "middle": [],
+                    "last": "Hosking",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Data Mining and Knowledge Discovery",
+            "volume": "3",
+            "issn": "",
+            "pages": "197--217",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Decision forests: A unified framework for classification, regression, density estimation, manifold learning and semisupervised learning",
+            "authors": [
+                {
+                    "first": "Antonio",
+                    "middle": [],
+                    "last": "Criminisi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jamie",
+                    "middle": [],
+                    "last": "Shotton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ender",
+                    "middle": [],
+                    "last": "Konukoglu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Aggregation by exponential weighting, sharp pac-bayesian bounds and sparsity",
+            "authors": [
+                {
+                    "first": "Arnak",
+                    "middle": [],
+                    "last": "Dalalyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexandre",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Tsybakov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Machine Learning",
+            "volume": "72",
+            "issn": "",
+            "pages": "39--61",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "A bayesian CART algorithm",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Denison",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Bani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adrian",
+                    "middle": [
+                        "F M"
+                    ],
+                    "last": "Mallick",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Biometrika",
+            "volume": "85",
+            "issn": "2",
+            "pages": "363--377",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Asymptotic evaluation of certain markov process expectations for large time-iii",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Monroe",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Donsker",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sr Srinivasa Varadhan",
+                    "suffix": ""
+                }
+            ],
+            "year": 1976,
+            "venue": "Communications on pure and applied Mathematics",
+            "volume": "29",
+            "issn": "4",
+            "pages": "389--461",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Catboost: gradient boosting with categorical features support",
+            "authors": [
+                {
+                    "first": "Anna",
+                    "middle": [],
+                    "last": "Veronika Dorogush",
+                    "suffix": ""
+                },
+                {
+                    "first": "Vasily",
+                    "middle": [],
+                    "last": "Ershov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrey",
+                    "middle": [],
+                    "last": "Gulin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1810.11363"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "UCI machine learning repository",
+            "authors": [
+                {
+                    "first": "Dheeru",
+                    "middle": [],
+                    "last": "Dua",
+                    "suffix": ""
+                },
+                {
+                    "first": "Casey",
+                    "middle": [],
+                    "last": "Graff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Improvements on cross-validation: the 632+ bootstrap method",
+            "authors": [
+                {
+                    "first": "Bradley",
+                    "middle": [],
+                    "last": "Efron",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Tibshirani",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "92",
+            "issn": "438",
+            "pages": "548--560",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Variance reduction in purely random forests",
+            "authors": [
+                {
+                    "first": "Robin",
+                    "middle": [],
+                    "last": "Genuer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Journal of Nonparametric Statistics",
+            "volume": "24",
+            "issn": "3",
+            "pages": "543--562",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Extremely randomized trees",
+            "authors": [
+                {
+                    "first": "Pierre",
+                    "middle": [],
+                    "last": "Geurts",
+                    "suffix": ""
+                },
+                {
+                    "first": "Damien",
+                    "middle": [],
+                    "last": "Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "Louis",
+                    "middle": [],
+                    "last": "Wehenkel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Machine learning",
+            "volume": "63",
+            "issn": "1",
+            "pages": "3--42",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Generalised boosted forests",
+            "authors": [
+                {
+                    "first": "Indrayudh",
+                    "middle": [],
+                    "last": "Ghosal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giles",
+                    "middle": [],
+                    "last": "Hooker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Predicting nearly as well as the best pruning of a decision tree",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Helmbold",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Schapire",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Machine Learning",
+            "volume": "27",
+            "issn": "",
+            "pages": "51--68",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Multi-output random forest regression to emulate the earliest stages of planet formation",
+            "authors": [
+                {
+                    "first": "Kevin",
+                    "middle": [],
+                    "last": "Hoffman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jae",
+                    "middle": [
+                        "Yoon"
+                    ],
+                    "last": "Sung",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andr\u00e9",
+                    "middle": [],
+                    "last": "Zazzera",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Joblib: running python functions as pipeline jobs",
+            "authors": [],
+            "year": 2020,
+            "venue": "Joblib Development Team",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Variable importance using decision trees",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "S Jalil Kazemitabar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Arash",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "Amini",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ameet",
+                    "middle": [],
+                    "last": "Bloniarz",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Talwalkar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 31st International Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "425--434",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Lightgbm: A highly efficient gradient boosting decision tree",
+            "authors": [
+                {
+                    "first": "Guolin",
+                    "middle": [],
+                    "last": "Ke",
+                    "suffix": ""
+                },
+                {
+                    "first": "Qi",
+                    "middle": [],
+                    "last": "Meng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thomas",
+                    "middle": [],
+                    "last": "Finley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Taifeng",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wei",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Weidong",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Qiwei",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tie-Yan",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "30",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Mondrian forests: Efficient online random forests",
+            "authors": [
+                {
+                    "first": "Balaji",
+                    "middle": [],
+                    "last": "Lakshminarayanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Roy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yee",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Teh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "27",
+            "issn": "",
+            "pages": "3140--3148",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Numba: A llvm-based python jit compiler",
+            "authors": [
+                {
+                    "first": "Antoine",
+                    "middle": [],
+                    "last": "Siu Kwan Lam",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stanley",
+                    "middle": [],
+                    "last": "Pitrou",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Seibert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the Second Workshop on the LLVM Compiler Infrastructure in HPC, LLVM '15",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Forest-type regression with general losses and robust forest",
+            "authors": [
+                {
+                    "first": "Alexander",
+                    "middle": [],
+                    "last": "Hanbo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Li",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Martin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 34th International Conference on Machine Learning",
+            "volume": "70",
+            "issn": "",
+            "pages": "6--11",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Isolation forest",
+            "authors": [
+                {
+                    "first": "Tony",
+                    "middle": [],
+                    "last": "Fei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kai",
+                    "middle": [
+                        "Ming"
+                    ],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhi-Hua",
+                    "middle": [],
+                    "last": "Ting",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Eighth IEEE International Conference on Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "413--422",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Understanding random forests: From theory to practice",
+            "authors": [
+                {
+                    "first": "Gilles",
+                    "middle": [],
+                    "last": "Louppe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Understanding variable importances in forests of randomized trees",
+            "authors": [
+                {
+                    "first": "Gilles",
+                    "middle": [],
+                    "last": "Louppe",
+                    "suffix": ""
+                },
+                {
+                    "first": "Louis",
+                    "middle": [],
+                    "last": "Wehenkel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Antonio",
+                    "middle": [],
+                    "last": "Sutera",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pierre",
+                    "middle": [],
+                    "last": "Geurts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in neural information processing systems 26",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Dimension reduction forests: Local variable importance using structured random forests",
+            "authors": [
+                {
+                    "first": "Joshua",
+                    "middle": [],
+                    "last": "Daniel Loyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ruoqing",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yifan",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xin",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Some pac-bayesian theorems",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mcallester",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Proceedings of the 11th Annual conference on Computational Learning Theory (COLT)",
+            "volume": "",
+            "issn": "",
+            "pages": "230--234",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Pac-bayesian model averaging",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mcallester",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Proceedings of the 20th Annual Conference on Computational Learning Theory (COLT)",
+            "volume": "",
+            "issn": "",
+            "pages": "164--170",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Randomization as regularization: A degrees of freedom explanation for random forest success",
+            "authors": [
+                {
+                    "first": "Lucas",
+                    "middle": [],
+                    "last": "Mentch",
+                    "suffix": ""
+                },
+                {
+                    "first": "Siyu",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Minimax optimal rates for mondrian trees and forests",
+            "authors": [
+                {
+                    "first": "Jaouad",
+                    "middle": [],
+                    "last": "Mourtada",
+                    "suffix": ""
+                },
+                {
+                    "first": "St\u00e9phane",
+                    "middle": [],
+                    "last": "Ga\u00efffas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Erwan",
+                    "middle": [],
+                    "last": "Scornet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Annals of Statistics",
+            "volume": "48",
+            "issn": "4",
+            "pages": "2253--2276",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "AMF: Aggregated Mondrian forests for online learning",
+            "authors": [
+                {
+                    "first": "Jaouad",
+                    "middle": [],
+                    "last": "Mourtada",
+                    "suffix": ""
+                },
+                {
+                    "first": "St\u00e9phane",
+                    "middle": [],
+                    "last": "Ga\u00efffas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Erwan",
+                    "middle": [],
+                    "last": "Scornet",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Journal of the Royal Statistical Society: Series B (Statistical Methodology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Online bagging and boosting",
+            "authors": [
+                {
+                    "first": "Chandrakant",
+                    "middle": [],
+                    "last": "Nikunj",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stuart",
+                    "middle": [],
+                    "last": "Oza",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Russell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of the 8th International Conference on Artificial Intelligence and Statistics (AISTATS)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Regularized target encoding outperforms traditional methods in supervised machine learning with high cardinality features",
+            "authors": [
+                {
+                    "first": "Florian",
+                    "middle": [],
+                    "last": "Pargent",
+                    "suffix": ""
+                },
+                {
+                    "first": "Florian",
+                    "middle": [],
+                    "last": "Pfisterer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Janek",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bernd",
+                    "middle": [],
+                    "last": "Bischl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Differential private random forest",
+            "authors": [
+                {
+                    "first": "Abhijit",
+                    "middle": [],
+                    "last": "Patil",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sanjay",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "2014 International Conference on Advances in Computing, Communications and Informatics (ICACCI)",
+            "volume": "",
+            "issn": "",
+            "pages": "2623--2630",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Scikit-learn: Machine learning in Python",
+            "authors": [
+                {
+                    "first": "Fabian",
+                    "middle": [],
+                    "last": "Pedregosa",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ga\u00ebl",
+                    "middle": [],
+                    "last": "Varoquaux",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexandre",
+                    "middle": [],
+                    "last": "Gramfort",
+                    "suffix": ""
+                },
+                {
+                    "first": "Vincent",
+                    "middle": [],
+                    "last": "Michel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bertrand",
+                    "middle": [],
+                    "last": "Thirion",
+                    "suffix": ""
+                },
+                {
+                    "first": "Olivier",
+                    "middle": [],
+                    "last": "Grisel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mathieu",
+                    "middle": [],
+                    "last": "Blondel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Peter",
+                    "middle": [],
+                    "last": "Prettenhofer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ron",
+                    "middle": [],
+                    "last": "Weiss",
+                    "suffix": ""
+                },
+                {
+                    "first": "Vincent",
+                    "middle": [],
+                    "last": "Dubourg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jake",
+                    "middle": [],
+                    "last": "Vanderplas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexandre",
+                    "middle": [],
+                    "last": "Passos",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Cournapeau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matthieu",
+                    "middle": [],
+                    "last": "Brucher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matthieu",
+                    "middle": [],
+                    "last": "Perrot",
+                    "suffix": ""
+                },
+                {
+                    "first": "Edouard",
+                    "middle": [],
+                    "last": "Duchesnay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of Machine Learning Research",
+            "volume": "12",
+            "issn": "",
+            "pages": "2825--2830",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Hyperparameters and tuning strategies for random forest",
+            "authors": [
+                {
+                    "first": "Philipp",
+                    "middle": [],
+                    "last": "Probst",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Marvin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anne-Laure",
+                    "middle": [],
+                    "last": "Wright",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Boulesteix",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Wiley Interdisciplinary Reviews: Data Mining and Knowledge Discovery",
+            "volume": "9",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "Catboost: unbiased boosting with categorical features",
+            "authors": [
+                {
+                    "first": "Liudmila",
+                    "middle": [],
+                    "last": "Prokhorenkova",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gleb",
+                    "middle": [],
+                    "last": "Gusev",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aleksandr",
+                    "middle": [],
+                    "last": "Vorobev",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anna",
+                    "middle": [
+                        "Veronika"
+                    ],
+                    "last": "Dorogush",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrey",
+                    "middle": [],
+                    "last": "Gulin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1706.09516"
+                ]
+            }
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Random forest for bioinformatics",
+            "authors": [
+                {
+                    "first": "Yanjun",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Ensemble machine learning",
+            "volume": "",
+            "issn": "",
+            "pages": "307--323",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Induction of decision trees",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ross",
+                    "middle": [],
+                    "last": "Quinlan",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "Machine learning",
+            "volume": "1",
+            "issn": "1",
+            "pages": "81--106",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Global refinement of random forest",
+            "authors": [
+                {
+                    "first": "Xudong",
+                    "middle": [],
+                    "last": "Shaoqing Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yichen",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jian",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "723--730",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Prediction intervals with random forests",
+            "authors": [
+                {
+                    "first": "Marie-H\u00e9l\u00e8ne",
+                    "middle": [],
+                    "last": "Roy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Denis",
+                    "middle": [],
+                    "last": "Larocque",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Statistical Methods in Medical Research",
+            "volume": "29",
+            "issn": "1",
+            "pages": "205--229",
+            "other_ids": {
+                "PMID": [
+                    "30786820"
+                ]
+            }
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "On the asymptotics of random forests",
+            "authors": [
+                {
+                    "first": "Erwan",
+                    "middle": [],
+                    "last": "Scornet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Journal of Multivariate Analysis",
+            "volume": "146",
+            "issn": "",
+            "pages": "72--83",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Random forests and kernel methods",
+            "authors": [
+                {
+                    "first": "Erwan",
+                    "middle": [],
+                    "last": "Scornet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Transactions on Information Theory",
+            "volume": "62",
+            "issn": "",
+            "pages": "1485--1500",
+            "other_ids": {}
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "Consistency of random forests",
+            "authors": [
+                {
+                    "first": "Erwan",
+                    "middle": [],
+                    "last": "Scornet",
+                    "suffix": ""
+                },
+                {
+                    "first": "G\u00e9rard",
+                    "middle": [],
+                    "last": "Biau",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jean-Philippe",
+                    "middle": [],
+                    "last": "Vert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "The Annals of Statistics",
+            "volume": "43",
+            "issn": "4",
+            "pages": "1716--1741",
+            "other_ids": {}
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "Estimating County-Level COVID-19 Exponential Growth Rates Using Generalized Random Forests",
+            "authors": [
+                {
+                    "first": "Zhaowei",
+                    "middle": [],
+                    "last": "She",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zilong",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Turgay",
+                    "middle": [],
+                    "last": "Ayer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Asmae",
+                    "middle": [],
+                    "last": "Toumi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jagpreet",
+                    "middle": [],
+                    "last": "Chhatwal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2011.01219"
+                ]
+            }
+        },
+        "BIBREF66": {
+            "ref_id": "b66",
+            "title": "Diagnosis of chronic kidney disease by using random forest",
+            "authors": [
+                {
+                    "first": "Abdulhamit",
+                    "middle": [],
+                    "last": "Subasi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emina",
+                    "middle": [],
+                    "last": "Alickovic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jasmin",
+                    "middle": [],
+                    "last": "Kevric",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CMBEBIH 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "589--594",
+            "other_ids": {}
+        },
+        "BIBREF67": {
+            "ref_id": "b67",
+            "title": "Dynamic trees for learning and design",
+            "authors": [
+                {
+                    "first": "Matthew",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Taddy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Gramacy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nicholas",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Polson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "106",
+            "issn": "493",
+            "pages": "109--123",
+            "other_ids": {}
+        },
+        "BIBREF68": {
+            "ref_id": "b68",
+            "title": "Driver state and behavior detection through smart wearables",
+            "authors": [
+                {
+                    "first": "Arash",
+                    "middle": [],
+                    "last": "Tavakoli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shashwat",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mehdi",
+                    "middle": [],
+                    "last": "Boukhechba",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arsalan",
+                    "middle": [],
+                    "last": "Heydarian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF69": {
+            "ref_id": "b69",
+            "title": "Sequential weighting algorithms for multi-alphabet sources",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tjalling",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yuri",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Tjalkens",
+                    "suffix": ""
+                },
+                {
+                    "first": "Frans",
+                    "middle": [
+                        "M J"
+                    ],
+                    "last": "Shtarkov",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Willems",
+                    "suffix": ""
+                }
+            ],
+            "year": 1993,
+            "venue": "6th Joint Swedish-Russian International Workshop on Information Theory",
+            "volume": "",
+            "issn": "",
+            "pages": "230--234",
+            "other_ids": {}
+        },
+        "BIBREF70": {
+            "ref_id": "b70",
+            "title": "Optimal rates of aggregation",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Alexandre",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tsybakov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Learning theory and kernel machines",
+            "volume": "",
+            "issn": "",
+            "pages": "303--313",
+            "other_ids": {}
+        },
+        "BIBREF71": {
+            "ref_id": "b71",
+            "title": "Forest guided smoothing",
+            "authors": [
+                {
+                    "first": "Isabella",
+                    "middle": [],
+                    "last": "Verdinelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Larry",
+                    "middle": [],
+                    "last": "Wasserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF72": {
+            "ref_id": "b72",
+            "title": "A game of prediction with expert advice",
+            "authors": [
+                {
+                    "first": "Vladimir",
+                    "middle": [],
+                    "last": "Vovk",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Journal of Computer and System Sciences",
+            "volume": "56",
+            "issn": "2",
+            "pages": "153--173",
+            "other_ids": {}
+        },
+        "BIBREF73": {
+            "ref_id": "b73",
+            "title": "The context-tree weighting method: Extensions",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Frans",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Willems",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "IEEE Transactions on Information Theory",
+            "volume": "44",
+            "issn": "2",
+            "pages": "792--798",
+            "other_ids": {}
+        },
+        "BIBREF74": {
+            "ref_id": "b74",
+            "title": "The context-tree weighting method: Basic properties",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Frans",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yuri",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Willems",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tjalling",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Shtarkov",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tjalkens",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "IEEE Transactions on Information Theory",
+            "volume": "41",
+            "issn": "3",
+            "pages": "653--664",
+            "other_ids": {}
+        },
+        "BIBREF75": {
+            "ref_id": "b75",
+            "title": "Random forest prediction intervals",
+            "authors": [
+                {
+                    "first": "Haozhe",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joshua",
+                    "middle": [],
+                    "last": "Zimmerman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Nettleton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Nordman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "The American Statistician",
+            "volume": "74",
+            "issn": "4",
+            "pages": "392--406",
+            "other_ids": {}
+        },
+        "BIBREF76": {
+            "ref_id": "b76",
+            "title": "Trees, Forests, Chickens, and Eggs: When and Why to Prune Trees in a Random Forest",
+            "authors": [
+                {
+                    "first": "Siyu",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lucas",
+                    "middle": [],
+                    "last": "Mentch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2103.16700"
+                ]
+            }
+        },
+        "BIBREF77": {
+            "ref_id": "b77",
+            "title": "Random forest for label ranking",
+            "authors": [
+                {
+                    "first": "Yangming",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guoping",
+                    "middle": [],
+                    "last": "Qiu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Expert Systems with Applications",
+            "volume": "112",
+            "issn": "",
+            "pages": "99--109",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "WW decision functions illustrated on a toy dataset (left) with subtrees aggregation (top) and without it (bottom). Subtrees aggregation improves trees predictions, as illustrated by smoother decision functions in the top compared with the bottom, improving overall predictions of the forest (last column).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Figure 2: Mean test AUC and standard-deviations (y-axis) using 10 train/test splits for WW and scikit-learn's implementations of RF [43] and Extra Trees [32], using default hyperparameters, on several datasets. Thanks to subtrees aggregation, WW improves these baselines, even with few trees (x-axis is the number of trees).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Test AUC (top) and training time (bottom) of WW compared with very popular EGB libraries (after hyperoptimization of all algorithms, see Section 4 for details)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Consider classification with Y = {1, . . . , K} and a node v \u2208 nodes(T ). Denote n v (k) the number of samples of class k in node v. We consider the Krichevsky-Trofimov estimator",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Test AUC of all algorithms after hyperoptimization on the considered datasets. Standarddeviations are reported in",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Training times (seconds) of all algorithms with their default hyperparameters (no hyperoptimization) on the 5 largest considered datasets and test AUC corresponding to these training times. Test AUC scores are worse than that ofTable 1, since no hyperoptimization is used. WW, which uses only 10 trees here (default number of trees), is almost always the fastest algorithm, for performances comparable to that of all baselines (bold is for best EGB training time or performance, underline for best RFn or WWn training time or performance). Standard deviations are reported inTable 4.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "The same test AUC scores as in",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": ".2e-04) 0.927 (2.9e-04) 0.930 (2.9e-04) 0.916 (3.1e-04) 0.919 (1.8e-04) 0.918 (2.8e-04) 0.919 (1.6e-04) bank 0.933 (1.5e-04) 0.935 (4.1e-05) 0.925 (6.5e-04) 0.930 (7.4e-04) 0.917 (6.4e-04) 0.929 (2.3e-04) 0.924 (9.1e-04) 0.931 (3.5e-04) breastcancer 0.991 (4.4e-04) 0.993 (1.1e-04) 0.987 (6.7e-03) 0.994 (0.0e+00) 0.974 (3.1e-03) 0.978 (1.1e-03) 0.992 (1.5e-03) 0.992 (5.9e-04) car 0.999 (2.3e-04) 1.000 (3.8e-05) 1.000 (6.0e-05) 1.000 (0.0e+00) 0.996 (6.0e-04) 0.996 (2.2e-04) 0.997 (9.5e-04) 0.998 (1.2e-04) .6e-06) 0.998 (2.5e-05) 0.999 (5.2e-06) 0.996 (2.2e-04) 0.998 (7.6e-05) 0.996 (1.2e-04) 0.998 (6.1e-05) default-cb 0.780 (3.5e-04) 0.783 (1.2e-04) 0.780 (3.9e-04) 0.779 (6.7e-04) 0.748 (4.2e-03) 0.774 (9.5e-04) 0.773 (6.1e-04) 0.778 (4.8e-04) higgs 0.853 (6.7e-05) 0.857 (1.8e-05) 0.847 (2.2e-05) 0.853 (7.0e-05) 0.812 (1.4e-04) 0.834 (3.1e-05) 0.818 (7.8e-05) 0.835 (2.3e-05) internet 0.934 (2.9e-04) 0.910 (1.8e-04) 0.938 (1.3e-03) 0.911 (1.1e-16) 0.841 (1.2e-02) 0.911 (4.4e-03) 0.923 (1.5e-03) 0.928(6.3e-04) kddcup 1.000 (6.1e-08) 1.000 (4.1e-07) 1.000 (5.8e-07) 1.000 (5.7e-07) 0.997 (9.6e-04) 0.998 (2.1e-03) 1.000 (1.4e-06) .7e-04) 0.770 (2.8e-04) 0.777 (6.8e-04) 0.771 (1.6e-03) 0.736 (1.9e-03) 0.752 (8.1e-04) 0.756 (1.5e-03) 0.763 (1.2e-03) letter 1.000 (1.3e-05) 1.000 (2.7e-06) 1.000 (4.1e-06) 1.000 (2.1e-05) 0.997 (2.0e-04) 0.999 (1.8e-04) 0.996 (3.3e-04) 0.999 (3.5e-05) (3.6e-05) 0.991 (2.3e-04) 0.987 (0.0e+00) 0.980 (1.3e-03) 0.989 (1.7e-04) 0.983 (7.1e-04) 0.991 (3.2e-04) sensorless 1.000 (4.9e-07) 1.000 (1.4e-07) 1.000 (4.4e-06) 1.000 (2.9e-06) 1.000 (4.4e-05) 1.000 (1.2e-05) 1.000 (1.5e-05) 1.000 (5.8e-06) spambase 0.990 (1.5e-04) 0.990 (5.2e-05) 0.987 (1.2e-03) 0.986 (0.0e+00) 0.980 (4.7e-04) 0.986 (2.6e-04) 0.983 (1.1e-03) 0.987 (2.7e-04)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "The same training time table as in Table 2, as average over 5 runs, with standard deviation computed from 5 runs reported between parenthesis, for default parameters for each model. Top: training time in seconds; bottom: test AUC. We observe that WW is almost always the fastest algorithm, for performances comparable to ones of all baselines (bold is for best EGB training time or performance, underline for best RF or WW training time or performance).\u2022 colsample bylevel: uniform [0.5, 1];\u2022 min child weight: log-uniform distribution [e \u221216 , e 5 ];",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "we illustrate the effects of hyperparameters on WW's performance on a few datasets, measured by the test AUC. We can observe in this table that it is only weakly affected by different combinations of hyperparameters. Dataset # Samples # Features # Categorical features # Classes Gini",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Main characteristics of the datasets used in experiments, including number of samples, number of features, number of categorical features, number of classes and the Gini index of the class distribution on the whole datasets (rescaled between 0 and 1), in order to quantify class unbalancing.Dataset URL adult https://archive.ics.uci.edu/ml/datasets/Adult bank https://archive.ics.uci.edu/ml/datasets/bank+marketing breastcancer https://archive.ics.uci.edu/ml/datasets/breast+cancer+wisconsin+(diagnostic) car https://archive.ics.uci.edu/ml/datasets/car+evaluation covtype https://archive.ics.uci.edu/ml/datasets/covertype default cb https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients higgs https://archive.ics.uci.edu/ml/datasets/HIGGS internet https://kdd.ics.uci.edu/databases/internet_usage/internet_usage.html kddcup99 https://kdd.ics.uci.edu/databases/kddcup99/kddcup99.html kick https://www.openml.org/d/41162 letter https://archive.ics.uci.edu/ml/datasets/letter+recognition satimage https://archive.ics.uci.edu/ml/datasets/Statlog+(Landsat+Satellite) sensorless https://archive.ics.uci.edu/ml/datasets/dataset+for+sensorless+drive+diagnosis spambase https://archive.ics.uci.edu/ml/datasets/spambase",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF8": {
+            "text": "The URLs of all the datasets used in the paper, giving direct download links and supplementary details.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgments. This research is supported by the Agence Nationale de la Recherche as part of the \"Investissements d'avenir\" program (reference ANR-19-P3IA-0001; PRAIRIE 3IA Institute). Yiyang Yu is supported by grants from R\u00e9gion Ile-de-France.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

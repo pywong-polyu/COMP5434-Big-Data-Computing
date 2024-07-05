@@ -1,0 +1,2884 @@
+{
+    "paper_id": "072d98be78b306b6861b8a13cc7fc7b434171d3b",
+    "metadata": {
+        "title": "Computing with R-INLA: Accuracy and reproducibility with implications for the analysis of COVID-19 data",
+        "authors": [
+            {
+                "first": "Kori",
+                "middle": [],
+                "last": "Khan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Iowa State University",
+                    "location": {}
+                },
+                "email": ""
+            },
+            {
+                "first": "Hengrui",
+                "middle": [],
+                "last": "Luo",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Lawrence Berkeley National Laboratory",
+                    "institution": "",
+                    "location": {}
+                },
+                "email": ""
+            },
+            {
+                "first": "Wenna",
+                "middle": [],
+                "last": "Xi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Weill Cornell Medicine",
+                    "location": {}
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The statistical methods used to analyze medical data are becoming increasingly complex. Novel statistical methods increasingly rely on simulation studies to assess their validity. Such assessments typically appear in statistical or computational journals, and the methodology is later introduced to the medical community through tutorials. This can be problematic if applied researchers use the methodologies in settings that have not been evaluated. In this paper, we explore a case study of one such method that has become popular in the analysis of coronavirus disease 2019 (COVID-19) data. The integrated nested Laplace approximations (INLA), as implemented in the R-INLA package, approximates the marginal posterior distributions of target parameters that would have been obtained from a fully Bayesian analysis. We seek to answer an important question: Does existing research on the accuracy of INLA's approximations support how researchers are currently using it to analyze COVID-19 data? We identify three limitations to work assessing INLA's accuracy: 1) inconsistent definitions of accuracy, 2) a lack of studies validating how researchers are actually using INLA, and 3) a lack of research into * Corresponding author: kkhan@iastate.edu 1 arXiv:2111.01285v1 [stat.AP] 1 Nov 2021 the reproducibility of INLA's output. We explore the practical impact of each limitation with simulation studies based on models and data used in COVID-19 research. Our results suggest existing methods of assessing the accuracy of the INLA technique may not support how COVID-19 researchers are using it. Guided in part by our results, we offer a proposed set of minimum guidelines for researchers using statistical methodologies primarily validated through simulation studies.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The coronavirus disease 2019 (COVID- 19) pandemic has underscored the importance of reliable and reproducible analyses in medical research. As new variants of the virus emerge, it is important that changes in the results of statistical analyses are due to changes in the virus. In medical and epidemiological research, COVID-19 data are often analyzed with disease mapping models. Historically, a fully Bayesian approach has been one of the most popular methods of analysis for such models, particularly when the data has spatio-temporal features 1;2;3;4 . However, employing a Bayesian analysis in this context can be a computationally expensive and timeintensive effort 5;6 . The conditions of the pandemic can change rapidly, so there is considerable pressure on researchers to favor faster methods of analysis.",
+            "cite_spans": [
+                {
+                    "start": 37,
+                    "end": 40,
+                    "text": "19)",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 672,
+                    "end": 675,
+                    "text": "5;6",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A review of the literature analyzing COVID-19 data indicates that one of the most popular alternatives to a fully Bayesian approach involves the use of the R-INLA package. Among other things, the R-INLA package has been used in efforts to identify risk factors associated with COVID-19 7;8 , find factors predictive of death from COVID-19 9;10 , assess the effectiveness of preventative policies 11 , and detect clusters of COVID-19 cases 12 . Statistically, these efforts have relied on R-INLA's implementation of a rich variety of models. These include, but are not limited to, zero-inflated negative binomial models, Poisson regression models, and binomial regression models. Furthermore, these models have included those both with and without spatial and temporal random effects 7;8;9;12;13;14 .",
+            "cite_spans": [
+                {
+                    "start": 396,
+                    "end": 398,
+                    "text": "11",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The R-INLA package implements the Integrated Nested Laplace Approximation (INLA) method, which was introduced by Rue et al. 6 and further refined by Martins et al. 15 (see also Lindgren et al. 16 ). Analyses conducted with the R-INLA package are often referred to as Bayesian approaches in the epidemiological and medical literature. Technically, however, the INLA method is an approximation of a Bayesian approach. More specifically, for a class of latent Gaussian models, INLA is designed to approximate the marginal posterior distributions that would have been obtained from a Bayesian analysis employing Markov chain Monte Carlo (MCMC) methods 17 . R-INLA's explosion in popularity predates the pandemic (for a non-exhaustive list of its use in a variety of applications, see pages 396-397 in Rue et al. 18 ). Anyone who has used both MCMC and R-INLA to analyze data can understand the appeal of R-INLA: It is very fast. Until recently, research using the R-INLA primarily appeared in journals focusing on computing or new statistical methodologies. Such work, while very valuable, is typically a step away from directly shaping policy decisions. The growing popularity of the R-INLA package in COVID-19 research is a shift to a setting where the results can directly shape the medical communities policy decisions. As new variants of the virus are emerging, a natural question emerges: Are the analyses conducted with R-INLA providing us with accurate and reproducible results?",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 125,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 164,
+                    "end": 166,
+                    "text": "15",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 177,
+                    "end": 195,
+                    "text": "Lindgren et al. 16",
+                    "ref_id": null
+                },
+                {
+                    "start": 648,
+                    "end": 650,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 808,
+                    "end": 810,
+                    "text": "18",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we make a first attempt to explore this question. We focus on the INLA method as implemented by the R-INLA package, and we use the terms interchangeably unless it would cause confusion. We allow the work done on COVID-19 to shape our approach. The rest of this paper is structured as follows: In Section 2.1, we provide a brief introduction to the INLA method as well as a clarification of our use of the term \"reproducible.\" We point out that there are few theoretical guarantees about the accuracy of INLA's approximations, and we review existing efforts to assess this accuracy. We identify three key limitations to the scope of these efforts in settings, like COVID-19 research, where analyses are used to shape public policy. In Section 3, we design a series of simulations, informed by the types of models and data appearing in COVID-19 literature, to further explore these three limitations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In Section 4, we select a peer-reviewed article whose results have been referenced both in the academic literature and in American mainstream media 8;19 . We use the actual data and, when possible, the INLA code employed in Millett et al. 8 to try to reproduce the results that were previously obtained. We also explore how well the results obtained by INLA approximate the corresponding results that would have been obtained if the researchers had instead used MCMC to fit the model. Finally, in Section 5, we draw on the insights we gained through our explorations. We offer a set of minimum practical guidelines for medical researchers future use of statistical methodologies, like INLA, which have been primarily validated through simulation studies.",
+            "cite_spans": [
+                {
+                    "start": 148,
+                    "end": 152,
+                    "text": "8;19",
+                    "ref_id": null
+                },
+                {
+                    "start": 239,
+                    "end": 240,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this section, we provide a short summary of background material the rest of the paper relies on. We emphasize that this section, and the rest of the paper, are motivated by analyses of COVID-19 data which are used to shape public policy. Intuitively, it is uncontroversial that we, as a society, want the analyses of COVID-19 to be dependable enough that we can understand what is driving the spread of a novel disease as well as how this story changes with new variants. There is a long history of analyses of human disease playing a role in shaping public policy, and an understanding that such analyses need to be trustworthy 20;21 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "With this motivation in mind, in Section 2.1, we provide a brief overview of the INLA method and how its output has been assessed in peer-reviewed literature. In the scientific community, \"dependability\" and \"trustworthines\" are typically mapped to concepts of reproducibility and replicability. In this paper, we will focus on reproducibility, and in Section 2.2, we take a moment to clarify our use of the term \"reproducible.\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "Integrated nested Laplace approximation (INLA) is a recently proposed method for approximate Bayesian inference for structured additive regression models with latent Gaussian fields 6;22;17 . In this subsection, we provide a brief overview of the general approach in order to highlight sources of potential error in the approximations INLA achieves. We refer interested readers to Rue et al. 6 , Martins et al. 15 , and Ferkingstad et al. 17 for more details. We acknowledge that various extensions and variations to the INLA approach we will describe here have been proposed 23 . However, we focus on only the general approach detailed in Rue et al. 6 and Martins et al. 15 and explicitly exclude the stochastic partial differential equations (SPDE) approach..",
+            "cite_spans": [
+                {
+                    "start": 182,
+                    "end": 189,
+                    "text": "6;22;17",
+                    "ref_id": null
+                },
+                {
+                    "start": 392,
+                    "end": 393,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 411,
+                    "end": 413,
+                    "text": "15",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 439,
+                    "end": 441,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 576,
+                    "end": 578,
+                    "text": "23",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 651,
+                    "end": 652,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 672,
+                    "end": 674,
+                    "text": "15",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "The literature on INLA typically separates out model parameters into two groups: those that are given Gaussian priors (often denoted x) and those that are not given Gaussian priors (often denoted \u03b8). The latter are called hyperparameters in INLA related literature. We adopt this terminology for this paper, while acknowledging that in some cases it does not agree with how the term is used in the broader Bayesian literature. The goal of INLA is to approximate, for all x i :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "\u03c0(x i |y) = \u03c0(x i |\u03b8, y)\u03c0(\u03b8|y) d\u03b8.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "(1)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "Here, y represents the observed data with likelihood \u03c0(y| x). INLA proposes to accomplish this approximation in two stages.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "In the first step of INLA, the marginal posterior density of \u03c0(\u03b8|y) is approximated with a Laplace-like approximation 15 . The purpose of this step is to numerically integrate out \u03c0(\u03b8|y) in Equation (1) . The result of this step is a set of weighted points for the hyperparameters which can be used to approximate \u03c0(x i |\u03b8, y). As for the second step, the current implementation of INLA allows for three ways to accomplish the approximation: the Gaussian, the simplified Laplace, and the Laplace approximation see 6 . We have listed these options in an increasing order of both computational expense and supposed accuracy.",
+            "cite_spans": [
+                {
+                    "start": 118,
+                    "end": 120,
+                    "text": "15",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 199,
+                    "end": 202,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "To our knowledge, the only theoretical guarantees of INLA's accuracy in peerreviewed literature are related to the asymptotic validity of the Laplace approximation itself (outside the context of INLA) 6 . However, INLA is used in many settings where the conditions that ensure the validity of the Laplace approximation are not met 6;24;17 . Additionally, there are sources of error beyond the error related to the Laplace approximation. A full discussion of these additional sources of error is beyond the scope of this paper, but we offer an intuitive overview of some of them in Section 2 of the Supplementary Materials ( see also the responses to Rue et al. 6 ). Some of the factors that can influence the accuracy of INLA include the likelihood \u03c0(y|\u03b8), the priors chosen for \u03b8, and the data itself.",
+            "cite_spans": [
+                {
+                    "start": 661,
+                    "end": 662,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "The absence of theoretical guarantees for the accuracy of INLA's approximations is not, in itself, problematic. However, if we again consider the implications of using INLA in analyses which in turn shape public policies, it is important that the accuracy of its approximations be carefully reviewed. To do so, we turn to the current literature assessing INLA. Despite the fact that the accuracy of INLA's approximation will likely depend on the model used, claims about the accuracy of INLA's approximations are typically broad. It is not uncommon to find statements in the literature stating that INLA's approximations are \"accurate\" or \"extremely accurate\" for a wide variety of applications. 6;25;15;16 . A closer look reveals that some of the papers that include statements like these do not provide an assessment of the accuracy of INLA's output. 23;26;25 . Those papers that do assess the accuracy of INLA tend to consider one of two categories of accuracy measures.",
+            "cite_spans": [
+                {
+                    "start": 696,
+                    "end": 706,
+                    "text": "6;25;15;16",
+                    "ref_id": null
+                },
+                {
+                    "start": 853,
+                    "end": 861,
+                    "text": "23;26;25",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "In the first category, accuracy is defined by how close the output from INLA is to the output from MCMC. Typically, a model is fit with both MCMC and INLA to a single dataset (or more rarely, a series of simulated datasets). The results of the two methods of analysis are then compared 6;24;27;17 . The most common method of comparing the output of INLA to the output of MCMC is the use of plots. In particular, a histogram of the sample obtained from a parameter's marginal posterior distribution from the MCMC method is overlaid with a density plot of the corresponding marginal posterior distribution obtained from the INLA method 6;17 . Another common method is to compute how close the marginal posterior means and variances from INLA are to the corresponding estimates from MCMC. In the second category, accuracy is related to whether the estimates from INLA or MCMC are closer to the \"truth\" (the value used to generate data in a simulation study) 28;17;29 . Often, if the results from MCMC are not clearly \"better\" than the results from INLA, INLA is thought to have performed well.",
+            "cite_spans": [
+                {
+                    "start": 955,
+                    "end": 963,
+                    "text": "28;17;29",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "There are several important limitations to the existing work assessing the accuracy of INLA's output. In this paper, we focus on three specific limitations we feel are most relevant to researchers wishing to use INLA for work that will inform public policy. The first limitation stems from the inconsistent measures of accuracy. To our knowledge, no one has simultaneously compared the output from INLA to the output from MCMC and to the generating value in a simulation study. In other words, we do not know whether the cases in which INLA failed to approximate the results from MCMC well are the same cases in which INLA failed to approximate the generating value well. The ambiguity in these definitions could mean that the same output from INLA could lead to inconsistent conclusions regarding accuracy. From a practical standpoint, this is problematic because both types of measures are currently used to support the use of INLA.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "A second limitation involves inconsistencies between how INLA is assessed and how practitioners are using INLA. In practice, many of the inferential methods which statisticians and applied researchers use rely on the tails of the distribution (e.g., a 95% credible interval). Many of the summaries of INLA's accuracy, in particular the ones that depend on the plots, will give little indication of how well INLA approximates the characteristics of such tail behavior. More broadly, researchers typically do not rely on marginal posterior distributions alone for inference. For example, researchers commonly use functions of parameters (requiring the summary of a transformation of the marginal posterior distributions) or various model selection criteria. With a few exceptions, such as Held et al. 27 , INLA's ability to calculate these transformations or criteria are often not assessed in peer-reviewed literature.",
+            "cite_spans": [
+                {
+                    "start": 799,
+                    "end": 801,
+                    "text": "27",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "Finally, there is a third and more subtle limitation to the current methods of assessing INLA's accuracy -one we have yet to see referenced anywhere else. To our knowledge, no one has ever assessed whether the analyses conducted by INLA, as implemented in the R-INLA package, are reproducible (in the sense specified in Section 2.2 below). Since the accuracy of the INLA method has been primarily supported by illustrative examples and simulation studies, we believe that illustrative examples and simulation studies should be, at the minimum, reproducible. Reproducibility, however, has many definitions. In the next subsection, we clarify our use of the word in this paper.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Brief Overview of INLA"
+        },
+        {
+            "text": "As we have already referenced, scientists typically think of \"trustworthiness\" in terms of either reproducibility or replicability. There are various definitions of reproducibility and replicability in use, varying depending on the field 30;31;32;33 . Most typically, reproducibility has to do with obtaining the same results with the same analysis on the same data and replicability has to do with obtaining the same (or similar) results with new data 33 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reproducibility"
+        },
+        {
+            "text": "With respect to the current use of INLA, we found that issues related to reproducibility rather than reliability are most relevant. In fields where analyses are used to shape public health policies, researchers have argued that a minimum level of reproducibility should involve, among other things, the ability to reproduce an analysis on a given dataset with the same or \"similar\" methods 34;20;35 . In this paper, we consider a version of reproducibility weaker than this: Given the same data and the same code, can the same results be obtained? With this clarification in mind, we now proceed to use simulation studies to explore the three limitations identified in Section 2.1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reproducibility"
+        },
+        {
+            "text": "In this section, we designed a set of simulation studies to explore each of the three limitations identified in Section 2.1 in the context of the analysis of COVID-19 data. For convenience, we now express these limitations as questions:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "1. Do the two common concepts of accuracy lead to consistent conclusions about INLA's approximations?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "2. Do the current methods of assessing the accuracy of INLA's approximations support how practioners are using INLA in the analysis of COVID-19 data?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "3. Are results obtained with INLA reproducible?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "As an overview, in Sections 3.1 and 3.2, we focus on Question 1. We also share, when relevant, insights we gained about Question 2. In Section 3.3, we focus on Question 2. While we had hoped to thoroughly investigate Question 3 in the context of these simulation studies, we found there were simply too many variables to control for. A myriad factors, including the data analyzed, the statistical model used, the version of R-INLA used, and the operating system the code was run on impacted reproducibility. We offer our observations about the implications these various factors had on the results for each of the simulation studies. We then take these observations and offer a more thorough exploration of Question 3 in the context of a single dataset in Section 4.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "In designing simulation studies for this section, we kept in mind both how INLA has previously been evaluated and how it is currently being used in practice to analyze COVID-19 data. To ensure that the simulation studies mirrored the ways that researchers are using INLA to analyze COVID-19 data, we first reviewed the literature analyzing COVID-19 data. Much of it involves the analysis of count data both with and without spatial random effects 7;36;12;14;37;9;8 . Thus, in the following simulation studies, we generated count data from models both with and without spatial random effects. We then used INLA and MCMC methods to fit two different models to this generated data. Following the trends in the literature, both of these models rely on the Poisson distribution, as described in more detail in Sections 3.1 and 3.2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "To explore Question 1, we first defined two measures of accuracy. To evaluate how well the INLA output approximated the output from MCMC for an arbitrary parameter \u03b8, we used an adaption of the measure put forth by Fong et al. 24 . We call this measure \"Percent Error\" (PE) and define it as: 24 , the authors considered absolute values of around 30% as potentially problematic, and absolute values of 20% or under as acceptable. We adopted these rough guidelines for discussion, with the understanding that different researchers might have different tolerances for relative errors.",
+            "cite_spans": [
+                {
+                    "start": 227,
+                    "end": 229,
+                    "text": "24",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 292,
+                    "end": 294,
+                    "text": "24",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "To evaluate how close the MCMC and INLA estimates are to the generating value, we consider the percent change (PC) defined in Eq. (3). We choose this measure because, unlike other commonly used statistics, percent change has the same scale for different parameters. To calculate the percent change for an arbitrary parameter \u03b8, we used the following formula:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "where E[\u03b8 Method |Y ], Method \u2208 {MCMC, INLA}, is the marginal posterior mean for \u03b8 from either the MCMC or INLA output, and \u03b8 GV is the generating value used to simulate the data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "To explore Question 2, we again reviewed how researchers were using INLA in the COVID-19 literature. We found that many were using model selection criteria available in the R-INLA package, including the conditional predictive ordinate (CPO), Watanabe-Akaike information criterion (WAIC), and deviance information criterion (DIC) 11;13;14 . These works typically involved using the model selection criterion to choose between models with and without the inclusion of temporal or spatial random effects. Thus, we designed our simulation studies so that we could evaluate INLA's calculation of WAIC for model selection between a model without a spatial random effect and a model with a spatial random effect.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "Before delving into the details of the simulation studies, we note it is important to ensure that the priors and distributions used in the MCMC approach match those used in the R-INLA package. Therefore, we used the R package NIMBLE 38 for the MCMC approach analyses, which allows for user-defined distributions and pri-ors 39;40 . In the INLA literature, running MCMC chains for 1, 000, 000 iterations and discarding 100, 000 is sometimes referred to as the \"gold-standard\" for comparison to INLA 17 . To be careful, for all fitted models in Sections 3.1 to 3.3, the MCMC chains were run for 2, 000, 000 iterations with a burn-in of 100, 000. When fitting models with the R-INLA package, we used stable versions of the package. We also used the Laplace approximation for all models because it is considered the most accurate. All code and data used in this section are available as described in Appendix A.",
+            "cite_spans": [
+                {
+                    "start": 324,
+                    "end": 329,
+                    "text": "39;40",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Simulation Studies"
+        },
+        {
+            "text": "We began our simulation study by generating 100 datasets from a Poisson regression model. To ensure that the generated data mirrored real-world COVID-19 data, we relied on actual data for each of the 296 census tracts located in Milwaukee County, Wisconsin, and a model inspired by the one used by DiMaggio et al. 7 to analyze COVID-19 data in New York City.",
+            "cite_spans": [
+                {
+                    "start": 314,
+                    "end": 315,
+                    "text": "7",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Poisson Regression Model"
+        },
+        {
+            "text": "For each of the 100 datasets, the response variable y i , i = 1, . . . , 296, was generated conditionally independently from a Poisson distribution with rate parameter",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Poisson Regression Model"
+        },
+        {
+            "text": "where x i is the percent of individuals whose income is below the poverty rate in the ith census tract, Total i is the total number of COVID-19 tests recorded between August 1, 2020 and October 15, 2020 in the ith census tract, and i is the random error for the ith census tract, i = 1, . . . , 296. Covariates x i and Total i came from actual data for census tracts in Milwaukee County (see Appendix A for details on the data), and i was generated identically independently from Normal(0, 1). Covariates x i and Total i remained fixed for the generation of each dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Poisson Regression Model"
+        },
+        {
+            "text": "For each simulated dataset, we then fit the following Poisson regression model with both INLA and MCMC methods:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Poisson Regression Model"
+        },
+        {
+            "text": "where \u03bb i was modeled as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Page 11 of 37"
+        },
+        {
+            "text": "Here, \u03c3 is a precision parameter. We used the default priors described in the documentation of the R-INLA software: both \u03b2 0 and \u03b2 x were given normal priors with mean 0 and standard deviation 1000 and log(\u03c3) was given a log-gamma prior with shape parameter 1 and scale parameter .00005.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Page 11 of 37"
+        },
+        {
+            "text": "We focused on the parameters \u03b2 x and \u03c3 in the following analyses. For each dataset, we first calculated PE(\u03b2 x ) and PE(\u03c3), as defined in Eq. (2), to compare the posterior estimates from INLA to the posterior estimates from MCMC. Fig. 1(a) is the boxplot summary of the 100 PE(\u03b2 x )'s, and Fig. 2(a) is the boxplot summary of the 100 PE(\u03c3)'s. For both parameters, we observe that the results from INLA and MCMC were quite similar. The PE(\u03b2 x )'s were almost always less than 20%. The results between INLA and MCMC matched even more closely for estimates of \u03c3: The PE(\u03c3)'s were almost always less than 1%. We then used Eq. (3) to compare the posterior estimates from MCMC and INLA to the generating value (.05 for \u03b2 x and 1 for \u03c3). The results for \u03b2 x are summarized in Fig. 1 (b) and the results for \u03c3 are summarized in Fig. 2(b) . Both MCMC and INLA led to better estimates for \u03c3 than they did for \u03b2 x . For both \u03b2 x and \u03c3, the distributions of PC from the generating value looked quite similar for MCMC and INLA.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 230,
+                    "end": 239,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 290,
+                    "end": 299,
+                    "text": "Fig. 2(a)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 769,
+                    "end": 775,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 820,
+                    "end": 829,
+                    "text": "Fig. 2(b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Page 11 of 37"
+        },
+        {
+            "text": "We consider what these results mean with respect to Question 1. As currently used in the literature, the two kinds of accuracy represented by our PE and PC calculations support the accuracy of INLA. INLA seemed to well approximate the results from MCMC for both \u03b2 x and \u03c3. Furthermore, INLA and MCMC appeared to do about the same in estimating the generating value. However, with respect to \u03b2 x , this approximation was not very good.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Page 11 of 37"
+        },
+        {
+            "text": "We now take a moment to explain our exploration of Question 3 in this simulation study. We began by attempting to run an analysis of a single dataset on the same operating system with the same version of R-INLA. We found that the summary of the posterior marginal distributions for \u03b2 x and \u03c3 could change, although not signifi- cantly. We were able to rectify this by setting the number of threads (num.threads argument) the INLA program could use to 1. We used four combinations of the two operating systems and the two INLA versions described in Appendix A. We found that both the version of R-INLA used and the operating system could impact the results obtained. For thoroughness, we also assessed whether two different operating systems and two different versions of the NIMBLE package could impact the results of an MCMC analysis for one dataset. We found that there were no differences (up to tolerance .001) in the results we obtained when the seed was set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Page 11 of 37"
+        },
+        {
+            "text": "In this section, the results we reported and the images we created were based on the outcomes from running the simulation study once (for the operating system and R-INLA version, see Appendix A). However, given our initial experience with INLA, we did rerun the simulation studies discussed in this section for INLA with the other three combinations of operating system and package version. In our experience, the version of R-INLA was associated with larger changes to results than the operating system for this simulation study. The overall patterns of accuracy measures we considered never really changed, however, and the summaries of the posterior distributions across all 100 datasets for \u03b2 x and \u03c3 (including the mean, 2.5% percentile, 97,5% percentile, and standard deviation) were within .05 of each other.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Page 11 of 37"
+        },
+        {
+            "text": "Finally, we would like to point out some observations relevant to Question 2. First, the generating value for \u03b2 x (.05) was based on the values obtained in the analyses considered in DiMaggio et al. 7 , and so are relevant to the magnitude of regression coefficients considered in the literature. However, the default priors used in INLA did not lead to particularly good estimates of \u03b2 x (we found that changing the prior on \u03c3 could improve the estimates considerably). In practice, when we were able to review the code used in papers analyzing COVID-19 data with INLA, no one ever changed or discussed the default priors used in INLA 8;7 .",
+            "cite_spans": [
+                {
+                    "start": 199,
+                    "end": 200,
+                    "text": "7",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Page 11 of 37"
+        },
+        {
+            "text": "As we have previously noted, many of the analyses on COVID-19 data included spatial random effects. In this section, we generate data from a model often referred to as the Besag-York-Molli\u00e9 (BYM) model 41 . The BYM model is a hierarchical Bayesian Poisson model which simultaneously accounts for both spatial and nonspatial heterogeneity. The spatial random effect used in the BYM model has been used in quite a few analyses of COVID-19 data 7;12;14 . Intuitively, the spatial random effect accounts for spatial clustering in data by introducing an underlying graph to areal data, where the areal units are the vertices and edges exist between neighboring areas 41 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "More specifically, we generated 100 datasets for the 296 census tracts of Milwau-kee County, Wisconsin, introduced in Section 3.1. For each dataset, y i was generated conditionally independently from a Poisson distribution with rate parameter \u03bb i :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "where x i and Total i are the same fixed effects as defined in Section 3.1, i is the non-spatial random effect generated identically and independently from a standard normal distribution for i = 1, . . . , 296, and \u00b5 = (\u00b5 1 , . . . , \u00b5 296 ) is the spatial random effect, which is generated from the intrinsic conditional autoregressive (ICAR) prior used in the BYM model. The ICAR prior is not a proper probability distribution, and is defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "Here, \u03c4 is a precision parameter, Q is the graph Laplacian of the underlying graph alluded to in the previous paragraph, and k is the number of connected components of that graph (for us, k = 1). Because the ICAR prior is not proper, there are various ways to generate a realization from it. For our simulations, we generated a realization using conditioning by kriging with the associated precision parameter \u03c4 = 1 42 . We note that the choice of \u03c3 = \u03c4 = 1 was chosen, in part, to be the same as a previous simulation study assessing INLA's ability to estimate generating values 28 . We will compare some of their results to ours at the end of this subsection.",
+            "cite_spans": [
+                {
+                    "start": 416,
+                    "end": 418,
+                    "text": "42",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "For each simulated dataset, we then fit the BYM model with both INLA and MCMC. Due to the ICAR prior's impropriety, identifiability issues can arise if an intercept is included in the BYM model. There are two ways to handle this 43 . The first way involves enforcing sum-to-zero constraint(s) when sampling \u00b5. Historically, most software packages, including NIMBLE, have enforced the sum-to-zero constraint(s) with a method known as \"centering on the fly\" 39;44;4 . The R-INLA package appears to enforce sum-to-zero constraint(s) with \"conditioning by kriging\" 42;45 . These two methods of enforcing sum-to-zero constraint(s) are not equivalent. The second way of handling the identifiability issue is to omit the intercept in the BYM model and not enforce any sum-to-zero constraint(s) 43 .",
+            "cite_spans": [
+                {
+                    "start": 787,
+                    "end": 789,
+                    "text": "43",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "Because we wanted to ensure that the INLA and MCMC approaches were equivalent, we chose to omit the intercept and refrain from enforcing any sum-to-zero constraints. For our simulations, this is equivalent to including an implicit intercept for both the INLA and MCMC approaches. More precisely, we fit the following model:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "where \u03bb i was modeled as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "with i iid \u223c Normal(0, \u03c3) and \u00b5 = (\u00b5 1 , . . . , \u00b5 296 ) given the ICAR prior, p(\u00b5|\u03c4 ) described in Equation (4). We used the default priors described in the documentation of the R-INLA package: \u03b2 x was given a normal prior with mean 0 and standard deviation 1000, log(\u03c3) and log(\u03c4 ) were given log-gamma priors with shape parameter 1 and scale parameter .0005.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "In the simulation studies, INLA failed to fit 4 of the 100 datasets. After some experimentation, we noted that rerunning the code or using the inla.rerun function would eventually result in the R-INLA package successfully fitting the BYM model. However, we could not ensure that the results obtained in this way were reproducible (even on the same machine). Therefore, all results involving INLA in this section only involved 96 datasets that were successfully fit without the inla.rerun function.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "We first restrict our attention to \u03b2 x and \u03c3. As in Section 3.1, we calculate PE(\u03b2 x ) and PE(\u03c3) for each dataset to assess how well INLA's output approximated the MCMC output. In Fig. 3(a) , we note that the majority of the time, the output from INLA still well approximated the output from MCMC for \u03b2 x . However, for 13 of 96 (14%) of the datasets, |PE(\u03b2 x )| > 30 with one dataset having PE(\u03b2 x ) well over 100. In Fig. 4(a) , we see that INLA did not well approximate the output from MCMC for \u03c3 in many of the datasets. |PE(\u03c3)| > 30 for 38 of the 96 (40%) datasets INLA successfully fit. We now compare the output from INLA and MCMC to the generating value. In Fig. 3(b) , the boxplots for PC MCMC (\u03b2 x ) and PC INLA (\u03b2 x ) showed similar distributions. However, in Fig. 4(b) , the boxplots for PC MCMC (\u03c3) and PC INLA (\u03c3) showed more dissimilarities. It appears that, at least with respect to PC INLA (\u03c3), INLA was actually a bit better at estimating the generating value of \u03c3.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 180,
+                    "end": 189,
+                    "text": "Fig. 3(a)",
+                    "ref_id": null
+                },
+                {
+                    "start": 419,
+                    "end": 428,
+                    "text": "Fig. 4(a)",
+                    "ref_id": null
+                },
+                {
+                    "start": 666,
+                    "end": 675,
+                    "text": "Fig. 3(b)",
+                    "ref_id": null
+                },
+                {
+                    "start": 771,
+                    "end": 780,
+                    "text": "Fig. 4(b)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "We now turn our attention to \u03c4 . Both INLA and MCMC did a poor job of approximating this parameter. Carroll et al. 28 had previously noted that the default settings in INLA resulted in poor inference for \u03c4 in a similar simulation study, as well. Our results shed some light onto the potential factors driving this poor performance. The boxplots we have previously displayed are not meaningful given the extreme outliers. Instead, Table 1 summarizes the first three quantiles and the maximum values of estimates for \u03c4 (represented by E(\u03c4 |y) for each method) from INLA and MCMC. INLA would occasionally estimate it well but had very extreme outliers for some datasets; whereas MCMC appeared to consistently overestimate \u03c4 . The MCMC performance suggests that the default priors in INLA are driving some of the poor performance. However, we note that for 41 of the 96 (43%) datasets, |PE(\u03c4 )| > 30, and for most of these datasets, INLA provided better estimates of \u03c4 than MCMC did. Therefore, it seems that something beyond the choice of priors was influencing INLA's performance. We were not able to identify any characteristics of the data that could help explain the more extreme values for P E or the P C's calculated, or when INLA/MCMC would yield estimates closer to the generating value. Our exploration was hindered, in part, by the fact that INLA has no diagnostics about how well (or poorly) the model fit (in a computational sense). This limitation seems to have been acknowledged in Fong et al. 24 , but has not been subsequently addressed to our knowledge. As an aside, in our explorations, we discovered that INLA would give estimates about the marginal posterior distributions for \u03b2 x , \u03c3, and \u03c4 even if the marginal posterior distributions were not proper. For example, we fit a BYM model with an intercept and did not enforce a sum-to-zero constraint. The MCMC analysis resulted in trace plots that diverged, indicating nonconvergence. The INLA output simply gave us estimates in line with those obtained in the rest of our simulation study results.",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 117,
+                    "text": "28",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1505,
+                    "end": 1507,
+                    "text": "24",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 430,
+                    "end": 437,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "We now turn our attention to Question 3. As in Section 3.1, we began by attempting to reproduce the results from fitting the BYM model to one dataset. Again, we found we could only reproduce our results on the same machine and with the same version of INLA if we changed the number of threads to one. For the BYM model, unlike the Poisson regression model, both the version of INLA and the operating system could lead to drastically different results. For example, the same code for a BYM model including an intercept and a sum-to-zero constraint in INLA resulted in estimates of the intercept coefficient that differed by over 10 3 . When we repeated this exercise with NIMBLE, as before, we were able to obtain the same results for an MCMC analysis on two different operating systems and with two different versions of NIMBLE.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "This section only displays the results from one of the four combinations of INLA versions and operating systems (see Appendix A). We did rerun the code on the other three combinations, and we found that the results could vary significantly. For example, INLA failed to fit the BYM model to a different subset of the datasets for each of the three combinations. The number of datasets INLA failed to fit did not vary widely (INLA failed to fit a maximum of 6 datasets). For the most part, estimates of \u03b2 x were somewhat stable. However, the estimates related to \u03c3 and \u03c4 could be radically different. For example, on different operating systems, analyses run on the same version of INLA could result in estimates of E(\u03c4 |y) that differed by over 10 5 . The identifiability of the precision parameters \u03c4 and \u03c3 is known to be problematic in the BYM model 3;46 . However, the erratic estimation of the marginal posterior distributions for \u03c4 and \u03c3 is still concerning because these distributions are often used in practice to interpret relative risks of COVID-19 for areal units 7 . We first used the 200 datasets generated in Sections 3.1 and 3.2. During the simulation studies in Sections 3.1 and 3.2, we calculated the WAICs for each model we fit. We then fit a BYM model with the INLA and MCMC methods to the 100 datasets generated from the Poisson regression model in Section 3.1. Similarly, we used the 100 datasets generated in Section 3.2 and we fit a Poisson regression model. The BYM models and Poisson regression models were again fit using INLA's default priors and with the same methods described in Sections 3.1 and 3.2.",
+            "cite_spans": [
+                {
+                    "start": 851,
+                    "end": 855,
+                    "text": "3;46",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "For WAIC, lower values are preferred. Therefore, for a given dataset, we considered INLA/MCMC to have \"selected\" the model with the lower WAIC. If the model selected matched the model the data was generated from, we considered this selection to be \"correct.\" In the following discussion, we refer to the data generated from the Poisson regression model as \"non-spatial\" data. Similarly, we refer to the data generated from the BYM model as \"spatial\" data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "Non-Spatial Data When we used INLA to fit a Poisson model to each of the 100 non-spatial datasets, all models were successfully fit. However, when we used INLA to fit a BYM model to each of the datasets, one of the models failed to fit. For the MCMC method, we were able to fit all 100 datasets. In this section, we used 99 datasets which were successfully fit to both the BYM and Poisson models when comparing the results obtained from INLA and MCMC.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "For these 99 datasets, INLA never selected the correct model. MCMC, on the other hand, selected the correct model 54 times. In order to understand what was driving the differences in model selection between the analyses by MCMC and INLA, we considered the following quantity: WAIC IN LA \u2212 WAIC M CM C . In Fig. 6 , we considered the distributions of this quantity based on whether an incorrect or correct selection was made by each method. Recall that in Section 3.1, INLA seemed to approximate the output from MCMC quite well for the Poisson regression model. However, in Section 3.2, we found that INLA was not as reliable in approximating the output from MCMC for the BYM model. Surprisingly, here, we found a reverse of this pattern for the calculation of the WAIC. INLA did not do a particularly good job at approximating the WAIC that was obtained by MCMC for the Poisson regression model. Instead, the WAIC calculated by INLA was systematically inflated compared to the WAIC calculated from the MCMC method. However, for the BYM model, which was misspecified for these datasets, the WAIC from INLA tended to match the WAIC from MCMC. We again considered the difference in WAIC calculated, i.e., WAIC IN LA \u2212 WAIC M CM C based on the model selection made by each method. In Fig. 7 , we note that, compared to the WAIC computed by MCMC, INLA systematically inflated the WAIC for Poisson models for all 4 scenarios. Unlike in Fig. 6 , however, the WAIC from INLA did not match the WAIC from MCMC for the BYM model. Instead, it too tended to be inflated. The datasets for which this inflation tended to be greater were the datasets that INLA tended to select the incorrect model. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 306,
+                    "end": 312,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 1280,
+                    "end": 1286,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 1430,
+                    "end": 1436,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Besag-York-Molli\u00e9 (BYM) Model"
+        },
+        {
+            "text": "In this section, we use INLA to reproduce one of the analyses of COVID-19 data completed in Millett et al. 8 , in which the authors used data on COVID-19 cases in 3, 108 U.S. counties to assess racial disparities. In one of their analyses, they used INLA to fit a zero-inflated negative binomial model to their data (see Table 2 of Millett et al. 8 for their results). We refrain from describing their data in detail here, but refer the interested reader to Millett et al. 8 . In reproducing this analysis, we aimed to answer two questions: 1) Would the authors have reached the same conclusions if they had used MCMC to fit the model instead? and 2) Are their results reproducible?",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 108,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 347,
+                    "end": 348,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 473,
+                    "end": 474,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 321,
+                    "end": 328,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "Logistically, we ran into problems attempting to assess these two questions simultaneously. The model used in Millett et al. 8 included a state-specific random effect. However, we found that including such a term for MCMC lead to trace plots with trends (indicating convergence had not been reached). In order to compare INLA to MCMC, we omitted the state-specific random effect in this section. We also ran the exact code from Millett et al. 8 to more thoroughly explore reproducibility concerns (for more details, see Section 1 of the Supplementary Materials).",
+            "cite_spans": [
+                {
+                    "start": 125,
+                    "end": 126,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 443,
+                    "end": 444,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "According to the R-INLA documentation, the zero-inflated negative binomial model can be written as follows: Assume that y i are the number of COVID cases in county i, for i = 1, . . . , 3108, then for j = 1, 2, 3, . . .:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "where p z is the probability that y i is 0, for i = 1, . . . , 3108 and NB represents the negative binomial likelihood parameterized with mean \u00b5 i and dispersion parameter n. The parameter \u00b5 i is related to the covariates and an offset through the log linkfunction:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "The value Population i is the population for county i. We employed the default prior specifications from INLA with one exception: The regression coefficients were given normal priors with mean 0 and standard deviation 1000. Instead of specifying priors on p z and n, INLA specifies priors on \u03b8 1 = logit(p z ) and \u03b8 2 = log(n). The former is given a normal prior with mean -1 and precision .2; the latter is given what appears to be a member of the penalized complexity priors 49;50 . Based on the current documentation, it does not appear that this particular prior had been evaluated in peer-reviewed literature at the time that Millett et al. 8 was written. Because one of the purposes of this assessment is to see how closely INLA output approximates MCMC output, we decided to use a different prior available in INLA: a flat prior on \u03b8 2 = log(n).",
+            "cite_spans": [
+                {
+                    "start": 477,
+                    "end": 482,
+                    "text": "49;50",
+                    "ref_id": null
+                },
+                {
+                    "start": 646,
+                    "end": 647,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "As in Section 3, we used NIMBLE to ensure that the model fit with MCMC was parameterized exactly as it is in the R-INLA documentation. To ensure that INLA and MCMC obtained the same information, we used complete cases for each of the 15 covariates included in Table 2 (See Section 1 of the Supplementary Materials for more details). For MCMC, the algorithm was run 2,000,000 times and a burn-in of 100,000 was used. Convergence was assessed with trace plots for all parameters.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 260,
+                    "end": 267,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "In Table 2 , we computed the modifiable rate ratios defined by Millett et al. 8 based on the output from the INLA and the MCMC analysis. In many fields, including epidemiology, it is common to identify covariates associated with rate ratios' whose 95% credible interval excludes 1 as important (or \"significant\") predictors of the response of interest. Rate ratios whose 95% credible interval include only values above 1 are considered positively associated with COVID-19 cases, and those whose 95% credible intervals include only values below 1 are considered negatively associated with COVID-19 cases. This is, in fact, what Millett et al. 8 did, and so, it is what we do here.",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 79,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 642,
+                    "end": 643,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "In Table 2 , we see that, except for the days since the first case of diagnosis, the modifiable rate ratios computed by MCMC and R-INLA did not seem very different. However, our inference based on the credible intervals would have been fairly different. When we fit the model with MCMC, we would have found 8 covariates associated with COVID-19 cases. We would have only derived the same conclusion as the results from INLA for 5 of them (i.e., percent Black, HIV infection rate, air toxins, social distancing, and days since the first diagnosis). Both the INLA and MCMC outputs indicated a significant relationship with percent uninsured; however, they disagreed with the direction of this relationship.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "We now turn our attention to the question of reproducibility. When we ran the exact code from Millett et al. 8 , we found various factors that could impact the output. Some of them include which functions in INLA were used to calculate the modifiable rate ratios, the operating system, and the version of INLA used. In Section 1 of the Supplementary Materials, we explain in more detail how the version of INLA and the method of calculating rate ratios in INLA might impact differences in inference. To summarize, for this model, the version of INLA and the INLA functions used can impact the conclusions reached by this model, although it only changed inference for one covariate. However, we did not find the operating system had any impact on the conclusions reached.",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 110,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "In this paper, we have defined reproducibility very narrowly. However, the changes we have made to the model ran in Millett et al. 8 and the model ran here are small enough that they may not have been explicitly stated in some applied papers. So, we find it meaningful to take a moment to compare our output here to the output obtained in Millett et al. 8 . The authors found that 5 of the 15 covariates listed in Table 2 were associated with the rates of COVID-19 cases in a county. In particular, they concluded that higher rates of COVID-19 cases were associated with a higher proportion of black residents, a higher proportion of uninsured residents, a higher proportion of residents living in a crowded environment, and more days since the first case in a county. Additionally, they found that higher social distancing scores (i.e., poor social distancing practice) were associated with lower rates of COVID-19 cases.",
+            "cite_spans": [
+                {
+                    "start": 131,
+                    "end": 132,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 354,
+                    "end": 355,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 414,
+                    "end": 421,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "Referring to Table 2 , we see that our version of the negative binomial model would have found 8 of the 15 covariates were associated with the number of COVID-19 cases in a county. Only four of these covariates were shared with those found in Table 2 of Millett et al. 8 . There are a few factors that could be contributing to this difference. The first, of course, is the differences in the model specifications: the state-specific random effect and the prior on log(n). As already noted, we found that including a state-specific random effect led to convergence issues. However, it is difficult to investigate the impact of the change of the prior. Millett et al. 8 did not report the version of INLA they used. According to the R-INLA website, the INLA documentation is kept up to date with the current testing version of the package (updated weekly). Therefore, we have no way of knowing the default prior in use at the time of the initial analysis. From a reproducibility stand point, this makes it very difficult to ever formally assess whether a change in priors is impacting inference.",
+            "cite_spans": [
+                {
+                    "start": 269,
+                    "end": 270,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 666,
+                    "end": 667,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 13,
+                    "end": 20,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 243,
+                    "end": 250,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "To summarize, in this section we found that the conclusions reached based on INLA output did not match the conclusions reached based on output from MCMC for the zero-inflated negative binomial data examined here. For one of the covariates (percent uninsured), MCMC and INLA would have led researchers to conclude different directions of associations between it and the number of COVID-19 cases in a county. From a reproducibility standpoint, we found that the version of INLA could sometimes lead to different conclusions about the importance of a covariate.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study of COVID-19 Data"
+        },
+        {
+            "text": "In this paper, we were motivated by an important, but yet unexplored, question: Are the analyses of COVID-19 data conducted with R-INLA providing us with accurate and reproducible results? To answer this question, we first explored how the accuracy of INLA's approximations have been previously evaluated. For most settings, there are no theoretical guarantees about these approximations. Instead, INLA's approximations have largely been evaluated with illustrative examples and case studies. The measures of accuracy used in these settings have not been consistent. Furthermore, many applied researchers use INLA in ways which are not supported by existing methods of assessing the accuracy of INLA's approximations. Finally, despite the fact that INLA is primarily validated by using the R-INLA package to analyze case studies, there do not appear to have been previous attempts to assess the reproducibility of analyses conducted with INLA. We explored each of these limitations with simulation studies and an attempt to reproduce the results of peer-reviewed article. We ultimately found that these limitations could change the Table 2 : Adjusted rate ratios (third versus first quartile) as defined in Millett et al. 8 . Rate ratios greater than one mean that higher levels of a given characteristic are associated with higher rates of COVID-19 cases. Rate ratios lower than one mean that higher levels of a given characteristic are associated with lower rates of COVID-19 cases. * indicates a 95% credible interval excluding one.",
+            "cite_spans": [
+                {
+                    "start": 1222,
+                    "end": 1223,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1132,
+                    "end": 1139,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Discussion"
+        },
+        {
+            "text": "conclusions researchers drew about COVID-19. This paper has focused on the use of INLA to fit disease mapping models to COVID-19 data. In many ways, this is just a special case of a broader problem. More and more complex statistical methods are being proposed in statistical literature. Many of these methods lack the theoretical guarantees of their historical counterparts and rely on computationally advanced implementations. How then, can medical researchers ensure that the use of these new techniques result in accurate and reproducible results? To our knowledge, no one has attempted to tackle this problem before. Thus, we take a moment to use the insights we have gained in our exploration of INLA to propose a minimal set of guidelines when using statistical methodology that primarily relies on simulation studies or case studies to validate its use. We express these points generally, but we also provide context with our findings about INLA.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "1. The statistical methodology should result in reproducible analyses.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Recall, we found that the default settings in the R-INLA package prevent even the narrow reproducibility defined in Section 2.2. However, every paper we reviewed (for which code was available) left these default settings in place. This was true both for research seeking to validate the use of R-INLA and for applied research. In practice, this means that another researcher might not be able to re-run the code and obtain the same results.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "If a statistical methodology has been validated with case studies or simulation studies, we propose that those studies should be reproducible (at least in the sense defined in Section 2.2). Additionally, we suggest that the analyses ran by medical researchers should be reproducible as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "2. The statistical methodology should have been meaningfully assessed for the type of data, models, and goals of analysis under consideration.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "We found that many applied researchers use INLA in ways that are not supported by existing methods of assessing the accuracy of INLA's approximations. For example, many researchers used INLA's WAIC to perform model selection. However, when we attempted to use INLA to select between two models with WAIC, we found INLA did not perform well. The performance depended not only on the model fit, but also on the data used to fit it. For example, the WAIC from INLA closely matched the WAIC from MCMC when the BYM model was fit to non-spatial data, but this did not remain true when the BYM model was fit to spatial data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "If a statistical methodology has primarily been validated with simulation studies or case studies, it is important that medical researchers do not venture into a setting where the methodology has not been tested. It is possible, just as we saw with INLA, that the methodology may not perform well in this new setting. We propose that a meaningful assessment should evaluate the methodology's ability to compute quantities that the applied researcher wishes to use for more than one dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "3. The statistical methodology should be capable of producing statistical diagnostic measures.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Unlike the other two suggestions, this suggestion will depend heavily on the type of statistical methodology under consideration. So, we use our experience with INLA as an illustrative example. Recall, we found that INLA would produce results even when the posterior distribution under consideration was improper. There was no obvious indication of the fact that the model should not have fit. In this setting, a fully Bayesian approach would have indicated the problem via various diagnostic statistics designed to assess convergence. Ideally, INLA would be compatible with a diagnostic that indicated the impropriety as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Supplementary materials Supplementary materials include results obtained from re-running the code provided with Millett et al. 8 on 4 combinations of operating system and R-INLA package version.",
+            "cite_spans": [
+                {
+                    "start": 127,
+                    "end": 128,
+                    "text": "8",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "A comparison of Bayesian spatial models for disease mapping",
+            "authors": [
+                {
+                    "first": "Nicky",
+                    "middle": [],
+                    "last": "Best",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sylvia",
+                    "middle": [],
+                    "last": "Richardson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Thomson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Statistical Methods in Medical Research",
+            "volume": "14",
+            "issn": "1",
+            "pages": "35--59",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Bayesian approaches to disease mapping",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Jonathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Wakefield",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Best",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Waller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Spatial epidemiology: Methods and applications",
+            "volume": "",
+            "issn": "",
+            "pages": "104--107",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Disease mapping and spatial regression with count data",
+            "authors": [
+                {
+                    "first": "Jon",
+                    "middle": [],
+                    "last": "Wakefield",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Biostatistics",
+            "volume": "8",
+            "issn": "2",
+            "pages": "158--183",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Hierarchical modeling and analysis for spatial data",
+            "authors": [
+                {
+                    "first": "Sudipto",
+                    "middle": [],
+                    "last": "Banerjee",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bradley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alan",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Carlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Gelfand",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "On block updating in markov random field models for disease mapping",
+            "authors": [
+                {
+                    "first": "Leonhard",
+                    "middle": [],
+                    "last": "Knorr",
+                    "suffix": ""
+                },
+                {
+                    "first": "-",
+                    "middle": [],
+                    "last": "Held",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Scandinavian Journal of Statistics",
+            "volume": "29",
+            "issn": "4",
+            "pages": "597--614",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Approximate Bayesian inference for latent Gaussian models by using integrated nested Laplace approximations",
+            "authors": [
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sara",
+                    "middle": [],
+                    "last": "Martino",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nicolas",
+                    "middle": [],
+                    "last": "Chopin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Journal of the Royal Statistical Society: Series B (Statistical Methodology)",
+            "volume": "71",
+            "issn": "2",
+            "pages": "319--392",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Black-/African American communities are at highest risk of COVID-19: Spatial modeling of New York City ZIP Code-level testing results",
+            "authors": [
+                {
+                    "first": "Charles",
+                    "middle": [],
+                    "last": "Dimaggio",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Klein",
+                    "suffix": ""
+                },
+                {
+                    "first": "Cherisse",
+                    "middle": [],
+                    "last": "Berry",
+                    "suffix": ""
+                },
+                {
+                    "first": "Spiros",
+                    "middle": [],
+                    "last": "Frangos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Annals of Epidemiology",
+            "volume": "51",
+            "issn": "",
+            "pages": "7--13",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Assessing differential impacts of COVID-19 on Black communities",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gregorio",
+                    "suffix": ""
+                },
+                {
+                    "first": "Austin",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Millett",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stefan",
+                    "middle": [],
+                    "last": "Benkeser",
+                    "suffix": ""
+                },
+                {
+                    "first": "Laina",
+                    "middle": [],
+                    "last": "Baral",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Mercer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Brian",
+                    "middle": [],
+                    "last": "Beyrer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Elise",
+                    "middle": [],
+                    "last": "Honermann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leandro",
+                    "middle": [],
+                    "last": "Lankiewicz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Mena",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Crowley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Annals of Epidemiology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Risk for COVID-19 infection and death among Latinos in the United States: Examining heterogeneity in transmission dynamics",
+            "authors": [
+                {
+                    "first": "Vincent",
+                    "middle": [],
+                    "last": "Carlos E Rodriguez-Diaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leandro",
+                    "middle": [],
+                    "last": "Guilamo-Ramos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Mena",
+                    "suffix": ""
+                },
+                {
+                    "first": "Brian",
+                    "middle": [],
+                    "last": "Hall",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Honermann",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jeffrey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stefan",
+                    "middle": [],
+                    "last": "Crowley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guillermo",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Baral",
+                    "suffix": ""
+                },
+                {
+                    "first": "Melissa",
+                    "middle": [],
+                    "last": "Prado",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Marzan-Rodriguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Beyrer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Annals of Epidemiology",
+            "volume": "52",
+            "issn": "",
+            "pages": "46--53",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Effects of long-term exposure to air pollutants on the spatial spread of COVID-19 in Catalonia",
+            "authors": [
+                {
+                    "first": "Marc",
+                    "middle": [],
+                    "last": "Saez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aurelio",
+                    "middle": [],
+                    "last": "Tobias",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maria",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Barcel\u00f3",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Spain. Environmental Research",
+            "volume": "191",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Effectiveness of the measures to flatten the epidemic curve of COVID-19. The case of Spain",
+            "authors": [
+                {
+                    "first": "Marc",
+                    "middle": [],
+                    "last": "Saez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aurelio",
+                    "middle": [],
+                    "last": "Tobias",
+                    "suffix": ""
+                },
+                {
+                    "first": "Diego",
+                    "middle": [],
+                    "last": "Varga",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maria",
+                    "middle": [
+                        "Ant\u00f2nia"
+                    ],
+                    "last": "Barcel\u00f3",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Science of the Total Environment",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Can COVID-19 symptoms as reported in a large-scale online survey be used to optimise spatial predictions of COVID-19 incidence risk in Belgium?",
+            "authors": [
+                {
+                    "first": "Thomas",
+                    "middle": [],
+                    "last": "Neyens",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christel",
+                    "middle": [],
+                    "last": "Faes",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maren",
+                    "middle": [],
+                    "last": "Vranckx",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Geert Molenberghs, Jan Aerts, and Philippe Beutels",
+            "volume": "35",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "A hierarchical spatio-temporal model to analyze relative risk variations of COVID-19: A focus on Spain, Italy and Germany",
+            "authors": [
+                {
+                    "first": "Abdollah",
+                    "middle": [],
+                    "last": "Jalilian",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jorge",
+                    "middle": [],
+                    "last": "Mateu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Stochastic Environmental Research and Risk Assessment",
+            "volume": "35",
+            "issn": "4",
+            "pages": "797--812",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "A spatio-temporal analysis for exploring the effect of temperature on COVID-19 early evolution in Spain",
+            "authors": [
+                {
+                    "first": "\u00c1lvaro",
+                    "middle": [],
+                    "last": "Briz-Red\u00f3n",
+                    "suffix": ""
+                },
+                {
+                    "first": "\u00c1ngel",
+                    "middle": [],
+                    "last": "Serrano-Aroca",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Science of the Total Environment",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Bayesian computing with INLA: New features",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Thiago",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Martins",
+                    "suffix": ""
+                },
+                {
+                    "first": "Finn",
+                    "middle": [],
+                    "last": "Simpson",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Lindgren",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Computational Statistics & Data Analysis",
+            "volume": "67",
+            "issn": "",
+            "pages": "68--83",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "An explicit link between Gaussian fields and Gaussian Markov random fields: The stochastic partial differential equation approach",
+            "authors": [
+                {
+                    "first": "Finn",
+                    "middle": [],
+                    "last": "Lindgren",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Johan",
+                    "middle": [],
+                    "last": "Lindstr\u00f6m",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of the Royal Statistical Society: Series B (Statistical Methodology)",
+            "volume": "73",
+            "issn": "4",
+            "pages": "423--498",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Improving the INLA approach for approximate Bayesian inference for latent Gaussian models",
+            "authors": [
+                {
+                    "first": "Egil",
+                    "middle": [],
+                    "last": "Ferkingstad",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Electronic Journal of Statistics",
+            "volume": "9",
+            "issn": "2",
+            "pages": "2706--2731",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Bayesian computing with INLA: A review",
+            "authors": [
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrea",
+                    "middle": [],
+                    "last": "Riebler",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Sigrunn",
+                    "suffix": ""
+                },
+                {
+                    "first": "Janine",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "S\u00f8rbye",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Illian",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Simpson",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Finn K Lindgren",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Annual Review of Statistics and Its Application",
+            "volume": "4",
+            "issn": "",
+            "pages": "395--421",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "A new study shows just how badly Black Americans have been hit by Covid-19",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Barr\u00f3n-L\u00f3pez",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Reproducible epidemiologic research",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Roger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Francesca",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Scott",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Dominici",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zeger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "American Journal of Epidemiology",
+            "volume": "163",
+            "issn": "9",
+            "pages": "783--789",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Epidemiology and policy: The pump handle meets the new millennium",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jonathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Samet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Epidemiologic Reviews",
+            "volume": "22",
+            "issn": "1",
+            "pages": "145--154",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Implementing approximate Bayesian inference using Integrated Nested Laplace Approximation: A manual for the INLA program",
+            "authors": [
+                {
+                    "first": "Sara",
+                    "middle": [],
+                    "last": "Martino",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Bayesian spatial modelling with R-INLA",
+            "authors": [
+                {
+                    "first": "Finn",
+                    "middle": [],
+                    "last": "Lindgren",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Journal of Statistical Software",
+            "volume": "63",
+            "issn": "",
+            "pages": "1--25",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Bayesian inference for generalized linear mixed models",
+            "authors": [
+                {
+                    "first": "Youyi",
+                    "middle": [],
+                    "last": "Fong",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jon",
+                    "middle": [],
+                    "last": "Wakefield",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Biostatistics",
+            "volume": "11",
+            "issn": "3",
+            "pages": "397--412",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Spatio-temporal disease mapping using INLA",
+            "authors": [
+                {
+                    "first": "Birgit",
+                    "middle": [],
+                    "last": "Schr\u00f6dle",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leonhard",
+                    "middle": [],
+                    "last": "Held",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Environmetrics",
+            "volume": "22",
+            "issn": "6",
+            "pages": "725--734",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Spatial and spatio-temporal models with R-INLA",
+            "authors": [
+                {
+                    "first": "Marta",
+                    "middle": [],
+                    "last": "Blangiardo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michela",
+                    "middle": [],
+                    "last": "Cameletti",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gianluca",
+                    "middle": [],
+                    "last": "Baio",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Spatial and Spatio-Temporal Epidemiology",
+            "volume": "4",
+            "issn": "",
+            "pages": "33--49",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Posterior and cross-validatory predictive checks: A comparison of MCMC and INLA",
+            "authors": [
+                {
+                    "first": "Leonhard",
+                    "middle": [],
+                    "last": "Held",
+                    "suffix": ""
+                },
+                {
+                    "first": "Birgit",
+                    "middle": [],
+                    "last": "Schr\u00f6dle",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Statistical modelling and regression structures",
+            "volume": "",
+            "issn": "",
+            "pages": "91--110",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Comparing INLA and OpenBUGS for hierarchical Poisson modeling in disease mapping",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Carroll",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lawson",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Faes",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kirby",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Aregay",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Watjou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Spatial and Spatio-Temporal Epidemiology",
+            "volume": "14",
+            "issn": "",
+            "pages": "45--54",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "INLA or MCMC? A tutorial and comparative evaluation for spatial prediction in log-Gaussian Cox processes",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Benjamin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Taylor",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Peter",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Diggle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Journal of Statistical Computation and Simulation",
+            "volume": "84",
+            "issn": "10",
+            "pages": "2266--2284",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Clarifying the terminology that describes scientific reproducibility",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ron",
+                    "suffix": ""
+                },
+                {
+                    "first": "Galit",
+                    "middle": [],
+                    "last": "Kenett",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Shmueli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nature Methods",
+            "volume": "12",
+            "issn": "8",
+            "pages": "699--699",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "What does research reproducibility mean?",
+            "authors": [
+                {
+                    "first": "Daniele",
+                    "middle": [],
+                    "last": "Steven N Goodman",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fanelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "John",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ioannidis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Science Translational Medicine",
+            "volume": "8",
+            "issn": "341",
+            "pages": "341--353",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Reproducibility vs. replicability: A brief history of a confused terminology",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Hans",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Plesser",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Frontiers in Neuroinformatics",
+            "volume": "11",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Reproducible research: A retrospective",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Roger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Stephanie",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hicks",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Annual Review of Public Health",
+            "volume": "42",
+            "issn": "",
+            "pages": "79--93",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Making scientific computations reproducible",
+            "authors": [
+                {
+                    "first": "Matthias",
+                    "middle": [],
+                    "last": "Schwab",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jon",
+                    "middle": [],
+                    "last": "Karrenbach",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Claerbout",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Computing in Science & Engineering",
+            "volume": "2",
+            "issn": "6",
+            "pages": "61--67",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Reproducible research in computational science",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Roger",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Science",
+            "volume": "334",
+            "issn": "6060",
+            "pages": "1226--1227",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Spatial pattern of COVID-19 deaths and infections in small areas of Brazil",
+            "authors": [
+                {
+                    "first": "Everton",
+                    "middle": [],
+                    "last": "Emanuel Campos De Lima",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ezra",
+                    "middle": [],
+                    "last": "Gayawan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Emerson",
+                    "middle": [
+                        "Augusto"
+                    ],
+                    "last": "Baptista",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bernardo Lanza",
+                    "middle": [],
+                    "last": "Queiroz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "PloS one",
+            "volume": "16",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Long-term exposure to air-pollution and COVID-19 mortality in England: A hierarchical spatial analysis",
+            "authors": [
+                {
+                    "first": "Garyfallos",
+                    "middle": [],
+                    "last": "Konstantinoudis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tullia",
+                    "middle": [],
+                    "last": "Padellini",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Bennett",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bethan",
+                    "middle": [],
+                    "last": "Davies",
+                    "suffix": ""
+                },
+                {
+                    "first": "Majid",
+                    "middle": [],
+                    "last": "Ezzati",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marta",
+                    "middle": [],
+                    "last": "Blangiardo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Environment International",
+            "volume": "146",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "NIMBLE: MCMC, particle filtering, and programmable hierarchical modeling",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "De Valpine",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Paciorek",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Turek",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Michaud",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Anderson-Bergman",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Obermeyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Cortes",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rodr\u00edguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "Temple"
+                    ],
+                    "last": "Lang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Paganin",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Programming with models: Writing statistical algorithms for general model structures with NIMBLE",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "De Valpine",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Turek",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Paciorek",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Anderson-Bergman",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "Temple"
+                    ],
+                    "last": "Lang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Bodik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Journal of Computational and Graphical Statistics",
+            "volume": "26",
+            "issn": "",
+            "pages": "403--417",
+            "other_ids": {
+                "DOI": [
+                    "10.1080/10618600.2016.1172487"
+                ]
+            }
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Bayesian image restoration, with two applications in spatial statistics",
+            "authors": [
+                {
+                    "first": "Julian",
+                    "middle": [],
+                    "last": "Besag",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeremy",
+                    "middle": [],
+                    "last": "York",
+                    "suffix": ""
+                },
+                {
+                    "first": "Annie",
+                    "middle": [],
+                    "last": "Molli\u00e9",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "Annals of the Institute of Statistical Mathematics",
+            "volume": "43",
+            "issn": "1",
+            "pages": "1--20",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Gaussian Markov random fields: Theory and applications",
+            "authors": [
+                {
+                    "first": "Havard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leonhard",
+                    "middle": [],
+                    "last": "Held",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Technical Vignette 5: Understanding intrinsic Gaussian Markov random field spatial models, including intrinsic conditional autoregressive models",
+            "authors": [
+                {
+                    "first": "Christopher",
+                    "middle": [],
+                    "last": "Paciorek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "GeoBugs user manual",
+            "authors": [
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nicky",
+                    "middle": [],
+                    "last": "Best",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dave",
+                    "middle": [],
+                    "last": "Lunn",
+                    "suffix": ""
+                },
+                {
+                    "first": "Richard",
+                    "middle": [],
+                    "last": "Arnold",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Spiegelhalter",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Medical Research Council Biostatistics Unit",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "In spatio-temporal disease mapping models, identifiability constraints affect PQL and INLA results",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Goicoa",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Adin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Md Ugarte",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hodges",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Stochastic Environmental Research and Risk Assessment",
+            "volume": "32",
+            "issn": "3",
+            "pages": "749--770",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Sensitivity analysis for Bayesian hierarchical models",
+            "authors": [
+                {
+                    "first": "Ma\u0142gorzata",
+                    "middle": [],
+                    "last": "Roos",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Thiago",
+                    "suffix": ""
+                },
+                {
+                    "first": "Leonhard",
+                    "middle": [],
+                    "last": "Martins",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Held",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Bayesian Analysis",
+            "volume": "10",
+            "issn": "2",
+            "pages": "321--349",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Understanding predictive information criteria for Bayesian models",
+            "authors": [
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Gelman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jessica",
+                    "middle": [],
+                    "last": "Hwang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aki",
+                    "middle": [],
+                    "last": "Vehtari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Statistics and Computing",
+            "volume": "24",
+            "issn": "6",
+            "pages": "997--1016",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Bayesian measures of model complexity and fit",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nicola",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Spiegelhalter",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Best",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bradley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Angelika",
+                    "middle": [],
+                    "last": "Carlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Van Der Linde",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Journal of the Royal Statistical Society: Series B (Statistical Methodology)",
+            "volume": "64",
+            "issn": "4",
+            "pages": "583--639",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Penalising model component complexity: A principled, practical approach to constructing priors",
+            "authors": [
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Simpson",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrea",
+                    "middle": [],
+                    "last": "Riebler",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Thiago",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Martins",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Sigrunn",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "S\u00f8rbye",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Statistical Science",
+            "volume": "32",
+            "issn": "1",
+            "pages": "1--28",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Constructing priors that penalize the complexity of Gaussian random fields",
+            "authors": [
+                {
+                    "first": "Geir-Arne",
+                    "middle": [],
+                    "last": "Fuglstad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Simpson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Finn",
+                    "middle": [],
+                    "last": "Lindgren",
+                    "suffix": ""
+                },
+                {
+                    "first": "H\u00e5vard",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "114",
+            "issn": "525",
+            "pages": "445--452",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "ggplot2: Elegant Graphics for Data Analysis",
+            "authors": [
+                {
+                    "first": "Hadley",
+                    "middle": [],
+                    "last": "Wickham",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "The INLA documentation relied on in this paper has also been saved in the above-mentioned folder. The analyses summarized in Section 3 were run on Windows 10 x64 (referred to as WINDOWS in Section 1 of the Supplementary Materials) with R version 4.0.3, INLA version 21.02.23, and NIMBLE version 0.11.1. The analyses reported in Section 4 were run on macOS Catalina 10",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "15",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Data Sources The data used to generate the datasets in Section 3.1-Section 3.3 came from two sources. The counts of COVID-19 tests",
+            "authors": [],
+            "year": 2021,
+            "venue": "The poverty rates were obtained from https: //data.census.gov on",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Boxplots of comparing posterior estimates of \u03b2 x for nonspatial data. (a) Percent error (PE). (b) Percent changes (PCs) from MCMC and INLA to the generating value 0.05.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Boxplots of comparing posterior estimates of \u03c3 for non-spatial data. (a) Percent error (PE). (b) Percent changes (PCs) from MCMC and INLA to the generating value 1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Now, we consider what these results mean for Question 1. Because the estimates for \u03c4 included such large outliers, we restrict our attention to \u03b2 x and \u03c3 for a more meaningful discussion. Recall, there are currently two categories of accuracy measures in papers assessing INLA: comparison of INLA results to MCMC results (PE(\u00b7) for us) and comparisons of MCMC/INLA to a generating value (PC IN LA (\u00b7) and PC M CM C (\u00b7) for us). For each parameter, we begin by restricting our attention to datasets for which INLA did not well approximate the results from MCMC.For datasets for which |PE(\u03b2 x )| > 30,Fig. 5(a) plotted the PC MCMC (\u03b2 x ) against the PC INLA (\u03b2 x ). Similarly, for datasets for which |PE(\u03c3)| > 30,Fig. 5(b) plotted the PC MCMC (\u03c3) against the PC INLA (\u03c3). If the two categories of accuracy yielded consistent results, then we would expect to see all the points on these plots well away from the origin. However, for both \u03c3 and \u03b2 x , there were a couple of points near the origin. Interestingly, for the majority of the datasets for which INLA and MCMC had very different estimates, INLA tended to produce results closer to the generating value. Thus, with respect to Question 1, we found that comparisons of MCMC output to INLA output and comparisons of INLA/MCMC output to the generating value can lead to very different conclusions at times.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Boxplots of comparing posterior estimates of \u03b2 x for spatial data. (a) Percent error (PE). (b) Percent changes (PCs) from MCMC and INLA to the generating value 0.05. Boxplots of comparing posterior estimates of \u03c3 for spatial data. (a) Percent error (PE). (b) Percent changes (PCs) from MCMC and INLA to the generating value 1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "These plots look at output datasets that produced significantly different results (PE > 30%) for INLA and MCMC for (a) \u03b2 x and (b) \u03c3. Note that points in the shaded gray area indicate datasets in which the MCMC estimate was closer to the generating value than the INLA estimate.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "These plots look at the WAIC IN LA \u2212WAIC M CM C . The x-axis indicates the model that was fit. The color red indicates the scenario that the data were generated from the analysis model. The violin plots in the left panel were generated from 54 datasets. The violin plots in the right panel were generated from 45 datasets. Spatial Data INLA successfully fit the Poisson model for all 100 of the spatial datasets, and it successfully fit the BYM model for 96 datasets. Thus, all comparisons between INLA and MCMC involved only 96 datasets. For the 96 datasets it successfully fit, INLA selected the correct model for 40 (42%) of them. For the 100 datasets successfully fit with MCMC, MCMC selected the correct model for 40 (40%) of them. As before, we compared the WAIC obtained from the Poisson model and the BYM for the 96 datasets. INLA selected the same model as MCMC for 51 (53%) of the datasets. However, of these 51 datasets, the selection was correct only 16 times. In other words, the cases for which the INLA and MCMC model selections agreed were mostly cases in which the incorrect model was selected.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Taken together with our results from Sections 3.1 and 3.2, the results in this section suggested that traditional methods of assessing the accuracy of INLA's approximations were inadequate in this setting. We note that the WAIC's from INLA tend to be less reproducible than the summaries of the marginal posterior distributions considered. Specifically, for both the Poisson regression model and the BYM model, the WAIC's changed when the operating system changed (holding the version of INLA fixed) or the version of INLA changed (holding the operating system fixed).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "These plots look at the WAIC IN LA \u2212 WAIC M CM C for the 96 datasets fit successfully by both INLA and MCMC. The x-axis indicates the model that was fit. Starting from the upper left hand corner and moving clockwise, the violin plots in each panel were generated from n = 16, n = 24,n = 35, and n = 21 datasets, respectively.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "where E[\u03b8 INLA |Y ] is the marginal posterior mean for \u03b8 from the INLA output, E[\u03b8 MCMC |Y ] is the marginal posterior mean for \u03b8 from the MCMC output, and SD[\u03b8 MCMC |Y ] is the marginal posterior standard deviation for \u03b8 from the MCMC output. Intuitively, Eq. (2) measures the size of the error between INLA and MCMC as a percentage of the \"true\" error. In the supplemental material of Fong et al.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Summaries of the means of the marginal posterior distributions for \u03c4 . For INLA, only 96 datasets could be fit. For MCMC, the first number is the statistic from all 100 datasets, and the number in paranthases is the statistic from the 96 datasets with valid results from INLA.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

@@ -1,0 +1,2749 @@
+{
+    "paper_id": "ac0d0c4ccefb903133c6f0edf92b29be89f66770",
+    "metadata": {
+        "title": "A Hybrid Sparse-Dense Monocular SLAM System for Autonomous Driving",
+        "authors": [
+            {
+                "first": "Louis",
+                "middle": [],
+                "last": "Gallagher",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Varun",
+                "middle": [
+                    "Ravi"
+                ],
+                "last": "Kumar",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Senthil",
+                "middle": [],
+                "last": "Yogamani",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "John",
+                "middle": [
+                    "B"
+                ],
+                "last": "Mcdonald",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In this paper, we present a system for incrementally reconstructing a dense 3D model of the geometry of an outdoor environment using a single monocular camera attached to a moving vehicle. Dense models provide a rich representation of the environment facilitating higher-level scene understanding, perception, and planning. Our system employs dense depth prediction with a hybrid mapping architecture combining state-of-the-art sparse features and dense fusionbased visual SLAM algorithms within an integrated framework. Our novel contributions include design of hybrid sparsedense camera tracking and loop closure, and scale estimation improvements in dense depth prediction. We use the motion estimates from the sparse method to overcome the large and variable inter-frame displacement typical of outdoor vehicle scenarios. Our system then registers the live image with the dense model using whole-image alignment. This enables the fusion of the live frame and dense depth prediction into the model. Global consistency and alignment between the sparse and dense models are achieved by applying pose constraints from the sparse method directly within the deformation of the dense model. We provide qualitative and quantitative results for both trajectory estimation and surface reconstruction accuracy, demonstrating competitive performance on the KITTI dataset. Qualitative results of the proposed approach are illustrated in https://youtu.be/Pn2uaVqjskY. Source code for the project is publicly available at the following repository https: //github.com/robotvisionmu/DenseMonoSLAM",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Over the past decade, approaches to fusion-based dense visual SLAM have demonstrated the ability to build high fidelity dense 3D models of an environment facilitating higher-level scene understanding, perception and planning [1] , [2] , [3] , [4] . However, given that these techniques typically require active RGB-D sensors, their applicability in outdoor scenarios has been limited. On the other hand, sparse and semi-dense monocular systems have found a large degree of success in these environments but are limited in their resulting sparse or partially dense representations [5] , [5] , [6] , [7] , [8] , [9] , [10] . Here, we investigate the potential of recent results in monocular dense depth prediction in [11] , [12] . (a) shows the final surfel model produced by our system. The model contains approximately 16m surfels. (b) shows the estimated trajectory alongside the ground truth trajectory. (c) shows an up-close view of the reconstruction as the vehicle passes through an intersection contained in (a).",
+            "cite_spans": [
+                {
+                    "start": 225,
+                    "end": 228,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 231,
+                    "end": 234,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 237,
+                    "end": 240,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 243,
+                    "end": 246,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 580,
+                    "end": 583,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 586,
+                    "end": 589,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 592,
+                    "end": 595,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 598,
+                    "end": 601,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 604,
+                    "end": 607,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 610,
+                    "end": 613,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 616,
+                    "end": 620,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 715,
+                    "end": 719,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 722,
+                    "end": 726,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "combining these approaches' strengths. In particular, we employ dense depth prediction in developing a monocular SLAM system that achieves comparable accuracy to sparse camera tracking algorithms while allowing dense fusionbased modeling of the environment. We demonstrate the effectiveness of this approach by tracking and mapping an environment from a single monocular camera attached to a moving vehicle. Using passive vision sensors over active sensors, such as LiDAR, in autonomous driving SLAM systems has many advantages. A calibrated monocular camera is inexpensive, lightweight, and can be used as a direction sensor providing rich photometric and geometric measurements of the scene at every frame. In contrast, LiDAR is expensive, heavy, and produces a relatively sparse signal compared to the dense measurements provided by a vision sensor. Indeed, recent deep learning-based depth estimation and object detection indicates that the accuracy advantage of LiDAR over monocular vision-based systems is closing [13] .",
+            "cite_spans": [
+                {
+                    "start": 1020,
+                    "end": 1024,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "On the other hand, monocular vision systems suffer from ambiguity and drift in the estimated scale of the reconstruction [14] and are not as robust as stereo and multi-sensor systems in texture-less regions and during fast camera motion [6] , [7] . Furthermore, with the exception of a few techniques for dense and semi-dense map representations [15] , [8] , [16] , these systems produce sparse reconstructions which only offer a coarse-grained description of the scene's geometry [17] , [18] , [19] , [5] , [20] .",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 125,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 237,
+                    "end": 240,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 243,
+                    "end": 246,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 346,
+                    "end": 350,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 353,
+                    "end": 356,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 359,
+                    "end": 363,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 481,
+                    "end": 485,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 488,
+                    "end": 492,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 495,
+                    "end": 499,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 502,
+                    "end": 505,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 508,
+                    "end": 512,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Multi-sensor platforms attempt to leverage the combined advantages of monocular, inertial, stereo, LiDAR, and GPS sensors. However, such platforms need careful internal and external calibration, which can be done online to maintain synchronization and geometric alignment between the sensors and, ultimately, achieve accurate performance. In the autonomous driving domain, even the most carefully calibrated rig will move and warp in real-time due to the effects of heat, wear and tear of mechanical parts like tires, variations in loading of the vehicle, and the knocks and bumps inherent in driving on roads [21] . GPS comes with its complexities, requiring line-of-sight with at least four satellites to infer position, which can prove challenging in urban environments [22] .",
+            "cite_spans": [
+                {
+                    "start": 610,
+                    "end": 614,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 773,
+                    "end": 777,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "More recently, several systems have emerged that represent the state-of-the-art in traditional monocular SLAM, and visual-odometry performance [6] , [20] , [23] , [24] , [9] , [10] , [8] . The ORB-SLAM open-source SLAM frameworks [5] , [20] , [6] in particular represent the state-of-the-art in monocular SLAM. Similar to PTAM, ORB-SLAM [20] splits the SLAM problem into sub-problems that can be solved in different threads; (i) a feature-based camera tracking thread that runs in real-time; (ii) a local mapping thread that takes keyframes extracted by the first thread and optimizes a local area of the map around this keyframe using bundleadjustment (BA); and (iii) a global mapping thread that integrates loop closure constraints and maintains global consistency.",
+            "cite_spans": [
+                {
+                    "start": 143,
+                    "end": 146,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 149,
+                    "end": 153,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 156,
+                    "end": 160,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 163,
+                    "end": 167,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 170,
+                    "end": 173,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 176,
+                    "end": 180,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 183,
+                    "end": 186,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 230,
+                    "end": 233,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 236,
+                    "end": 240,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 243,
+                    "end": 246,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 337,
+                    "end": 341,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Visual SLAM systems based around the concepts of dense alternation, every pixel fusion, and direct wholeimage alignment-based camera tracking, have shown that it is possible to build dense, high-fidelity models of indoor scenes in real-time with active depth sensors such as the Microsoft Kinect. These systems and the models they produce have many benefits in downstream machine perceptions and spatial reasoning tasks. They can produce 'watertight' maps that model the continuous surface that underlies the scene. For example, this allows them to synthesize accurate novel views and realistically fuse augmentations into the scene for AR effects [1] , [3] , [2] , [4] , [25] . High-resolution dense models may become more necessary for robot planning in the future to accommodate a broader range of scenarios (e.g., analyzing surface geometry in unevenly paved roads [26] , obstacle detection and avoidance [13] , etc.).",
+            "cite_spans": [
+                {
+                    "start": 648,
+                    "end": 651,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 654,
+                    "end": 657,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 660,
+                    "end": 663,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 666,
+                    "end": 669,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 672,
+                    "end": 676,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 869,
+                    "end": 873,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 909,
+                    "end": 913,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "More and more deep learning is being used to improve the performance of SLAM systems. Broadly speaking, neural networks have been applied in two critical areas within the SLAM problem; in the representation of geometric and visual information [27] , [28] , [29] , and in overcoming the illposedness of many of SLAM's subproblems, for example, depth estimation from monocular images [30] , [31] , [32] , [33] . Several systems have been presented that demonstrate hybrid approaches to monocular visual SLAM and VO [34] , [27] , [35] , [36] , while other approaches implement a fully learned SLAM pipeline [37] , [38] . In comparison to this work, these systems have either not been designed with largescale fast, outdoor camera motion in mind [34] , [27] , [37] , [35] , or do not produce dense models [36] , [38] .",
+            "cite_spans": [
+                {
+                    "start": 243,
+                    "end": 247,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 250,
+                    "end": 254,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 257,
+                    "end": 261,
+                    "text": "[29]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 382,
+                    "end": 386,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 389,
+                    "end": 393,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 396,
+                    "end": 400,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 403,
+                    "end": 407,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 513,
+                    "end": 517,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 520,
+                    "end": 524,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 527,
+                    "end": 531,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 534,
+                    "end": 538,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 604,
+                    "end": 608,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 611,
+                    "end": 615,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 742,
+                    "end": 746,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 749,
+                    "end": 753,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 756,
+                    "end": 760,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 763,
+                    "end": 767,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 801,
+                    "end": 805,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 808,
+                    "end": 812,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "The work most similar to our aproach is the dense surfelbased fusion system of [39] , combining camera tracking from a sparse SLAM system (ORB-SLAM2 [20] ) with a dense fusion-based back-end. The substantial difference with the current work is the degree to which they couple the sparse and dense maps. In [39] , a sub-mapping approach is employed where each surfel is anchored to a reference keyframe from the sparse system. Local and global optimisations of the keyframe poses by the sparse system are reflected in the dense map by ensuring the pose of a surfel relative to its anchor keyframe remains constant. In contrast, our system maintains a much looser coupling between the sparse and dense representations. The sparse pose is used to initialise a dense alignment that registers the camera to the dense map allowing for fusion of the current frame. Loop closures from the sparse system are used to constrain a deformation graph that non-rigidly deforms the surfels themselves. In this way, the benefits of each system are leveraged, while the systems themselves are only indirectly connected through 6-DOF transformations and 3D constraints. Furthermore, we quantitatively demonstrate the effectiveness of our approach in outdoor automotive environments using deep-learned depth estimation.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 149,
+                    "end": 153,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 306,
+                    "end": 310,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "The contribution of this paper is the development of a system for live dense metric 3D reconstruction in outdoor environments using a single RGB camera attached to a moving vehicle. Although other researchers have reported dense and semi-dense SLAM or dense VO approaches, to the best of our knowledge, this is the first fully dense SLAM system quantitatively evaluated on automotive scenarios. The novelty of our approach lies in the use of a dense depth prediction network [30] within a hybrid architecture, combining state-of-the-art sparse feature tracking and dense fusion-based visual mapping algorithms in a loosely coupled fashion. We improve our previous approach to dense depth prediction [30] for the SLAM application by the addition of new regularization losses and better scale estimation.",
+            "cite_spans": [
+                {
+                    "start": 475,
+                    "end": 479,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 699,
+                    "end": 703,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Using the motion estimates from the sparse method to overcome the large and variable inter-frame displacement typical of outdoor vehicle scenarios, our system then registers the live image with the dense model using whole-image alignment. This allows dense depth prediction and fusion of the live frame into the model. Global consistency and alignment between the sparse and dense models are achieved by applying pose constraints from the sparse method directly within the deformation of the dense model. We evaluate the method over the KITTI benchmark dataset, providing qualitative and quantitative results for both the trajectory and surface reconstruction accuracy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "We take a hybrid approach to dense monocular tracking and mapping. A feature-based SLAM system, ORB-SLAM3 [6] , is used to provide an initial estimate of the camera's pose for each frame. The pipeline then follows a dense alternation architecture, extending the ElasticFusion (EF) SLAM system [3] , in which the map is first held fixed. At the same time, the camera is tracked against it, using the initial pose estimate from the previous step. Once the camera pose has been estimated, it can fuse the current frame into the map. We densely predict per pixel metric depth estimates using a SOTA self-supervised convolutional neural network, UnRectDepthNet [30] . The various subsystems predominantly operate on different processors; the GPU is used extensively by the dense alternation and depth prediction network, while ORB-SLAM operates on the CPU. Our hybrid architecture is summarised as follows: 1) A scale-aware depth prediction network is used to estimate a metric depth map for each frame. An initial estimate of the camera motion is made using ORB-SLAM's feature-based camera tracker, which is suited to the fast motion of the vehicle. 2) The initial pose estimate is further refined by aligning it to the current active model in view of the camera. 3) Live RGB images and corresponding predicted metric depth maps are fused into a global dense surfel model of the scene. The surfel model is divided into an active and an inactive portion as per the original EF algorithm. 4) When ORB-SLAM identifies a loop closure, we use the resulting loop closure constraint within the EF deformation graph to correct the geometry of the dense surfaces. This brings the previously visited inactive portion of the map back into alignment with the current active portion. Importantly, this also keeps the different map and camera trajectories of ORB-SLAM and EF consistent. Figure 2 shows the architecture of our system. In the remainder of this section, we will describe how these key elements are combined into one system that builds consistent dense surfel models from a monocular camera attached to a moving vehicle. The section provides complete coverage of the system where the principal novelty is covered in II-A, II-D, and II-E. We then present and discuss experimental results that demonstrate the efficacy of our system in III.",
+            "cite_spans": [
+                {
+                    "start": 106,
+                    "end": 109,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 293,
+                    "end": 296,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 656,
+                    "end": 660,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1869,
+                    "end": 1877,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "II. A HYBRID APPROACH"
+        },
+        {
+            "text": "A. Scale-aware depth estimation",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. A HYBRID APPROACH"
+        },
+        {
+            "text": "Following UnRectDepthNet [30] , we establish the same structure-from-motion (SfM) framework for self-supervised depth estimation. We carry out the view synthesis by employing the pinhole camera projection model. The final objective consists of a photometric term L p and an edge smoothness regularization term L s . In addition, the cross-sequence depth consistency loss L dc and the scale recovery approach are employed. In the following paragraphs, we discuss the new improvements that lead to a considerable gain in accuracy.",
+            "cite_spans": [
+                {
+                    "start": 25,
+                    "end": 29,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "II. A HYBRID APPROACH"
+        },
+        {
+            "text": "We employ feature-metric losses from [40] , where discriminative, L dis , and convergent, L cvt , losses are calculated on the current frame's, I t 's, feature representation by incorporating a self-attention autoencoder to obtain robust global features of the scene. The primary goal of L dis and L cvt is to keep the optimization objective from getting trapped at several local minima for low texture areas such as sky and road. It is a crucial loss feature that uses image gradients to penalize small slopes while emphasizing low-texture areas. The self-supervised loss landscapes are restricted from forming proper convergence basins using first-order derivatives to regularize the target features. However, enforcing discriminative loss alone will not ensure that we reach the best solution during gradient descent. As there exists inconsistency among first-order gradients, (i.e., gradients that are spatially adjacent point in opposite directions), convergent L cvt loss is employed to enable gradient descent from a faroff distance. It has a relatively large convergence radius and expresses the loss to have uniform gradients throughout the optimization step by supporting feature gradient smoothness and large convergence radii accordingly. The total objective L depth is",
+            "cite_spans": [
+                {
+                    "start": 37,
+                    "end": 41,
+                    "text": "[40]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "II. A HYBRID APPROACH"
+        },
+        {
+            "text": "WhereF t is the estimated feature at time t, I t is the current colour image,D t the estimated depth map, L r is the standard reconstruction matching term, and \u03b1, \u03c1, \u03b6 and \u03b7 weigh the smoothness term L s , cross-sequence depth consistency L dc , discriminative L dis and convergent L cvt losses respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. A HYBRID APPROACH"
+        },
+        {
+            "text": "Scale ambiguity is a challenging problem in monocular depth estimation [41] , [42] . As a result, an absolute value is needed to serve as an anchor point, provided through a measurement from another dedicated sensor to obtain actual depth estimation. We use a combination of Velodyne point cloud and calibration information to improve the estimation of scale. We use Velodyne Lidar as ground truth and estimate the scale factor by associating the calculation with the correct pixel in the image plane, minimizing 2 loss. In addition, we assume depth consistency across training and testing datasets. It can be helpful in datasets with high pose variability, such as KITTI, where the camera is still at the same height and looking at the ground from the same perspective. We fit a ground plane and use calibration information and known camera height to find the scale factor. We use a combination to improve our scale estimation. B. ORB-SLAM3 -Feature-based RGBD Tracking ORB-SLAM3 [6] builds a sparse map of a scene, represented using a covisibility graph where each node in the graph corresponds to a keyframe consisting of a pose and a set of 3D points. When two keyframes view common map points, an edge between them is added to the graph. The system has 3 main threads. The camera tracking thread receives RGB-D frames from the camera, extracts ORB features, and computes an initial pose estimate via motion only BA with the previous frame. The estimate is further refined by aligning the current frame to a local map of covisible keyframes. New keyframes are detected and sent to a background thread. Here the local map in the vicinity of the new keyframe is optimized with a full bundle adjustment. Loops between the latest keyframe and historic keyframes are detected with DBoW [43] . If geometric alignment between the new keyframe and the matched keyframe succeeds, then a loop is closed, and an edge between the two keyframes is added to the graph. The local map in the vicinity of the keyframe is rigidly transformed into place. The rest of the keyframe graph is corrected using pose graph optimization. A final full BA is performed to recover the MAP estimate of all keyframe poses and structure.",
+            "cite_spans": [
+                {
+                    "start": 71,
+                    "end": 75,
+                    "text": "[41]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 78,
+                    "end": 82,
+                    "text": "[42]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 981,
+                    "end": 984,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1785,
+                    "end": 1789,
+                    "text": "[43]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "II. A HYBRID APPROACH"
+        },
+        {
+            "text": "ElasticFusion [3] estimates a dense surfel map M of a scene as viewed from a handheld RGB-D sensor. The map M is a flat list structure containing a set of surface elements M s describing local planar patches of the underlying scene surface. Each M s contains a 3D position, a normal, a radius r indicating its extent, a confidence value indicating quality of its estimation, an RGB color, a timestamp t when it was last fused, and a timestamp t o when it was inserted into the map. M is itself divided into two disjoint subsets; an active portion containing surfels that have recently been measured by the live camera data and an inactive portion containing those surfels that have not been measured in a threshold amount of time. Camera tracking is performed by direct alignment of the current camera frame to a synthetic model view using the pose of the camera at the previous timestep. Frames are fused by back projecting each pixel to a 3D point using the depth map and the camera's intrinsic matrix. The system also has a visual place recognition loop closure mechanism based on fern encoding; however, we do not utilize this module. Local loops are identified by aligning views of the active and inactive portions of M s in the current camera view, allowing inactive surfels to be reactivated. Both global and local loop closures provide surface-to-surface constraints to optimize a space deforming graph, which is then applied to M s . Camera tracking and deformation-based loop closures will be discussed in later sections as we describe how we combine them with the other systems. ",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 17,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. ElasticFusion -Dense Surfel Fusion"
+        },
+        {
+            "text": "In our system, at each timestep, t, the current live camera frame F t , consisting of color image I t and predicted depth map D p t , is passed to ORB-SLAM to compute an initial estimate of the camera pose P t . Note that this is the camera pose before any refinement by the local mapping thread in the case that F t is extracted as a keyframe. Though this initial pose is accurate (as can be seen in Table I) , it cannot be used directly for the fusion of F t into M. ORB-SLAM continues to improve its local map, while the dense surfel map does not undergo any significant correction until a local or global loop closure is triggered. This can lead to P t , and therefore the live frame, becoming misaligned from the dense map. Our goal is to track the camera and to build an accurate model, and so we need to balance the accuracy of P t against the need to stay aligned with the dense model in order to fuse F t accurately.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 401,
+                    "end": 409,
+                    "text": "Table I)",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "D. Hybrid Camera Tracking"
+        },
+        {
+            "text": "To bring the camera back into alignment with the model, we perform a frame-to-model refinement of P t . The active map around P t is rendered into a virtual camera positioned at P t . A 6DOF transformation T \u2208 SE 3 that aligns the live frame to the virtual one is then estimated in an iterative non-linear least-squares joint photometric and geometric optimization embedded in a 3 level image pyramid. Composing T with P t yields a refined pose estimate for the current frame that can now be used to fusion as per the original EF algorithm [3] .",
+            "cite_spans": [
+                {
+                    "start": 540,
+                    "end": 543,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Hybrid Camera Tracking"
+        },
+        {
+            "text": "When ORB-SLAM identifies a loop closure between the latest keyframe Kf i and a historic keyframe in the map, Kf h , a transformation T h i that aligns Kf i with Kf h is computed. This yields a pose pair; the uncorrected pose of the new keyframe P i kf and the pose of the keyframe after loop correctionP i kf . ORB-SLAM's loop closure mechanism proceeds to apply the loop closure and optimize its sparse map as per the original algorithm [6] .",
+            "cite_spans": [
+                {
+                    "start": 438,
+                    "end": 441,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "E. Hybrid Loop Closures"
+        },
+        {
+            "text": "To update the dense surface to reflect the loop closure P i kf \u2192P i kf , we non-rigidly deform each surfel using a deformation graph G in the same way as EF [3] . G consists of a set of nodes G n sampled from the surfels in M. Each node consists of a position (i.e., the sampled surfel's position), a timestamp (also sampled surfel's timestamp), an affine transformation G n T and a set of temporally nearby neighbor nodes. The temporal connectivity of the nodes prevents interference between multiple passes of the same surface at different points in time. To apply G to M, a set of temporally and spatially nearby influencing nodes is computed for each M s \u2208 M. A weighted sum of the G n T in these nodes are applied to the surfel to deform it into place.",
+            "cite_spans": [
+                {
+                    "start": 157,
+                    "end": 160,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "E. Hybrid Loop Closures"
+        },
+        {
+            "text": "To optimize the G n T , a set of surface-to-surface correspondences are generated from a loop closure, mapping surface points from the active region to the inactive region of the model. Cost function terms on the distance between correspondences, as well as terms that maximize the rigidity and smoothness of the deformation, ensure that, when applied to the surface, it brings the correspondences together. A pinning term holds the inactive map in place, ensuring that it is the active map that is deformed into the inactive map. Further constraints on the relative position of historical correspondences from previous loop closures prevent new deformations from breaking the old loop closures. The final cost is optimized using Gauss-Newton gradient descent to retrieve the set of deforming affine transforms G n T . See [3] for more details.",
+            "cite_spans": [
+                {
+                    "start": 823,
+                    "end": 826,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "E. Hybrid Loop Closures"
+        },
+        {
+            "text": "In order to reflect ORB-SLAM loop closures in the dense model in our system using the deformation graph, we first generate a set of surface-to-surface correspondences from ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Hybrid Loop Closures"
+        },
+        {
+            "text": "To do so, the active surfels M a \u2208 M in view of P i kf are computed, as are the timestamps of the inactive surfels in view ofP i kf . These timestamps are used during optimization of G n T to pin the inactive surfels of M in place. Each of the M a s generates a constraint consisting of a source point, computed by composing M a s , with P i kf and a destination point computed by composing M a s withP i kf . These constraints are then used to optimise the deformation in the same way as [3] .",
+            "cite_spans": [
+                {
+                    "start": 489,
+                    "end": 492,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "E. Hybrid Loop Closures"
+        },
+        {
+            "text": "Note that Kf i is not necessarily the current live camera frame. It could therefore fall outside the current active region of the map. If it is outside the active region of the map, then this will hinder the system's ability to generate surface-tosurface constraints. We found that by setting the active time window appropriately (\u03b4t = 200f rames), the system could find sufficient constraints during loop closures.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Hybrid Loop Closures"
+        },
+        {
+            "text": "Closing loops in this way achieves two goals; adjusting the dense surface geometry to stay consistent with the real world; and keeping the dense map consistent with ORB-SLAM's sparse map and camera pose estimates. It also balances the need for this consistency against the computational intensity of correcting dense geometry. Figure 3 illustrates each of the steps involved in the hybrid loop closure process.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 327,
+                    "end": 335,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "E. Hybrid Loop Closures"
+        },
+        {
+            "text": "We show quantitative and qualitative results of our system tested on the KITTI odometry benchmark dataset [11] . We have evaluated the accuracy of trajectory estimation and surface reconstruction and provide a breakdown down of the computational performance of the system. All processing was done on a machine with an Intel Core i7\u22127700K CPU, 16GB of RAM, and an NVIDIA GTX 1080 Ti GPU.",
+            "cite_spans": [
+                {
+                    "start": 106,
+                    "end": 110,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "III. EVALUATION"
+        },
+        {
+            "text": "The KITTI odometry benchmark dataset provides 11 sequences with ground truth poses. We show results for sequences 01, 02, 06, 08, 09 and 10. The remainder of the sequences are used during training of the depth prediction network and hence ommitted from our evaluation. For each test sequence we use the relative translational error t rel averaged over sequences ranging in length from 100m to 800m [11] . Table I shows the results alongside a SOTA SLAM system, ORB-SLAM2 [20] , and D3VO [36] , a SOTA VO system. Interestingly, our experiments show that using the dense depth predictions and the RGBD operating mode of ORB-SLAM (O) results in accurate metric-scale camera tracking with a monocular camera. While introducing hybrid tracking (H) increases error w.r.t the ground truth, it allows the current frame to be fused into the model. Introducing hybrid loop closures (H+L) helps bring the sparse and dense models back into alignment and reduces global error in the model and trajectory. Sequence 01 is challenging for our system. Scenes with little structure lead to a degradation in depth prediction and camera tracking. Figure 4 shows qualitative results of this sequence.",
+            "cite_spans": [
+                {
+                    "start": 398,
+                    "end": 402,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 471,
+                    "end": 475,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 487,
+                    "end": 491,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 405,
+                    "end": 412,
+                    "text": "Table I",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1127,
+                    "end": 1135,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "A. KITTI -Tracking"
+        },
+        {
+            "text": "We evaluate surface reconstruction accuracy on several sequences from the KITTI odometry benchmark. As KITTI does not include ground-truth surface models, we compare against models constructed from the Velodyne point clouds that accompany each sequence. To do so, we transform each point cloud in the sequence into a global coordinate system using the corresponding ground truth poses. We then apply a voxel filter to downsample the resultant point cloud. In Table  II , we show the surface-to-surface mean distance between points in the estimated model and the nearest point in the Velodyne point cloud model. Before computing the score, the two models are rigidly aligned. We use the labels from [44] Sequence 01 has been ommitted due to poor tracking performance (see Table I Breakdown of time taken by our system to process each frame in sequence 09 the KITTI odometry benchmark [11] . Our systems falls just outside of true real-time rates of 10hz for KITTI. In future work we hope to utilize hardware with half precision support to improve system run-time. to filter out dynamic objects from Velodyne point clouds.",
+            "cite_spans": [
+                {
+                    "start": 698,
+                    "end": 702,
+                    "text": "[44]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 883,
+                    "end": 887,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 459,
+                    "end": 468,
+                    "text": "Table  II",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 771,
+                    "end": 778,
+                    "text": "Table I",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "B. KITTI -Surface Reconstruction"
+        },
+        {
+            "text": "We use the depth estimation setting on the KITTI Eigen split [32] and report results in Table IV . In our previous work, UnRectDepthNet [30] , we outperformed all the previous monocular self-supervised methods. Following best practices, we cap depths at 80 m. We evaluate using the Improved [45] ground truth depth maps. We further improve the performance by incorporating additional losses 1 discussed 1 The loss function improvements will be presented in contemporary work to be published at ICRA 2021.",
+            "cite_spans": [
+                {
+                    "start": 61,
+                    "end": 65,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 136,
+                    "end": 140,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 291,
+                    "end": 295,
+                    "text": "[45]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 403,
+                    "end": 404,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 88,
+                    "end": 96,
+                    "text": "Table IV",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "C. KITTI -Depth Estimation"
+        },
+        {
+            "text": "Abs rel Sq rel RMSE RMSE log [45] .",
+            "cite_spans": [
+                {
+                    "start": 29,
+                    "end": 33,
+                    "text": "[45]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "in Section II-A. Scale estimation improvements provide an additional improvement in quantitative score, enabling the SLAM pipeline to estimate accurate metric reconstructions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "In Figure 5 we show a breakdown of the frame processing time for sequence 09 in the KITTI odometry benchmark [11] . Mapping time (blue) goes up in accordance with the number of surfels (purple) as reported in [3] . The system operates between 8 \u2212 9hz. The spike at the end of the sequence is due to a global loop closure. Table III shows the distribution of run-time performance over the test set of the Eigen split of the KITTI odometry dataset.",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 113,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 209,
+                    "end": 212,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 11,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 322,
+                    "end": 331,
+                    "text": "Table III",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "D. System Resource Usage"
+        },
+        {
+            "text": "We presented a hybrid SLAM system that combines dense depth prediction with sparse feature tracking and dense surfel fusion techniques. The system permits live-dense metric reconstructions of outdoor scenes using a monocular camera in automotive scenarios. Sparse tracking provides camera pose estimation capable of operating robustly at vehicle speeds. The resulting poses are used within the dense fusion tracking step to initialize a whole image alignment refinement process. Global consistency in the model is maintained through visual place recognition and pose to pose constraints from the sparse system, which again are passed to the dense fusion algorithm where they are integrated with a deformation graph-based map correction step. Our results show competitive performance with SOTA techniques while providing dense fused surface models. We believe our system to be the first dense monocular fusion-based visual SLAM system quantitatively evaluated on automotive scenarios. Although the focus of this paper is automotive, the system could easily be adapted to other scenarios by retraining the depth prediction network.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "IV. CONCLUSIONS"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "KinectFusion: Real-time dense surface mapping and tracking",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Newcombe",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Izadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Hilliges",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Molyneaux",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Davison",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kohi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shotton",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hodges",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fitzgibbon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "2011 10th IEEE International Symposium on Mixed and Augmented Reality",
+            "volume": "",
+            "issn": "",
+            "pages": "127--136",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Kintinuous: Spatially Extended KinectFusion",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Whelan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kaess",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fallon",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Johannsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leonard",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "RSS Workshop on RGB-D: Advanced Reasoning with Depth Cameras",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "ElasticFusion: Dense SLAM Without A Pose Graph",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Whelan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Leutenegger",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Moreno",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Glocker",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Davison",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. of Robotics: Science and Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Bundle-Fusion: Real-time Globally Consistent 3D Reconstruction using Onthe-fly Surface Re-integration",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nie\u00dfner",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zoll\u00f6fer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Izadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Theobalt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ACM Transactions on Graphics",
+            "volume": "2017",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "ORB-SLAM: A Versatile and Accurate Monocular SLAM System",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mur-Artal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M M"
+                    ],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Tard\u00f3s",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE Transactions on Robotics",
+            "volume": "31",
+            "issn": "5",
+            "pages": "1147--1163",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "ORB-SLAM3: An Accurate Open-Source Library for Visual, Visual-Inertial and Multi-Map SLAM",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Campos",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Elvira",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Rodr\u00edguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Tard&apos;os",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "ArXiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Visual-Inertial Monocular SLAM With Map Reuse",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mur-Artal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Tard\u00f3s",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Robotics and Automation Letters",
+            "volume": "2",
+            "issn": "2",
+            "pages": "796--803",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "LSD-SLAM: Large-Scale Direct Monocular SLAM",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Engel",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Sch\u00f6ps",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Computer Vision -ECCV 2014, D. Fleet",
+            "volume": "",
+            "issn": "",
+            "pages": "834--849",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "SVO: Semidirect visual odometry for monocular and multicamera systems",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Forster",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gassner",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Werlberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Scaramuzza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Transactions on Robotics",
+            "volume": "33",
+            "issn": "2",
+            "pages": "249--265",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "SVO: Semidirect Visual Odometry for Monocular and Multicamera Systems",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Forster",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gassner",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Werlberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Scaramuzza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Transactions on Robotics",
+            "volume": "33",
+            "issn": "2",
+            "pages": "249--265",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Are we ready for Autonomous Driving? The KITTI Vision Benchmark Suite",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Geiger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lenz",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Urtasun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Vision meets Robotics: The KITTI Dataset",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Geiger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lenz",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Stiller",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Urtasun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "International Journal of Robotics Research",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Pseudo-LiDAR From Visual Depth Estimation: Bridging the Gap in 3D Object Detection for Autonomous Driving",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-L",
+                    "middle": [],
+                    "last": "Chao",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garg",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hariharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Campbell",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "8437--8445",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Scale drift-aware large scale monocular slam",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Strasdat",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M M"
+                    ],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Davison",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proc. Robotics: Science and Systems (RSS)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "DTAM: Dense tracking and mapping in real-time",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Newcombe",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lovegrove",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Davison",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "2011 International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "2320--2327",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Semi-dense Visual Odometry for a Monocular Camera",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Engel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sturm",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proc. of IEEE International Conference on Computer Vision (ICCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "MonoSLAM: Real-Time Single Camera SLAM",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Davison",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Reid",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Molton",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Stasse",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+            "volume": "29",
+            "issn": "6",
+            "pages": "1052--1067",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Parallel Tracking and Mapping for Small AR Workspaces",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Klein",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Murray",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proc. Sixth IEEE and ACM International Symposium on Mixed and Augmented Reality",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Unified loop closing and recovery for real time monocular slam",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Eade",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Drummond",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "British Machine Vision Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "ORB-SLAM2: An Open-Source SLAM System for Monocular, Stereo, and RGB-D Cameras",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mur-Artal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Tard\u00f3s",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Transactions on Robotics",
+            "volume": "33",
+            "issn": "5",
+            "pages": "1255--1262",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Continuous Stereo Self-Calibration by Camera Parameter Tracking",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Dang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hoffmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Stiller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "IEEE Transactions on Image Processing",
+            "volume": "18",
+            "issn": "7",
+            "pages": "1536--1550",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Existence and uniqueness of GPS solutions",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Abel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chaffee",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "IEEE Transactions on Aerospace and Electronic Systems",
+            "volume": "27",
+            "issn": "6",
+            "pages": "952--956",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Direct sparse odometry",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Engel",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Koltun",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE transactions on pattern analysis and machine intelligence",
+            "volume": "40",
+            "issn": "",
+            "pages": "611--625",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "LDSO: Direct Sparse Odometry with Loop Closure",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Demmel",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Sch\u00f6ps",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Sattler",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pollefeys",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "134--144",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Continuous humanoid locomotion over uneven terrain using stereo fusion",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Fallon",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Marion",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Deits",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Whelan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Antone",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tedrake",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "2015 IEEE-RAS 15th International Conference on Humanoid Robots (Humanoids)",
+            "volume": "",
+            "issn": "",
+            "pages": "881--888",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "CodeSLAM -Learning a Compact, Optimisable Representation for Dense Visual SLAM",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bloesch",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Czarnowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Clark",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Leutenegger",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. of IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "iMAP: Implicit Mapping and Positioning in Real-Time",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Sucar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ortiz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Davison",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2103.12352"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Exploring Representation Learning With CNNs for Frame-to-Frame Ego-Motion Estimation",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Costante",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mancini",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Valigi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Ciarfuglia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Robotics and Automation Letters",
+            "volume": "1",
+            "issn": "1",
+            "pages": "18--25",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "UnRectDepthNet: Self-Supervised Monocular Depth Estimation using a Generic Framework for Handling Common Camera Distortion Models",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "Ravi"
+                    ],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yogamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bach",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Witt",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Milz",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "M\u00e4der",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE/RSJ International Conference on Intelligent Robots and Systems",
+            "volume": "2020",
+            "issn": "",
+            "pages": "8177--8183",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Unsupervised Learning of Depth and Ego-Motion from Video",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Brown",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Snavely",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Lowe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "6612--6619",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Depth Map Prediction from a Single Image Using a Multi-Scale Deep Network",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Eigen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Puhrsch",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Fergus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proc. of 27th International Conference on Neural Information Processing Systems",
+            "volume": "2",
+            "issn": "",
+            "pages": "2366--2374",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Unsupervised Monocular Depth Estimation With Left-Right Consistency",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Godard",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [
+                        "Mac"
+                    ],
+                    "last": "Aodha",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Brostow",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. of IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Deepfactors: Real-time probabilistic dense monocular slam",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Czarnowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Laidlow",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Clark",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Davison",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "IEEE Robotics and Automation Letters",
+            "volume": "5",
+            "issn": "",
+            "pages": "721--728",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "CNN-SLAM: Real-Time Dense Monocular SLAM with Learned Depth Prediction",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Tateno",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Tombari",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Laina",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Navab",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "6565--6574",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "D3VO: Deep Depth, Deep Pose and Deep Uncertainty for Monocular Visual Odometry",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Stumberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "DeepTAM: Deep Tracking and Mapping",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ummenhofer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc of European Conference on Computer Vision (ECCV), Sept",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Deepvo: Towards end-to-end visual odometry with deep recurrent convolutional neural networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Clark",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wen",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Trigoni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE International Conference on Robotics and Automation (ICRA",
+            "volume": "",
+            "issn": "",
+            "pages": "2043--2050",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Real-time scalable dense surfel mapping",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Robotics and Automation (ICRA)",
+            "volume": "",
+            "issn": "",
+            "pages": "6919--6925",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Feature-metric loss for selfsupervised learning of depth and egomotion",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Shu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. of European Conference on Computer Vision (ECCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "572--588",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Unsupervised cnn for single view depth estimation: Geometry to the rescue",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Garg",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Bg",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Carneiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Reid",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. of European Conference on Computer Vision (ECCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "740--756",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Unsupervised learning of depth and ego-motion from video",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Brown",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Snavely",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Lowe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. of IEEE conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "1851--1858",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Bags of binary words for fast place recognition in image sequences",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Galvez-L\u00f3pez",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Tardos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "IEEE Transactions on Robotics",
+            "volume": "28",
+            "issn": "5",
+            "pages": "1188--1197",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "SemanticKITTI: A Dataset for Semantic Scene Understanding of LiDAR Sequences",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Behley",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Garbade",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Milioto",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Quenzel",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Behnke",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Stachniss",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gall",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. of the IEEE/CVF International Conf. on Computer Vision (ICCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Sparsity Invariant CNNs",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Uhrig",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Franke",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Geiger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. of 3DV",
+            "volume": "",
+            "issn": "",
+            "pages": "11--20",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Omnidet: Surround view cameras based multi-task visual perception network for autonomous driving",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yogamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Rashed",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Sitsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Witt",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Leang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Milz",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "M\u00e4der",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "IEEE Robotics and Automation Letters",
+            "volume": "6",
+            "issn": "2",
+            "pages": "2830--2837",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Research presented in this paper was supported by IRC grant GOIPG/2016/1320 HEA COVID extension fund, Science Foundation Ireland grant 13/RC/2094 to Lero -the Irish Software Research Centre and Science Foundation Ireland grant 16/RI/3399. 1 Louis Gallagher and John McDonald are with Lero -the Irish Software Research Centre and the Department of Computer Science, Maynooth University, Maynooth, Ireland {Louis.Gallagher, John.McDonald}@mu.ie 2 Varun Ravi Kumar is with Valeo DAR Kronach, Germany. varun.ravi-kumar@valeo.com 3 Senthil Yogamani is with Valeo Vision Systems, Ireland senthil.yogamani@valeo.com Trajectory and dense reconstruction of an odometry sequence from",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "An overview of our system architecture. UnRectDepthNet is used to estimate a depth map for the current live camera image. ORB-SLAM then tracks the motion of the camera since the last frame. Internally ORB-SLAM continues to extract keyframes and pass them to its local and global mapping threads. The sparse feature map on the right is used internally by ORB-SLAM. Once the camera motion has been estimated, the pose is used to synthesize a dense view of the current active surfel model. The pose estimate is further refined by performing a direct joint photometric and geometric alignment between the synthetic and live RGB-D frames, taking the pose estimate from ORB-SLAM as an initialization point. Assuming no local or global loop closures have occurred during this timestep, the live RGB image and predicted depth are fused into the surfel model. If ORB-SLAM has detected a global loop closure, then a global deformation is attempted. Surface-to-surface constraints for optimization of the deformation graph are generated from the pre-corrected and corrected (post loop closure) poses of the camera P t kf andP t kf respectively. If deformation graph optimization fails or no global loop is detected by ORB-SLAM, a local loop closure is attempted as per the original EF algorithm.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "A loop closure example; (i) a car begins exploring (green arrow); (ii) after a period of time a loop is closed between an area previously mapped by the car and its current location; (iii) before a loop closure is applied, drift is evident in the model; (iv) the active portion of the model (green) has drifted from the inactive portion of the model (gray). Red arrows highlight corresponding points between the active and inactive map; (v) a global surface deformation has been applied bringing the active portion of the map back into alignment with the inactive portion. Red lines are surface-to-surface constraints generated from the loop closing pair P t kf \u2192P t kf ; (vi) as the car moves back into the region of the road already mapped in the first pass, local loop closures are triggered, reactivating portions of the map for use in mapping and tracking; (vii) the final global model.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Sequence 01 from the KITTI odometry dataset is challenging for monocular systems.(a) and (b) show the live color image from the camera and UnRectDepthNet's depth prediction respectively. (c) and (d) show ElasticFusion's corresponding model predictions. (e) shows a portion of the final global model. (f) shows a comparison between the estimated and ground-truth trajctories.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Fig. 5: Breakdown of time taken by our system to process each frame in sequence 09 the KITTI odometry benchmark [11]. Our systems falls just outside of true real-time rates of 10hz for KITTI. In future work we hope to utilize hardware with half precision support to improve system run-time.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Results",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Surface Accuracy of our system on KITTI.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "OperationMedian(ms) Mean(ms) std. dev.(ms)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Spread of system run-time over test sequences from the Eigen split of the KITTI odometry dataset",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "additional loss terms [46] 0.071 0.334 3.218 0.101 + improved scale estimation 0.057 0.298 2.95 0.091",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Evaluation of depth estimation on the Improved KITTI Eigen split",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

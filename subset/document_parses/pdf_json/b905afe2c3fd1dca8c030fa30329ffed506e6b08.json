@@ -1,0 +1,885 @@
+{
+    "paper_id": "b905afe2c3fd1dca8c030fa30329ffed506e6b08",
+    "metadata": {
+        "title": "Improving Existing WMS for Reduced Makespan of Workflows with Lambda",
+        "authors": [
+            {
+                "first": "Ali",
+                "middle": [],
+                "last": "Al-Haboobi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Miskolc",
+                    "location": {
+                        "settlement": "Miskolc",
+                        "country": "Hungary"
+                    }
+                },
+                "email": "al-haboobi@iit.uni-miskolc.hu"
+            },
+            {
+                "first": "(",
+                "middle": [
+                    "B"
+                ],
+                "last": "",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Gabor",
+                "middle": [],
+                "last": "Kecskemeti",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Miskolc",
+                    "location": {
+                        "settlement": "Miskolc",
+                        "country": "Hungary"
+                    }
+                },
+                "email": "kecskemeti@iit.uni-miskolc.hu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Scientific workflows are increasingly important for complex scientific applications. Recently, Function as a Service (FaaS) has emerged as a platform for processing non-interactive tasks. FaaS (such as AWS Lambda and Google Cloud Functions) can play an important role in processing scientific workflows. A number of works have demonstrated their ability to process these workflows. However, some issues were identified when workflows executed on cloud functions due to their limits (e.g., stateless behaviour). A major issue is the additional data transfer during the execution between object storage and the FaaS invocation environment. This leads to increased communication costs. DEWE v3 is one of the Workflow Management Systems (WMSs) that already had foundations for processing workflows with cloud functions. In this paper, we have modified the job dispatch algorithm of DEWE v3 on a function environment to reduce data dependency transfers. Our modified algorithm schedules jobs with precedence constraints to be executed in a single function invocation. Therefore, later jobs can utilise output files generated from their predecessor job in the same invocation. This reduces the makespan of workflow execution. We have evaluated the improved scheduling algorithm and the original with small-and large-scale Montage workflows. The experimental results show that our algorithm can reduce the overall makespan in contrast to the original DEWE v3 by about 10%.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "A scientific workflow application consists of a large number of dependent jobs with complex precedence constrains between them, e.g. Montage [5] , Cyber-Shake [4] , and LIGO [1] . These applications need large resources for processing such as cloud computing. Moreover, they require Workflow Management Systems (WMS) such as Pegasus [3] and Kepler [2] for handling the jobs. These WMSs help to keep the applications constraints by following a specific order of processing and ensuring the availability of data dependencies.",
+            "cite_spans": [
+                {
+                    "start": 141,
+                    "end": 144,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 159,
+                    "end": 162,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 174,
+                    "end": 177,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 333,
+                    "end": 336,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 348,
+                    "end": 351,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Function as a Service (FaaS) is a commercial cloud platform (e.g. AWS Lambda) for running distributed applications with highly scalable processing capabilities. FaaS platforms often have significant limitations on individual invocations e.g., temporary storage and memory. Several studies (e.g., [6, 13] ) have investigated whether large-scale scientific workflows can be executed on function platforms in spite of their limitations. They execute scientific workflows in functions by sending a set of jobs to be run in each function invocation. When invocations complete successfully, FaaS services remove all temporary files due to their storage space limits (e.g., 500 MB in case of Lambda). Thus, output files (which can act as data dependencies for other jobs) resulting from the invocations need to be transferred to an object storage. Unfortunately, this leads to increased communication costs. As a result, the total workflow execution time (makespan) will be longer due to more dependency movement than on non-function based platforms. [11] presented a prototype for workflows on cloud functions. In [6] the DEWE v3 is introduced that is also able to process scientific workflows using AWS Lambda and Google Cloud Functions (GCF). DEWE can process scientific workflows in three different execution modes: traditional cluster, cloud functions, and hybrid mode (combining the other two modes). Both mentioned WMS solutions were evaluated with the Montage workflow (which is a compute-and dataintensive, astronomy focused scientific application). Testing with smaller Montage workflows does not show significant differences with regards to makespan. Larger scale ones show the deficiency of these previous approaches though: their scheduling algorithm sends jobs to functions without considering job precedence requirements. Jobs with precedence could be sent as a single set for their corresponding function invocation. Thus large scale montage exhibits the problem of increased makespan due to more frequent dependency transfers.",
+            "cite_spans": [
+                {
+                    "start": 296,
+                    "end": 299,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 300,
+                    "end": 303,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1044,
+                    "end": 1048,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1108,
+                    "end": 1111,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We have changed the scheduling algorithm of DEWE v3 to reduce data dependency transfers. Our improved algorithm schedules jobs with precedence requirements to be executed in a single function invocation. It schedules a predecessor job with its successor jobs that have no other predecessor jobs to the same shard to run in the same function invocation. As a result, we moved some workflow management behaviour inside the functions, as these functions now need to assure the job ordering when they process them. Consequently, successor jobs can utilise the output files generated from their predecessor job in the same function invocation. This will ensure we don't need to transfer the dependencies to the object store prematurely. We can schedule jobs with precedence constraints in a single shard. Because they will be captured in order by the shard and Lambda. Subsequently, Lambda will be immediately getting these jobs in a single batch.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We have evaluated our approach with AWS Lambda as our target platform. AWS offers Kinesis for queueing tasks to particular functions. Function instances have their own queues (called shards). When a function completes its current task, Lambda will pull all or some of the jobs with precedence requirements based on its batch size and the sequence of the jobs on a shard. Consequently, the remaining jobs will be waiting on the shard for the next Lambda invocation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In our experiment, we have evaluated our improved approach and the original DEWE v3 with the 0.10 \u2022 and 6.0 \u2022 Montage workflows. The 6.0 \u2022 workflow can be considered large-scale as it has a total of 8,586 jobs with a data dependency size of 38 GB. In addition, DEWE has already shown a large amount of re-transfer data behaviour. We used the small 0.1 \u2022 workflow to show that our approach does not alter the performance. Due to Lambda's limitations, some files cannot be processed in functions, for these we used one sufficiently sized VM.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The experimental results show that our improved system can outperform DEWE v3 in most cases. At best, in contrast to the original, we have 10% shorter makespan. This demonstrates that our improved scheduling algorithm can reduce the execution time of scientific workflows on the Lambda platform.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The remainder of this paper is structured as follows. In Sect. 2, we will present background knowledge and related works. In Sect. 3, we will explain the improved algorithm and how we changed DEWE v3. We evaluated our improvements and contrasted it to the original algorithm in Sect. 4. Finally, Sect. 5 concludes the paper and suggests some future works.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A workflow can be modelled as a Directed Acyclic Graph (DAG) that consists of a set of jobs which follow a specific order in processing. The vertices represent the workflow jobs and the edges represent data dependencies between these jobs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background Knowledge"
+        },
+        {
+            "text": "Executing workflows on IaaSs leads to the challenge of determining the number of VMs to back the workflow's jobs. There are different numbers of jobs in each phase of the workflow which all could require different levels of computing resources. In order to speed up the workflow execution, we can add more VMs for processing the jobs in a certain phase. However, this may lead to a resource under-utilization issue for other phases. Unless the workflow management system is capable of dynamically reducing the number of backing VMs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background Knowledge"
+        },
+        {
+            "text": "AWS presented Lambda 1 in 2014 while Google introduced cloud functions (GCF 2 ) in 2016. The advantage of using cloud functions is the dynamic automation of resource provisioning by scaling up or down based on the workflow execution requirements. Moreover, the billing interval for cloud functions is based on 100 ms while recently Amazon and Google have changed the interval billing of virtual machines from per-hour to per-second. The function is stateless and its runtime environment is instantiated and terminated for each function invocation. Additionally, Microsoft and IBM have presented their own versions of FaaS that are Microsoft Azure Functions 3 and IBM OpenWhisk Functions 4 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background Knowledge"
+        },
+        {
+            "text": "If workflows are executed on one of the above FaaS systems, the dynamic management of backing VMs becomes unnecessary by WMSs as FaaS systems include automated resource management in the background. Therefore, the number of concurrent invocations into the infrastructure can more closely follow the actual workflow's demands. [10] presented an evaluation for the following serverless computing providers: Amazon, Microsoft, Google, and IBM. They tested the function platforms by invoking CPU, memory, and disk-intensive functions. They found that at the time of writing, Amazon's was better. In addition, they also pointed out that computing with cloud functions is more cost-effective than virtual machines due to zero delay in booting up new resources. In addition, they also pointed out that costs only get charged for the function's actual execution time rather than paying for the idle periods as well for virtual machines. As a result, we have chosen Lambda to run workflows due to its efficiency and effectiveness comparing with other platforms. [11] suggested five different architectures for executing scientific workflows on the cloud. It presented a prototype for serverless computing that integrated the HyperFlow engine with GCFs and AWS Lambda. It designed to investigate the feasibility of executing compute-and data-intensive scientific workflows on cloud functions. It was tested with 0.25 \u2022 and 0.4 \u2022 Montage workflows and they found the approach highly promising. In addition, in [12] they presented the same prototype and tested it with the same previous montage workflows as well as a 0.6 \u2022 Montage workflow. They run 0.6 \u2022 as the largest workflow due to Lambda limits for the temporary storage 500 MB. Their approaches also manifest the deficiency with large-scale workflows that causes increased data dependency transfers.",
+            "cite_spans": [
+                {
+                    "start": 326,
+                    "end": 330,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1053,
+                    "end": 1057,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1499,
+                    "end": 1503,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background Knowledge"
+        },
+        {
+            "text": "[6] developed a more advanced system called DEWE v3 that is able to process scientific workflows on three different modes: traditional cluster, cloud functions, and a hybrid mode that combines the two. They evaluated it with small-and large-scale Montage workflows. The system has demonstrated the ability of cloud functions to run large-scale scientific workflows with complex precedence constrains. However, it uses a scheduling algorithm that batches jobs to Lambda without considering jobs with precedence requirements to run in a single Lambda invocation. As a result, more data dependency transfers can occur during execution between storage service and the Lambda invocation execution environment. Thus, this leads to increased communication costs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Works"
+        },
+        {
+            "text": "[9] outlined the challenges for executing scientific workflows on a serverless computing platform. They proposed a Serverless Deadline-Budget Workflow Scheduling (SDBWS) algorithm that was modified to be applicable for function platforms. It was tested with the small-scale 0.25 \u2022 Montage workflow on AWS Lambda. The algorithm used different memory sizes for Lambda based on the deadline and budget constraints assigned by the user. In addition, the function resource is selected depending on the combined factors: cost and time. Their approach also exhibits the deficiency with large-scale workflows that causes increased data dependency transfers. [13] presented work for evaluating three cloud function platforms which are Lambda, GCF, and OpenWhisk (from IBM). They evaluated the platforms with a large-scale (over 5000 jobs in parallel) bag-of-tasks style workflow. The experimental results showed that Lambda and GCF can provide more computing power if one requests more memory, while OpenWhisk is not offering an important difference. Consequently, cloud functions can provide a high level of parallelism for workflows with a large number of parallel tasks at the same time. However, they experimented with a bag-of-tasks approach where they did not consider data dependency transfers.",
+            "cite_spans": [
+                {
+                    "start": 650,
+                    "end": 654,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Works"
+        },
+        {
+            "text": "DEWE v3 has three different execution modes including a cloud functions mode that we targeted to implement our approach on it. The functions mode runs workflows on FaaS platforms such as AWS Lambda. Inside this mode, we modified the AWS Lambda specific job dispatch algorithm to reduce data dependencies transfer. In the next paragraphs, we will put our modifications in context, then we will discuss our approach in detail. The DEWE v3 system reads the workflow definition from an XML file. After the definition is loaded, the job binaries and input files are uploaded to Amazon S3. In the beginning, all jobs that have no predecessor jobs are scheduled to Amazon Kinesis stream into a common job queue. The scheduling algorithm works by predecessor jobs triggering their successor jobs when they are completed. Moreover, the Lambda function pulls a set of jobs from the Kinesis shards based on the Lambda's batch size. Therefore, the maximum amount of jobs in a single function invocation will be limited by the batch size. Depending on configuration, Kinesis can have one or more shards. Each shard acts as an independent queue for a particular function instance. Therefore, the number of parallel Lambda invocations is equal to the number of shards in Kinesis. By increasing the number of shards, DEWE v3 can speed up the execution time of scientific workflows. Figure 1 shows the original algorithm of DEWE v3 that we will compare it with our improved algorithm.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1366,
+                    "end": 1374,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Improving an Existing Workflow Management System"
+        },
+        {
+            "text": "Many challenges are exposed when workflows executed on cloud functions due to different constraints. Firstly, functions have some limits such as the amount of compute, memory, and storage resources that can use them to run and store functions. For instance, Lambda needs to delete all the temporary files when a set of jobs are successfully executed due to its storage space limit 500 MB. Therefore, more data dependencies transfer occur during the execution between object storage and the function invocation environment, leading to more communication costs. Secondly, functions are stateless leading to the requirement that the output data files must be stored on an external service. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Improving an Existing Workflow Management System"
+        },
+        {
+            "text": "We started to implement our approach in DEWE v3 to lessen data dependency transfers and to reduce the makespan of the workflow execution. We choose DEWE v3 as the foundation because it was the closest existing open source WMS to our goals. We changed its job dispatch algorithm to improve its data dependency transfers. We moved the following workflow management behaviour inside shards and the Lambdas. Jobs with precedence constraints will be sent to the same Kinesis shard (in the order they need to be executed). Subsequently, each shard will assure the sequence of the jobs in processing by Lambda. To guarantee strictly increasing ordering, we have sent jobs serially to a shard. Additionally, we used the SequenceNumberForOrdering parameter that guarantees the order of jobs on a shard 5 . Next, Lambda will receive a batch of jobs based on its batch size to run them sequentially in a single invocation. But before starting any job on the Lambda, each job will read its data dependencies from the S3 storage and then storing again the output files to it. Moreover, running jobs sequentially in a single Lambda invocation will benefit our improved algorithm that it must preserve the dependence constraints. Finally, if there are remaining jobs on the shard, they will wait for the next Lambda invocation for executing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Approach"
+        },
+        {
+            "text": "We extended the (LambdaWorkflowScheduler) class of DEWE v3 that discussed previously. The extension called the (LambdaShardWorkflowScheduler) class where we modified the (setJobAsComplete) method to be called by the (jobCompleted) method. It schedules each predecessor job with its successor jobs that have no other predecessor jobs. Afterwards, Lambda will pull all or some of the jobs with precedence requirements based on its batch size and on their order on a shard. In addition, the remaining jobs will be waiting on the shard for the next Lambda invocation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Approach"
+        },
+        {
+            "text": "Algorithm 1 shows the pseudo-code of the improved algorithm for scheduling a workflow. Here we explain the steps of the improved scheduling algorithm. However, step 1 and step 6 are already in the DEWE v3 algorithm but we will explain them to show the content.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Approach"
+        },
+        {
+            "text": "Step 2: it reads the XML file of the Algorithm 1. The improved scheduling algorithm.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Approach"
+        },
+        {
+            "text": "Read the workflow definition (dag.xml) 3:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "Schedule all jobs that have not predecessor jobs (Ti) 7:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "if (Ti has completed processing) then 8:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "KSn=select a shard with the minimum number of receiving jobs 9: numJobs = 0 10:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "for each successor job of Ti do 11:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "Remove Ti as a predecessor job from Tj 13:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "if (Tj has no other predecessor jobs) then 14:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "schedule Step 3: we denote T, KSn, and Ln for jobs, Kinesis shards, and Lambda functions respectively. Step 4: we symbolize numJob for counting the number of batch jobs that will be sent for each shard in order to be less or equal to the number of a batch size of Lambda (maxBatch).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "Step 5: we denote flag as a boolean value to alert when the number of jobs that need to send them to shard be equal to the number of a batch size of Lambda. In addition, we symbolize loadBalancing as an array to count the jobs that send to each shard in order to balance the workload across Kinesis shards.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "Step 6: at the beginning of the scheduling, all jobs that have not predecessor jobs will be scheduled across Kinesis shards without their successor jobs such as job 1 in step 1 of Fig. 2 and Fig. 1. In Step 7, if a predecessor job completed the execution, then in step 8: the algorithm will select a shard with the minimum number of receiving jobs among all shards.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 180,
+                    "end": 186,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 191,
+                    "end": 201,
+                    "text": "Fig. 1. In",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "Step 10: it will traverse all successor jobs of the completed job and in step 12: each successor job will remove the completed job as a predecessor job. Next, in steps 16-21, each predecessor job will be scheduled with its successor jobs that have no other predecessor jobs. For example, job 2 schedules with its successor jobs 4 and 5 on the same Kinesis shard as illustrated in step 2 of Fig. 2 . Additionally, job 3 schedules with its successor job 7 on the same Kinesis shard. But job 6 has not been scheduled with its predecessor () because it has two predecessors (jobs 2 and 3). Steps 22-25 are to stop sending jobs to shard due to reaching the maximum number of a batch size of Lambda. Steps 28-31 are to count the jobs that send to each shard. In order to balance the workload across Kinesis shards that is leading to balanced use of all Lambda instances. Moreover, step 30 is to select another Kinesis shard with the minimum number of receiving jobs among all shards to continue scheduling the remaining jobs of the workflow. Figure 2 shows the steps of the improved scheduling algorithm while Fig. 1 illustrates the steps of the original algorithm. In Step 1, both algorithms have the same assignment to a shard. Step 2 is the difference between Fig. 2 and Fig. 1 . In the original algorithm, step 2 as only jobs 2 and 3 are ready and assigned them to shards. While in the improved algorithm, we schedule all these jobs with their successor jobs (4, 5, and 7) except job 6 that has two predecessor jobs (2 and 3). Jobs will be captured in order based on our previous discussion by the shard and Lambda. Where we can put jobs with precedence constraints in a single shard. Subsequently, Lambda will be immediately getting these jobs in a single batch. When jobs 2 and 3 are completed execution in the original algorithm, they will trigger their successor jobs (4, 5, 6, and 7) in step 3 of Fig. 1 . Finally, both algorithms have completed the execution of jobs in step 4.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 390,
+                    "end": 396,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1036,
+                    "end": 1044,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1104,
+                    "end": 1110,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1257,
+                    "end": 1263,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1268,
+                    "end": 1274,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1900,
+                    "end": 1906,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "1: procedure Scheduling jobs(T, KS) 2:"
+        },
+        {
+            "text": "In this section, we have evaluated the improved algorithm by comparing its results with the original algorithm. We tested them with a 0.1 \u2022 and a 6.0 \u2022 Montage workflows (an astronomy application). We have selected Montage because the previous studies used Montage as well and it allows easier comparison between with past results. Montage was also used for different benchmarks and performance evaluation in the past [7] .",
+            "cite_spans": [
+                {
+                    "start": 418,
+                    "end": 421,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "First, we tested the Montage workflow degrees by considering the data dependencies between jobs. We placed the Montage workflows on the S3 storage bucket for reading/writing by Lambda. We run the workflow management system on the virtual machine as a management node, where the VM is t2.micro instance as a free tier with 1 vCPU 2.5 GHz, Intel Xeon Family, and 1 GiB memory. In our experiment both systems were evaluated on the same platform configuration as follows: Figure 3 shows the makespan of both systems. Our improvements outperform the original DEWE v3 system in most cases in these small scale experiments. While the makespan of the improved system is worse than DEWE v3 for the memory 512 MB. Because testing with smaller Montage workflows does not show significant differences with regards to makespan. Memory size will impacts the makespan of workflow execution: if the user has a large-scale workflow, sending more jobs to Lambda will need a higher memory size. CPU is allocated proportionally based on the memory size where the greater size provides more computing power. Our observations here are in alignment with [13] : the lesser memory the Lambda functions have the lesser computing capabilities they have as well.",
+            "cite_spans": [
+                {
+                    "start": 1131,
+                    "end": 1135,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 468,
+                    "end": 476,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "We tested both systems with the 6 \u2022 Montage workflow with data dependencies on Lambda. In this configuration, Montage is a large-scale, compute-and dataintensive scientific workflow that contains a total of 8,586 tasks, 1,444 input data files, and 22,850 intermediate files, with a total size of 38 GB. It contains short jobs such as mProjectPP, mDiffFit, and mBackground while there are six long jobs: mConcatFit, mBgModel, mAdd, mImgtbl, mShrink, and mJPEG. All the short and long jobs are executed on Lambda except the mAdd jobs which are executed on a single virtual machine. The VM is needed because the size of the input/output files for mAdd exceeds the temporary storage space offered in a single Lambda function invocation. The makespan of the large-scale workflow execution of both systems is shown in Fig. 4 . In this experiment, both systems were evaluated on the same platform configuration as follows: We used 2 shards for the first experiment because it used a small-scale workflow. While we used 30 shards for the second experiment because it used a large-scale workflow. In addition, we cannot increase the number of shards to indefinitely because some jobs need to execute as single-thread jobs such as mBg-Model and mAdd. Figure 4 shows the reduction in makespan for the 6 \u2022 Montage workflow. Because scheduling jobs with precedence constraints to be executed in a single function invocation shows the gains. As a result, the improved algorithm can reduce data dependency transfers to speed up the overall makespan of workflow execution as illustrated in Fig. 4 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 812,
+                    "end": 818,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 1241,
+                    "end": 1249,
+                    "text": "Figure 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 1574,
+                    "end": 1580,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Large-Scale Evaluation"
+        },
+        {
+            "text": "In this paper, we have presented an improvement of the job dispatch algorithm of DEWE v3 to reduce data dependency transfers. DEWE v3 is one of the Workflow Management Systems (WMSs) that provides three different execution modes: traditional cluster, cloud functions, and hybrid mode. Our improved algorithm schedules jobs with precedence constraints to be executed in a single function invocation. Therefore, successor jobs can utilise the output files generated from their predecessor job in the same invocation. This has the potential to reduce the makespan of workflow execution. We have evaluated the improved scheduling algorithm and the original algorithm with small-and large-scale Montage workflows. The experimental results show that the improved algorithm can reduce the overall makespan in contrast to DEWE v3 by about 10%.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "In future work, we will extend the improved algorithm to run on heterogeneous memory sizes of cloud functions to reduce the execution time and cost. Moreover, we will extend a Workflow Management System (WMS) tool for the DISSECT-CF [8] simulator in order to be able to simulate the execution of scientific workflows in more reproducible and controlled environments.",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 236,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "LIGO: the laser interferometer gravitational-wave observatory",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Abramovici",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "Science",
+            "volume": "256",
+            "issn": "5055",
+            "pages": "325--333",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Kepler: an extensible system for design and execution of scientific workflows",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Altintas",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Berkley",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Jaeger",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ludascher",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mock",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings. 16th International Conference on Scientific and Statistical Database Management",
+            "volume": "",
+            "issn": "",
+            "pages": "423--424",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Pegasus: mapping scientific workflows onto the grid",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Deelman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "LNCS",
+            "volume": "3165",
+            "issn": "",
+            "pages": "11--20",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-28642-4_2"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "CyberShake: a physics-based seismic hazard model for southern California",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Pure Appl. Geophys",
+            "volume": "168",
+            "issn": "3-4",
+            "pages": "367--381",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Montage: a grid portal and software toolkit for science-grade astronomical image mosaicking",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Jacob",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1005.4454"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Serverless execution of scientific workflows",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Zomaya",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Maximilien",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vallecillo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ICSOC 2017",
+            "volume": "10601",
+            "issn": "",
+            "pages": "706--721",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-69035-3_51"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Resource provisioning options for large-scale scientific workflows",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Juve",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Deelman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "2008 IEEE Fourth International Conference on eScience",
+            "volume": "",
+            "issn": "",
+            "pages": "608--613",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "DISSECT-CF: a simulator to foster energy-aware scheduling in infrastructure clouds",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kecskemeti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Simul. Model. Pract. Theory",
+            "volume": "58",
+            "issn": "",
+            "pages": "188--218",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Challenges for scheduling scientific workflows on cloud functions",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kijak",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Martyna",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pawlik",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Balis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Malawski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE 11th International Conference on Cloud Computing (CLOUD)",
+            "volume": "",
+            "issn": "",
+            "pages": "460--467",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Evaluation of production serverless computing environments",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Satyam",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Fox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE 11th International Conference on Cloud Computing (CLOUD)",
+            "volume": "",
+            "issn": "",
+            "pages": "442--450",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Towards serverless execution of scientific workflows-hyperflow case study",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Malawski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "25--33",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Serverless execution of scientific workflows: experiments with hyperflow, aws lambda and google cloud functions",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Malawski",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gajek",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zima",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Balis",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Figiela",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Future Gener. Comput. Syst",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Performance considerations on execution of large scale workflow applications on cloud functions",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pawlik",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Figiela",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Malawski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1909.03555"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "The scheduling steps of the original algorithm with a sample workflow example.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "The scheduling steps of the improved algorithm with a sample workflow example.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "The execution time of the both systems with a 0.1 \u2022 Montage workflow with job dependencies running on different Lambda memory sizes. The execution time of both systems with a 6 \u2022 Montage workflow with job dependencies running on 3 GB Lambda memory size.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "The Lambda Memory sizes were: 512, 1024, 1536, 2048 and 3008 MB 2. The Lambda execution duration was 900 s. 3. The batch size of the Lambda function was 10. 4. The Kinesis shard number was 2.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "The Lambda Memory size was 3008 MB 2. The Lambda execution duration was 900 s. 3. The batch size of the Lambda function was 20. 4. The Kinesis shard number was 30. 5. The virtual machine was t2.xlarge that executed mAdd jobs with its features:16 GiB of memory and 4 vCPUs.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Research Fund under Grant agreement OTKA FK 131793.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements. This work was supported in part by the Hungarian Scientific"
+        }
+    ]
+}

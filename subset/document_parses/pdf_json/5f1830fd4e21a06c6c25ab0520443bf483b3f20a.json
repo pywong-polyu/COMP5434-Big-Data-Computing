@@ -1,0 +1,1345 @@
+{
+    "paper_id": "5f1830fd4e21a06c6c25ab0520443bf483b3f20a",
+    "metadata": {
+        "title": "Learning Vaccine Allocation from Simulations",
+        "authors": [
+            {
+                "first": "Gerrit",
+                "middle": [],
+                "last": "Gro\u00dfmann",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Saarland University",
+                    "location": {
+                        "postCode": "66123",
+                        "settlement": "Saarbr\u00fccken",
+                        "country": "Germany"
+                    }
+                },
+                "email": "gerrit.grossmann@unisaarland.de"
+            },
+            {
+                "first": "Michael",
+                "middle": [],
+                "last": "Backenk\u00f6hler",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Saarland University",
+                    "location": {
+                        "postCode": "66123",
+                        "settlement": "Saarbr\u00fccken",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Jonas",
+                "middle": [],
+                "last": "Klesen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Saarland University",
+                    "location": {
+                        "postCode": "66123",
+                        "settlement": "Saarbr\u00fccken",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Verena",
+                "middle": [],
+                "last": "Wolf",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Saarland University",
+                    "location": {
+                        "postCode": "66123",
+                        "settlement": "Saarbr\u00fccken",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We address the problem of reducing the spread of an epidemic over a contact network by vaccinating a limited number of nodes that represent individuals or agents.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "We propose a Sim-ulation-based vaccine allocation method (Simba), a combination of (i) numerous repetitions of an efficient Monte-Carlo simulation, (ii) a PageRank-type influence analysis on an empirical transmission graph which is learned from the simulations, and (iii) discrete stochastic optimization.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Our method scales very well with the size of the network and is suitable for networks with millions of nodes. Moreover, in contrast to most approaches that are model-agnostic approaches and solely perform graph-analysis on the contact graph, the stochastic simulations explicitly take the exact diffusion dynamics of the epidemic into account. Thereby, we make our vaccination strategy sensitive to the specific clinical and transmission parameters of the epidemic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Networks provide a universal language to represent interacting systems with emerging dynamical patterns. Computationally, every propagation process over a network can be considered an epidemic. Examples include actual pathogens on human contact networks [1] , fake-news in online social networks [8, 10] , cascading failures in an infrastructure network [11] , congestions in a traffic network, malware in computer networks [3] , neural activity in a brain network [4] , etc.",
+            "cite_spans": [
+                {
+                    "start": 254,
+                    "end": 257,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 296,
+                    "end": 299,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 300,
+                    "end": 303,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 354,
+                    "end": 358,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 424,
+                    "end": 427,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 465,
+                    "end": 468,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The problem of vaccine allocation is linked to the control of such a propagation, where limited vaccine resources are available and we aim to reduce the spread as much as possible, that is, lower the number of nodes reached by the epidemic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Vaccine allocation strategies can help in the design of complex systems to make them more resilient against (cascading) failures. This is particularly relevant regarding infrastructure networks where a \"vaccination\" might represent the installation of some kind of protective safeguard. Another example is the mitigation of fake-news in online social networks which can be achieved by removing the accounts of particularly relevant and malicious influencers or by providing warnings and fact-checking. In the context of infectious diseases, vaccination strategies are an appropriate way of setting priorities in vaccine distribution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "As a model for epidemic spreading, we consider the widely used stochastic, continuous-time Susceptible-Infected-Recovered (SIR) model [9] . Specifically, nodes (eventually) become immune after an infection (or die) and do not transmit the pathogen further. However, our framework is easily adaptable to epidemic models with more disease stages, such as COVID-19 models [5] . We consider as input an (undirected, unweighted) contact network with n nodes and a budget k (number of vaccines). The goal is to identify those k (susceptible) nodes which, when vaccinated, reduce the spread of the epidemic the most. We measure this by using the expected number of susceptible nodes in the terminal state, where the epidemic is over and all nodes are either susceptible, recovered, or vaccinated. In most cases, the only numerically feasible way to approximate this number is to perform a large number of stochastic simulations.",
+            "cite_spans": [
+                {
+                    "start": 134,
+                    "end": 137,
+                    "text": "[9]",
+                    "ref_id": null
+                },
+                {
+                    "start": 369,
+                    "end": 372,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Generally speaking, the vaccination allocation problem is computationally difficult. Intuitively, it is often a good decision to vaccinate those nodes with a large number of neighbors (or with a high centrality in the network) and those which are close to the initially infected nodes. If possible, it is even better to identify those nodes which lie between the initially infected nodes and many susceptible nodes. If we represent the spreading process by a transmission tree (cf. Fig. 1 ), in which the direct children of a node v correspond to those nodes that were infected by v, the size of a v's subtree gives the number of multi-hop infections that originated from v. The premise of our work is that the number of multi-hop infections of a node is a good indicator of whether that node is a good vaccination candidate.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 482,
+                    "end": 488,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Here, we propose Simba, (Simulation-based vaccine allocation), which is a method that makes use of recent developments in fast simulation of epidemic processes using a rejection-based approach [6] . This allows performing a large number of simulation runs of networks with millions of nodes and edges in the order of minutes on a standard desktop PC. Based on many simulations, Simba constructs a transmission graph, a generalization of the transmission tree for several simulation runs. By analyzing this graph, we obtain an impact score for every node. Repeated evaluation of the current vaccination strategy and re-computation of the impact scores yields an iterative optimization procedure, whose objective is to maximize the expected number of nodes that remain healthy.",
+            "cite_spans": [
+                {
+                    "start": 193,
+                    "end": 196,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The key methodological novelty of our proposed vaccination strategy is the construction and analysis of an empirical transmission graph. It poses a methodological framework to analyze contagion impact on complex networks. Using the transmission graph, our vaccination strategy can take the dynamics of the epidemic into account. The transmission graph has potentially many more use cases in assessing network dynamics, such as influence maximization, controllability of networks, impact/centrality quantification, and flow prediction. We also provide a numerical evaluation and compare Simba to several baselines from the literature.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The manuscript is organized as follows: We first provide a literate overview (Sect. 2), then we formalize the problem statement (Sect. 3). In Sect. 4, we introduce and explain our vaccination allocation method. Experimental results are presented in Sect. 5 and a conclusion completes the manuscript in Sect. 6.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Traditionally, most methods focused on finding nodes for vaccination using a static analysis of the contact network, for instance by looking at the betweenness centrality of nodes [17] or at their degree [15] . Likewise, NetShield tries to minimize the epidemic threshold of the contact graph (i.e., its general ability to support epidemics) [20] . A more advanced method is GraphShield that starts with degree centrality but then takes the flow of information in the contact graph into account [21] . Eventually, researchers focused more on the dynamical aspects for instance by utilizing linear programming [16] or reinforcement learning [22, 23] . For an overview, we refer the reader to [12] .",
+            "cite_spans": [
+                {
+                    "start": 180,
+                    "end": 184,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 204,
+                    "end": 208,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 342,
+                    "end": 346,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 495,
+                    "end": 499,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 609,
+                    "end": 613,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 640,
+                    "end": 644,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 645,
+                    "end": 648,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 691,
+                    "end": 695,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Conceptually most relevant for us is the work of Zhang et al. who propose DAVA [24] and Song et al. who propose NIIP [18] . Both methods are based on a dominator tree architecture which tries to capture the direction of the epidemic. DAVA merges all initially infected nodes and analyzes the paths from this node to all other nodes. Nodes that block a large number of paths are suitable vaccination candidates. NIIP focuses on a problem setting where not all vaccination units are distributed at once. Therefore, NIIP extracts a maximum DAG from the contact graph and uses Monte-Carlo simulation to find the best nodes to vaccinate and combines this with a greedy simulation-based approach, the simulation's goal is to determine when to distribute a vaccine.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "We first formalize the generative epidemic spreading model and the vaccination allocation problem. We remark that our framework can easily deal with all other types of spreading models as well.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Statement"
+        },
+        {
+            "text": "Network State. Let G = (V, E) be an undirected, unweighted graph with node set V = {v 1 , . . . , v n }, containing n nodes, and an edge set E and let any L : V \u2192 {S, I, R} be a node labeling that assigns a node state to each node (corresponding to susceptible, infected and recovered nodes). We assume that G is connected (i.e., all nodes are reachable from all other nodes) and has no selfloops. Each labeling function corresponds to a joint state (i.e., a superposition of all node states), called network state. The network dynamics specify how the network state (i.e., the labeling) changes over time. We use L init to denote the labeling of the initial network state and we use S init (I init , R init ) to denote those nodes that were susceptible (infected, recovered) in L init . Network Dynamics. We also assume that an infection rate constant \u03bb \u2208 R >0 and a recovery rate constant \u03bc \u2208 R >0 are given. W.l.o.g. we typically assume \u03bc = 1 and only vary \u03bb as the spreading dynamics is determined by the fraction \u03bb \u03bc . The network state evolves according to a race condition between nodes and edges. Generally, all infected nodes can recover at rate \u03bc and each S-I edge can transmit an infection at rate \u03bb, causing the susceptible node to become infected. Consequently, a (computationally naive but statistically correct) simulation run is performed by starting with L init and then, in each simulation step, drawing a firing time for each I-node and for each S-I edge which are exponentially distributed with rates \u03bc and \u03bb, respectively. The event with the shortest firing time \"wins\" and the corresponding node state (label) is changed accordingly. Repeatedly applying these rules will always lead to a terminal labeling or network state where no more actions are possible (all nodes are recovered or susceptible). Given a random simulation run, we use the term transmission tree (cf. Fig. 1 ) to describe a tree where patient zero is the root (if there are more than one infected nodes in the beginning, we merge them) and every node that became infected during the course of the epidemic is connected to the node which infected it. Thus, all nodes in the subtree of a node are called its children, i.e. they were directly or indirectly infected by that node.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1892,
+                    "end": 1898,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Continuous-Time Networked SIR Model"
+        },
+        {
+            "text": "We are given a finite contact network G = (V, E) with corresponding initial labeling L init , a vaccination budget k \u2208 Z >0 , as well as the infection and recovery rate constants \u03bb and \u03bc. We want to find a set X of nodes to be vaccinated, where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vaccination Allocation Problem"
+        },
+        {
+            "text": "Moreover, for a given G, L init , k, \u03bb, \u03bc, we use F (X) to denote the objective function which we define as the expected number of susceptible nodes in the terminal labeling when initially all nodes in X are vaccinated. We define the Vaccine Allocation Problem as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vaccination Allocation Problem"
+        },
+        {
+            "text": "F ind a set X that maximizes F (X) such that (1) holds.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vaccination Allocation Problem"
+        },
+        {
+            "text": "In practice, we approximate F (\u00b7) statistically based on many Monte-Carlo simulation runs. We assume that at least k nodes exist that can be vaccinated and there is at least one infected node in the initial labeling. We model the vaccination by setting L init (v) = R for all v \u2208 X at the beginning of the simulation. Note that (assuming the vaccination works perfectly) already recovered, deceased, and vaccinated nodes do not differ from the simulation's point of view.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vaccination Allocation Problem"
+        },
+        {
+            "text": "Complexity. The problem is computationally difficult because there are n k possibilities to distribute k vaccines to n nodes. The corresponding decision problem is N P-hard. Specifically, for a given input G, L init , \u03bb, \u03bc, and threshold \u03c4 , it is N P-hard (in n) to decide if a solution X exists s.t. F (X) > \u03c4. It can be shown that for this type of problem, N P-hardness holds for any propagation model that can mimic an independent cascade (IC) model [24] . We can do this by making \u03bc (\u03bb) arbitrary small (large). Note that this only holds for the SIR model and not necessarily for the generalizations to arbitrary spreading models.",
+            "cite_spans": [
+                {
+                    "start": 454,
+                    "end": 458,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Vaccination Allocation Problem"
+        },
+        {
+            "text": "We first explain the main components of Simba (Simulation-based vaccine allocation): the rejection-based simulation method and the construction of the transmission graph with the identification of high-impact nodes based on a ranking analysis.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our Method"
+        },
+        {
+            "text": "For our method, we exploit previous work on fast simulations to efficiently perform a large number of simulations [2, 6] . We propose an algorithm that is statistically equivalent to the generative process description in Sect. 3.1. We perform event-driven simulation using a priority queue. For the initialization, we create one recovery event and one infection event for each infected node and push them into the queue. The firing time is exponentially distributed with rate \u03bc (recovery event) and rate \u03bb \u00b7 d i (infection from node v i , d i being the number of v i 's neighbors). In each simulation step, we take the first event from the queue. If it is a recovery event, we simply set the corresponding node to state R. If it is an infection event, we first check if the corresponding node is still in state I, if not, we reject the event and proceed with the next step. If it is, we pick a random neighbor, which will be the target of the infection. We check if the random neighbor is susceptible. If it is, we set the neighbor to I and create two events (recovery and infection) for the newly infected neighbor. We also create a new infection event for the source node. Then, we proceed with the next step. The simulation ends when there are no more nodes in state I. We store the number of susceptible nodes when the simulation ends. Moreover, each time a node gets infected, we store from which (infected) neighbor the infection originated (or all nodes it could have originated from, cf. Sect. 4.2).",
+            "cite_spans": [
+                {
+                    "start": 114,
+                    "end": 117,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 118,
+                    "end": 120,
+                    "text": "6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Rejection-Based Simulation"
+        },
+        {
+            "text": "To estimate the nodes' impacts, we build an empirical transmission graph (cf. Fig. 2) , an extension of the transmission tree from Fig. 1 to multiple simulation runs. The transmission graph is directed and one can perform a random walk on the graph which (on average) visits nodes with higher impact more often. In the end, we determine the impact of each node in S init by ranking the nodes similar to the idea of the well-known PageRank [13] (i.e., the equilibrium of the corresponding Markov chain).",
+            "cite_spans": [
+                {
+                    "start": 439,
+                    "end": 443,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 78,
+                    "end": 85,
+                    "text": "Fig. 2)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 131,
+                    "end": 137,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Impact Score Estimation"
+        },
+        {
+            "text": "Given a set of simulated trajectories, let I i denote the number of trajectories in which node v i became infected. Furthermore, let I (i,j) denote the number of trajectories in which v i directly infected v j . Note that I i = j I (j,i) .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Impact Score Estimation"
+        },
+        {
+            "text": "We construct a transmission graph G T = (V T , W T ) (with W T being a weight matrix) as follows: We start with a dummy node v D as a sink, that is V T = V \u222a {v D } (we can remove unreachable nodes later), and add an edge from each initially infected node with weight one, i.e. for all i:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Transmission Graph."
+        },
+        {
+            "text": "Then we add an edge from v D to each v i \u2208 S init with a weight proportional to the estimated probability of that node becoming infected, i.e. for all i:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Transmission Graph."
+        },
+        {
+            "text": "Moreover, for all nodes v i = v D (we consider 0/0 as 0):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Transmission Graph."
+        },
+        {
+            "text": "Note that, by construction, the outgoing weights in G T are normalized and therefore represent a discrete-time Markov chain. A random walk in the chain will preferably visit nodes of high impact on the epidemic as the transition probabilities are proportional to the estimated infection probabilities. We compute the equilibrium distribution of the corresponding Markov chain using the power iteration method [19] . We call the equilibrium probability of a node normalized over S init its impact score. We only consider the impact score for nodes in S init because only those are eligible for vaccination. Note that a transmission graph for a single simulation run is equivalent to the transmission tree where all edges have weight one.",
+            "cite_spans": [
+                {
+                    "start": 409,
+                    "end": 413,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Transmission Graph."
+        },
+        {
+            "text": "We can make the transmission graph even more accurate. During the simulation, instead of only storing the node that actually transmitted the infection, we store all neighbors that could have potentially been the source of the infection. In our model, each infected neighbor was equally likely to have transmitted the pathogen. It is straightforward to adapt the construction of the transmission graph accordingly even in non-Markovian settings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Transmission Graph."
+        },
+        {
+            "text": "We combine the efficient simulations with the transmission graph analysis with an iterative optimization scheme to arrive at Simba. Greedy Initialization. We use C i to denote the set of vaccinated nodes in iteration i. We start with an empty set, C 0 , of nodes to be vaccinated. Until | C i |= k, we compute the impact score for all nodes v i \u2208 S init (assuming nodes in C i are vaccinated) and add the node with the highest impact to C i , leading to C i+1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introducing Simba"
+        },
+        {
+            "text": "Optimization. In each optimization step i, we randomly remove one node (with equal probability) from C i (leading to set B i ) and compute the impact score of all nodes v i \u2208 S init \\ C i (assuming nodes in B i are vaccinated). Then we add one of the nodes with the highest impact to B i (nodes with higher impact are more likely to be chosen), leading to C i+1 . We estimate F (C i ) in each iteration step and repeat until some stopping criterion is reached, then we return the set that yielded the highest estimated score. Fig. 3 . Assume we want to estimate the impact of the two successor nodes of patient zero based on two simulation runs. Using, for example, the size of their corresponding subtree in the transmission tree leads to misleading results in this case. Specifically, both nodes would be assigned drastically different values. Combining the two runs in a transmission graph yields a more realistic impact score than considering both runs separately. Note that edges point to the origin of the infection and the transmission graph is shown without its dummy node.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 526,
+                    "end": 532,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introducing Simba"
+        },
+        {
+            "text": "Here, we want to address three non-obvious questions: (i) why build a transmission graph?, (ii) what does the graph say about the objective function?, and (iii) why is it necessary to consider the dynamics at all?.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Building a Transmission Graph. Using the transmission graph has multiple advantages. Most importantly, transmission trees only mimic a subset of possible infection flows. In contrast, transmission graphs makes it possible to aggregate information over many runs in a principled manner (cf. example in Fig. 3 ). This way they capture the interplay between connectivity and infection flow more precisely. Moreover, computing the equilibrium of the Markov chain is computationally fast and theoretically well principled. It is also possible to efficiently build the transmission graph on-the-fly during the simulations.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 301,
+                    "end": 307,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Discussion"
+        },
+        {
+            "text": "Impact Score and Objective. Note that we handle two different problems. The impact score quantifies the question \"How many nodes became infected as a direct ('multi-hop') consequence from each node? \" However, the objective F (\u00b7) is concerned with \"How many nodes will (on average) not become infected if a specific (set of ) node(s) is vaccinated? \" The latter question is notoriously more difficult to answer. The reason why they differ is that if we vaccinate a node, all of its children in the transmission tree can still become infected via alternative paths. In this sense, the impact score gives an over-approximation on the effect of vaccinating a node regarding the objective. Colloquially, if we vaccinate a node with m children (on average), then the best we can hope for is that these m nodes do not become infected. Hence, our optimization procedure picks nodes depending on their theoretical (and over-approximated) capability or potential to reduce the epidemic spreading. The best node to vaccinate depends on the dynamics. If \u03bb is small, the infection will die out on its own in the line graph and it makes more sense to protect the FCC even though it contains fewer nodes. The opacity illustrates a node's probability to become infected. The nodes are numbered in decreasing order of their impact scores.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "The goal is to vaccinate nodes such that the network becomes less \"supportive\" of epidemics spreading in it. But then why should the specific dynamics matter? In other words, how can vaccinate a specific node be the right decision for some infection rate constants and the wrong decision for other ones? It is easy to see this in the example in Fig. 4 where we have a single patient zero and a budget of k = 1. We can either vaccinate the node to the \"right\" to protect the fully connected component (FCC) with six nodes or we can vaccinate the node to the \"left\" to protect the line-graph with nine nodes. If the epidemic is \"weak\", it will die out anyway over the line graph, so it makes sense to protect the FCC. In contrast, protecting the linegraph \"saves\" more nodes if the epidemic is strong enough to conquer the whole graph.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 345,
+                    "end": 351,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Importance of Dynamics."
+        },
+        {
+            "text": "Our framework can easily be extended to various epidemic-type models. The only necessity is that (i) the model can be simulated (efficiently), (ii) there is a clear objective (e.g., maximize susceptible nodes in terminal states), and (iii) the process represents some contagion phenomena (such that the transmission graph can capture a direction of the information flow). Potential generalizations include models with more disease stages (like SEIR), non-Markovian dynamics (e.g., where the infectiousness of nodes changes over time), weighted and directed networks, as well as temporal or adaptive networks and time-discrete models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Generalizations"
+        },
+        {
+            "text": "Simba can also be adapted to different objectives. For instance, in the SIS model (where infected nodes become susceptible again) the goal is typically to minimize the number of infected nodes in the equilibrium. In that case, our method would identify the nodes that are generally most impactful for the epidemic spreading and not only with regards to a specific initial set of infected nodes. Likewise, we could optimize the timepoints of vaccine distribution [18] . Simba can also be used when the transmission parameters are unknown by using an infection rate constant slightly above the epidemic threshold [14] . ",
+            "cite_spans": [
+                {
+                    "start": 462,
+                    "end": 466,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 611,
+                    "end": 615,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Generalizations"
+        },
+        {
+            "text": "We provide an implementation of Simba in Rust and Python (for visualization/IO), code will be made available 1 . We used synthetic networks following three random graph models (Erd\u0151s-R\u00e9nyi, Geometric, and Barab\u00e1si-Albert (BA)) with 10 2 , 10 3 , and 10 4 nodes, respectively. The corresponding budgets are k = 2, k = 3, and k = 10. We consider the following baselines: random (expected F (X) when random nodes are vaccinated), DAVA, and DAVA-fast [24] , PageRank, and Pers. PageRank (personalized PageRank) [7, 24] , and Degree (pick nodes with highest degree). We use 10 3 simulations runs for each construction of the transmission tree. We also analyze the runtime of a complete construction and solution of a transmission graph based on d-regular random graphs (i.e., all nodes have exactly d neighbors) with varying degree d and n. Practically, the runtime is almost linear in n. Theoretically, the number of simulation steps in each run increases linearly. The costs of each simulation step increase sub-linearly. The costs of solving the DTMC also increase linearly. We see that, even though the number of iteration steps is quite small, Simba is superior to or (almost) on par with the baselines in the experiments. Simba struggles the most with BA graph which is a special case but important as it highlights potential problems. It seems that the general strategy of Simba to separate the initially infected from the susceptible nodes does not work better than identifying the nodes which are generally important for the graph's resilience against epidemics. This is due to the fact that BA graphs typically possess a small subset of nodes that are extremely effective candidates for vaccination regardless of the infection source.",
+            "cite_spans": [
+                {
+                    "start": 447,
+                    "end": 451,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 507,
+                    "end": 510,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 511,
+                    "end": 514,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Note that DAVA also struggles in this case while Degree and both PageRank methods shine.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "We presented a novel technique to find the most suitable vaccination candidates in a network. Unlike other methods, our approach is based on statistically correct simulations which are analyzed using the transmission graph. The transmission graph represents the flow of a pathogen in the network as a directed weighted graph. The method is suitable for all epidemic models that can be simulated efficiently.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        },
+        {
+            "text": "In the future, we aim to perform different types of information flow analysis on the transmission graph, not only random walks. It remains to be determined which kind of flow analysis is most useful for which type of objective (e.g., vaccination, control, influence maximization). Moreover, we want to extend numerical evaluations to more complex spreading models (e.g., non-Markovian, multi-state ones) and network types (e.g., adaptive networks).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Analysis of a stochastic sir epidemic on a random network incorporating household structure",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Ball",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sirl",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Trapman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Math. Biosci",
+            "volume": "224",
+            "issn": "2",
+            "pages": "53--73",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Optimized Gillespie algorithms for the simulation of Markovian epidemic processes on large and heterogeneous networks",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Cota",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Ferreira",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Comput. Phys. Commun",
+            "volume": "219",
+            "issn": "",
+            "pages": "303--312",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Propagation of computer virus under human intervention: a dynamical model",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Gan",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Discrete Dynam. Natu. Soc",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Stochastic cellular automata model of neural networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Goltsev",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "De Abreu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dorogovtsev",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mendes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Phys. Rev. E",
+            "volume": "81",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Importance of interaction structure and stochasticity for epidemic spreading: a covid-19 case study",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Grossmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Backenk\u00f6hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Wolf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Importance of Inte raction Structure and Stochasticity for Epidemic Spreading A COVID-19 Case Study",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Rejection-based simulation of stochastic spreading processes on complex networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Gro\u00dfmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Wolf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Workshop on Hybrid Systems Biology",
+            "volume": "",
+            "issn": "",
+            "pages": "63--79",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Scaling personalized web search",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Jeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Widom",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of the 12th International Conference on World Wide Web",
+            "volume": "",
+            "issn": "",
+            "pages": "271--279",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Sir model for fake news spreading through whatsapp",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Khurana",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of 3rd International Conference on Internet of Things and Connected Technologies (ICIoTCT)",
+            "volume": "",
+            "issn": "",
+            "pages": "26--27",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Identification of influential spreaders in complex networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kitsak",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Gallos",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Havlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Liljeros",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Muchnik",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Stanley",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Makse",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Nat. Phys",
+            "volume": "6",
+            "issn": "11",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Systemic risk: the dynamics of model banking systems",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "May",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Arinaminpathy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "J. R. Soc. Interface",
+            "volume": "7",
+            "issn": "46",
+            "pages": "823--838",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Analysis and control of epidemics: a survey of spreading processes on complex networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Nowzari",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Preciado",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Pappas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Control Syst. Mag",
+            "volume": "36",
+            "issn": "1",
+            "pages": "26--46",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "The pagerank citation ranking: bringing order to the web",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Page",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Brin",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Winograd",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Threshold conditions for arbitrary cascade models on arbitrary networks",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Prakash",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chakrabarti",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Valler",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Knowl. Inf. Syst",
+            "volume": "33",
+            "issn": "3",
+            "pages": "549--575",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Virus propagation on time-varying networks: theory and immunization algorithms",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Prakash",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Valler",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Joint European Conference on Machine Learning and Knowledge Discovery in Databases",
+            "volume": "",
+            "issn": "",
+            "pages": "99--114",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Designing robust interventions to control epidemic outbreaks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sambaturu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vullikanti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Complex Networks and Their Applications",
+            "volume": "",
+            "issn": "",
+            "pages": "469--480",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Suppressing epidemics with a limited amount of immunization units",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mihaljev",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Havlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Herrmann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Phys. Rev. E",
+            "volume": "84",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Node immunization over infectious period",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 24th ACM International on Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "831--840",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Methods of simultaneous iteration for calculating eigenvectors of matrices",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Stewart",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Miller",
+                    "suffix": ""
+                }
+            ],
+            "year": 1975,
+            "venue": "Top. Numer. Anal",
+            "volume": "II",
+            "issn": "",
+            "pages": "169--185",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "On the vulnerability of large graphs",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Prakash",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tsourakakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Eliassi-Rad",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Chau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "2010 IEEE International Conference on Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1091--1096",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Flow-aware vertex protection strategy on large social networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Wijayanto",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Murata",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE/ACM International Conference on Advances in Social Networks Analysis and Mining (ASONAM)",
+            "volume": "",
+            "issn": "",
+            "pages": "58--63",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Learning adaptive graph protection strategy on dynamic networks via reinforcement learning",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Wijayanto",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Murata",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE/WIC/ACM International Conference on Web Intelligence (WI)",
+            "volume": "",
+            "issn": "",
+            "pages": "534--539",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Effective and scalable methods for graph protection strategies against epidemics on dynamic networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Wijayanto",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Murata",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Appl. Netw. Sci",
+            "volume": "4",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Data-aware vaccine allocation over large networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Prakash",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ACM Trans. Knowl. Discov. Data (TKDD)",
+            "volume": "10",
+            "issn": "2",
+            "pages": "1--32",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Example contact network with possible SIR dynamics (S: blue line; I: red, filled; R: green, shaded interior). The firing node/edge is annotated with an exclamation mark. The resulting transmission tree is shown on the right.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Schematic illustration of the transmission graph construction based on the same setting asFig. 1. We consider 10 simulation runs. Center: Contact graph with Ii and I (i,j) as node and edge labels, respectively. Right: Adding the dummy node and normalizing outgoing weights yields a discrete-time Markov chain (DTMC). Nodes in Sinit are annotated with their impact score based on the equilibrium of the DTMC.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Assume k = 1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Left: Optimization of the terminal fraction of expected susceptible nodes F (X) on three sample networks. Right: Runtime of 1000 simulations and solution of the corresponding transmission graph based on random d-regular graphs.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgments. This work was partially funded by the DFG project MULTI-MODE.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

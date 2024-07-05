@@ -1,0 +1,2271 @@
+{
+    "paper_id": "cdfc5da2e0b3b9faa2d3e5490496accb82795431",
+    "metadata": {
+        "title": "N-ACT: An Interpretable Deep Learning Model for Automatic Cell Type and Salient Gene Identification",
+        "authors": [
+            {
+                "first": "A",
+                "middle": [
+                    "Ali"
+                ],
+                "last": "Heydari",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Oscar",
+                "middle": [
+                    "A"
+                ],
+                "last": "Davalos",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Katrina",
+                "middle": [
+                    "K"
+                ],
+                "last": "Hoyer",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Suzanne",
+                "middle": [
+                    "S"
+                ],
+                "last": "Sindi",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Single-cell RNA sequencing (scRNAseq) is rapidly advancing our understanding of cellular composition within complex tissues and organisms. A major limitation in most scRNAseq analysis pipelines is the reliance on manual annotations to determine cell identities, which are time consuming, subjective, and require expertise. Given the surge in cell sequencing, supervised methods-especially deep learning models-have been developed for automatic cell type identification (ACTI), which achieve high accuracy and scalability. However, all existing deep learning frameworks for ACTI lack interpretability and are used as \"black-box\" models. We present N-ACT (Neural-Attention for Cell Type identification): the first-of-its-kind interpretable deep neural network for ACTI utilizing neural attention to detect salient genes for use in cell-types identification. We compare N-ACT to conventional annotation methods on two previously manually annotated data sets, demonstrating that N-ACT accurately identifies marker genes and cell types in an unsupervised manner, while performing comparably on multiple data sets to current state-of-the-art model in traditional supervised ACTI. \u2021 Equal contribution",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Single-cell RNA-sequencing (scRNAseq) technologies allow for measuring transcriptome-wide gene expression at the single-cell level. In contrast to bulk-RNA sequencing, scRNAseq can elucidate dynamic expression patterns between different cellular populations, providing a tremendous advantage when studying organisms as well as delineating intra-population heterogeneities (Erfanian et al., 2022) .",
+            "cite_spans": [
+                {
+                    "start": 372,
+                    "end": 395,
+                    "text": "(Erfanian et al., 2022)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Accurate identification of cell types in scRNAseq studies remains a challenging and time-consuming task (Pasquini et al., 2021) . Cell type annotation is often performed manually by experts -a long, laborious, and subjective process (Pasquini et al., 2021; Clarke et al., 2021) . To mitigate these challenges, researchers have developed automatic cell type identification (ACTI) pipelines, including deep learning (DL) models such as ACTINN (Ma & Pellegrini, 2019) , which learn from datasets that have already been annotated from the same (or similar) populations (see (Pasquini et al., 2021) for a review on ACTI). However, the supervision required for these approaches limits their utility for studies which lack prior knowledge of tissue-or sample-specific cell types. Such models can not provide the much-needed biological interpretability on the algorithm's decision-making needed to translate scRNAseq findings to inform experimental design.",
+            "cite_spans": [
+                {
+                    "start": 104,
+                    "end": 127,
+                    "text": "(Pasquini et al., 2021)",
+                    "ref_id": null
+                },
+                {
+                    "start": 233,
+                    "end": 256,
+                    "text": "(Pasquini et al., 2021;",
+                    "ref_id": null
+                },
+                {
+                    "start": 257,
+                    "end": 277,
+                    "text": "Clarke et al., 2021)",
+                    "ref_id": null
+                },
+                {
+                    "start": 441,
+                    "end": 464,
+                    "text": "(Ma & Pellegrini, 2019)",
+                    "ref_id": null
+                },
+                {
+                    "start": 570,
+                    "end": 593,
+                    "text": "(Pasquini et al., 2021)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we introduce Neural-Attention for Cell Type identification (N-ACT): An interpretable unsupervised DL model that employs attention to detect salient genes, and applies this information to identify specific cell-types. Our results on multiple datasets show that N-ACT accurately predicts preliminary annotations with no prior knowledge about the system, providing a valuable complementary framework to experimental studies and computational pipelines.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "N-ACT's framework consists of three stages (shown in Fig.  1 ): (I) Assigning labels (if no labels are available) and identifying highly-variable genes (HVGs), (II) a deep neural network (NN), which is the core of N-ACT, and (III) interpretation. In this section, we present stage II, i.e. N-ACT's DL core, and later describe stages (I) and (III) in Section 4. N-ACT's DL core has three modules: (1) Additive attention module, responsible for learning the importance of each gene; (2) Multi-headed projection module tasked with learning a set of non-linear operators mapping attention outputs to the last layer, i.e. (3) Task module, which is designed to fulfill a specific downstream task.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 53,
+                    "end": 60,
+                    "text": "Fig.  1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Methods and Approach"
+        },
+        {
+            "text": "Attention (or neural-attention) is a recent DL mechanism that has transformed computer vision and natural language Figure 1: N-ACT, an Interpretable Model for Unsupervised/Supervised Cell-Type Identification. N-ACT consists of flexible stages and modules that can be modified for different objectives. We focus on unsupervised ACTI, which consists of the following stages: (Stage I) Generating labels through graph-based clustering followed by identifying five thousand highly-variable genes for efficient training (standard practice in scRNAseq pipelines), (Stage II) Training the N-ACT DL core to predict generated (or true) labels, with the goal of identifying salient genes to predict the correct cell types (labels), and (Stage III) Interpreting model predictions by extracting attention values, thus constructing a ranked list of \"attentive genes\" used to compare to existing literature (referred to as \"Querying Salient Genes\" in the figure) and thus predicting cell types. We describe each component in more detail in the Appendix. processing research (refer to (Chaudhari et al., 2021) for a review on attention in DL). Attention networks aim to mimic the way humans understand \"context\" in sentences or details in images by focusing on a subset of significant features for a given objective. The use of attention-based NN for scRNAseq analysis is still in its infancy, with only a few successful applications to date. To identify salient genes, we use an additive attention module (Bahdanau et al., 2015) in a feed-forward NN (similar to (Raffel & Ellis, 2015) ) aiming to learn the optimal weighting (importance) of all genes for each cell, given a downstream task.",
+            "cite_spans": [
+                {
+                    "start": 1070,
+                    "end": 1094,
+                    "text": "(Chaudhari et al., 2021)",
+                    "ref_id": null
+                },
+                {
+                    "start": 1491,
+                    "end": 1514,
+                    "text": "(Bahdanau et al., 2015)",
+                    "ref_id": null
+                },
+                {
+                    "start": 1548,
+                    "end": 1570,
+                    "text": "(Raffel & Ellis, 2015)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Additive Attention"
+        },
+        {
+            "text": "The first step in the DL core (attention) is used to calculate a gene-score matrix (weighted version of scRNAseq count matrix), representing expression data in later layers. These importance scores enable gene prominence quantification for the downstream task, allowing for interpretation of model decision making. Given a gene expression matrix X \u2208 R C\u00d7N , where C and N denote the number of cells and genes, respectively, we define the gene-score matrix \u0393 and the attention weights A as shown in Eq. (1):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Additive Attention"
+        },
+        {
+            "text": "with L = N N (X) denoting a linear NN 1 . The learned operator A is leveraged after training to identify important (or \"attentive\") genes for interpretability.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Additive Attention"
+        },
+        {
+            "text": "Our Projection mechanisms are intermediate layers between the attention layer and the downstream task module. The 1 N N : R C\u00d7N \u2192 R C\u00d7N is a linear operator of the form N N (X) = XW + B, with input X and biases B \u2208 R C\u00d7N and weights W \u2208 R N \u00d7N . goal in using projection modules is to strike a balance between model capacity and efficiency: Too much capacity (e.g. too many non-linear layers) could lead to significant over-fitting, while insufficient capacity prevents the model from learning the correct representations. We design the projection blocks to be multi-headed (consisting of h \u2208 N separate linear operators), a concept shown by (Vaswani et al., 2017) as effective in learning different representations. Such design allows efficient consideration of different gene subsets and improves model performance without the need for numerous non-linear layers. N-ACT consists of k projection blocks, each consisting of h heads. Outputs from each head is then concatenated and inputted to a point-wise feed-forward network (equivalent to 1\u00d71 convolution layer) with a Rectified Linear Unit (ReLU) (Nair & Hinton, 2010) that adds non-linearity. Through careful ablation studies, we found that k = 2 projection blocks with h = 10 heads provides the appropriate balance of accuracy and efficiency. Details on projection blocks and relevant ablation studies are provided in Appendix F.",
+            "cite_spans": [
+                {
+                    "start": 642,
+                    "end": 664,
+                    "text": "(Vaswani et al., 2017)",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Multi-Headed Projections"
+        },
+        {
+            "text": "The last stage of our DL core is the task module, which can be adjusted based on desired objectives. Given our ACTI goal, we chose a non-linear mapping between the projection block's output and the labels (either provided [supervised] or generated in the earlier stages [unsupervised]).",
+            "cite_spans": [
+                {
+                    "start": 222,
+                    "end": 234,
+                    "text": "[supervised]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Task Module and Architecture Choices"
+        },
+        {
+            "text": "Our task module connects the projections to the number of labels, followed by Leaky ReLU activation (Xu et al., 2015) (depicted in Appendix F). N-ACT minimizes a standard cross entropy loss (Appendix C) using the Adam gradientbased optimizer (Kingma & Ba, 2014 ) at a learning rate \u03b1 = 10 \u22124 for 50 epochs. Additional information on N-ACT's training scheme is provided in Appendix F.",
+            "cite_spans": [
+                {
+                    "start": 100,
+                    "end": 117,
+                    "text": "(Xu et al., 2015)",
+                    "ref_id": null
+                },
+                {
+                    "start": 242,
+                    "end": 260,
+                    "text": "(Kingma & Ba, 2014",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Task Module and Architecture Choices"
+        },
+        {
+            "text": "We tested the model's ability to learn cell-types on four datasets (two for supervised and two for unsupervised ACTI). Results are presented on different datasets for each learning setting to showcase N-ACT's versatility and utility for different systems and species (similar results were achieved on all datasets in all tasks). Data were minimally pre-processed (only quality-controlled) and divided roughly 85%:15% for training and testing using \"balanced split\" (described in (Heydari et al., 2022) ). A brief description of each dataset is provided below, with more details on pre-processing and the data presented in Appendix B.",
+            "cite_spans": [
+                {
+                    "start": 479,
+                    "end": 501,
+                    "text": "(Heydari et al., 2022)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets Studied"
+        },
+        {
+            "text": "Datasets for supervised training: (1) Mouse HDF (PubMed ID: 34548614) consists of scRNAseq of murine aortic cells of mice on a normal diet versus mice on a highfat diet, resulting in 24K cells and 10 annotated populations after processing. (2) Immune CSF (PubMed ID: 33382973) profiles single-cells from cerebrospinal fluid (CSF) of immune CSF, viral encephalitis, and non-inflammatory and autoimmune neurological disease. Cells were isolated from 31 patients, resulting in 80K cells (70K cells after processing) and 15 annotated populations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets Studied"
+        },
+        {
+            "text": "Datasets for unsupervised training: (1) COVID PBMC (PubMed ID: 33357411) profiles the transcriptional immune dysfunction triggered in moderate and severe COVID-19 patients using scRNAseq. Peripheral blood mononuclear cells (PBMC) were isolated from 20 patients and were sequenced resulting in 69K cells (64K cells after processing) with 9 cell populations. (2) Immune cSCC (Pub Med ID: 32579974) consists of scRNAseq from healthy skin and cutaneous squamous cell carcinoma (cSCC) tumors. 10 patients with cSCC tumors had healthy skin and tumor cells sequenced, resulting in 48K cells (47K cells after processing) and 14 cell populations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets Studied"
+        },
+        {
+            "text": "In this section, we provide the results of using N-ACT for datasets described in Section 3. Standard evaluation tools were used to measure model performance with each metric detailed in Appendix C.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "We benchmark N-ACT against the current state-of-the-art supervised model, ACTINN, though the goal of this work is to generate unsupervised annotations. To show the importance of our novel architecture in effective attention utilization, we added the same feed-forward attention module to ACTINN (denoted by \"ACTINN+ATTN\"), which significantly hindered the model's performance (Table 1) . Given the comparable performance of our model to the state-ofthe-art DL algorithm, our results show that N-ACT can effectively learn supervised ACTI. Moreover, the poor performance of ACTINN + ATNN highlights the importance of appropriate architectures needed for effective use of attention for interpretability. We next consider unsupervised cell-type annotation on two previously annotated datasets.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 376,
+                    "end": 385,
+                    "text": "(Table 1)",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Supervised ACTI Performance"
+        },
+        {
+            "text": "Unsupervised label generation: Given that the cell types are not known a priori, labels must be generated before training the DL core. To do so, we choose to perform unsupervised clustering using the Leiden algorithm (Traag et al., 2019), a standard scRNAseq clustering technique in many pipelines (Heydari & Sindi, 2022) , allowing label generation without supervision. All results shown in this section follow this approach. However, given the requisite comparison against the true annotations for this work, we ensure the number of clusters generated by our model is equal to the number of annotated populations from the original publication, without enforcing any additional constraints.",
+            "cite_spans": [
+                {
+                    "start": 298,
+                    "end": 321,
+                    "text": "(Heydari & Sindi, 2022)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Unsupervised ACTI Performance"
+        },
+        {
+            "text": "Finding salient genes: To identify attentive (salient) genes in each population, we leverage the attention scores calculated by our model: First, we calculate the mean attention score per cell type for each gene. To analyze the performance of our model in assigning importance to various genes, we investigate the correlation between the mean attention scores for all genes in each cell type ( Fig. 2 (A),(C)). We find a low correlation for those populations that are not closely related (e.g. dendritic and endothelial cells in Fig.  2 (A)), and a high correlation between those that are related (e.g. CD4 + and CD8 + T cells in Fig. 2 (C)). These results indicate that N-ACT has accurately learned to assign importance to the same gene sets across similar populations, as desired.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 394,
+                    "end": 400,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 529,
+                    "end": 536,
+                    "text": "Fig.  2",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 630,
+                    "end": 636,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Unsupervised ACTI Performance"
+        },
+        {
+            "text": "Next, we use mean attention scores per cluster and selected the top 100 genes with the highest average values, constructing an object that includes the top 100 genes for each cell per cluster. Using this object, we calculate term frequency (TF)-inverse document frequency (IDF) for each gene in the object. TF-IDF is a standard natural language processing technique that weights the importance of a word in a document (see Appendix C for more information). In this To assess N-ACT's predictive capabilities, we queried the TF-IDF-ranked attentive genes from CellMeSH and recorded the placement when the predicted cell type matched the actual annotation (called a \"hit\"). To interpret our model's mistakes, we also retrieved the first prediction from CellMeSH, which we include as \"Top Retrieval\".",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unsupervised ACTI Performance"
+        },
+        {
+            "text": "formulation, each row of the object (containing top genes for all cells in a cluster) is a document used to calculate TF and IDF. The TF-IDF values for each gene were then multiplied by the original attention values, providing the final saliency scores. TF-IDF normalization down-weights common housekeeping genes that frequently appear in each cell population but are less useful in identifying cell-types. Lastly, we re-rank genes based on these weighted scores and select the top 25 as the attentive genes, which we use for cell-type identification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unsupervised ACTI Performance"
+        },
+        {
+            "text": "Identifying cell types: Once attentive genes are identified, various techniques for finding their corresponding cell-types can be applied. To showcase the accuracy and automation capabilities of our model, we queried the attentive genes using CellMeSH (Mao et al., 2021), a probabilistic cell type querying tool that uses a database built from indexed literature to map marker genes to probable cell types (CellMeSH details provided in Appendix D). It is important to note that the bias in each database can affect results, and that other specialized databases or methods can further improve the identification process (see Appendix G). Fig. 2 (B) and 2(D) present the accuracy of cell-type prediction using N-ACTidentified salient genes for Immune cSCC and for COVID PBMC, respectively. These results demonstrate that N-ACT accurately identifies attentive genes that are known markers for the underlying populations without any prior knowledge of the system or species.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 637,
+                    "end": 643,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Unsupervised ACTI Performance"
+        },
+        {
+            "text": "In this work, we presented N-ACT, the first-of-its-kind interpretable DL model for ACTI. We show that N-ACT effectively identifies cell-types, in a supervised and, more importantly, unsupervised manner. N-ACT is a first attempt at providing interpretability in this context, and we believe our improvements and developments reduce subjectivity while significantly minimizing the time needed for annotating scRNAseq datasets. Optimizing the scRNAseq annotation process will accelerate translational and basic research by enabling scientists to focus on the underlying biological questions. Our results demonstrate that N-ACT accurately identifies salient genes that are known markers for the underlying populations, without prior knowledge of the system or species. Moreover, the interpretability of our framework is useful for predicting the correct cell-types, and for better understanding the data when there is ambiguity (e.g. Appendix G) or when the model makes mistakes. As such, N-ACT provides a powerful tool for facilitating discovery, even if its top prediction is ultimately incorrect. Using our model, cells can be assigned cell-types by new users without prior expertise in the given system, within minutes. From these conclusions, we hypothesize that attention can be further utilized to identify unique relationships between different genes and cells, which would not otherwise be apparent. Despite successful application of DL in scRNAseq space, most DL models are not interpretable. Biologically-interpretable DL models, such as N-ACT, can provide crucial information on the algorithm's decision making, while assisting scientists in understanding underlying complex biological networks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Discussion"
+        },
+        {
+            "text": "All source code and reproducibility/tutorial notebooks, alongside download links to trained models and datasets, are available at https://github.com/SindiLab/ NACT. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Code and Data Accessibility"
+        },
+        {
+            "text": "Model development and testing was performed in Python (v 3.9.7) and data processing was performed in R (v. 4.1.2) (detailed in section B). Our models were developed and tested on A100 Nvidia GPUs, and data pre-processing on a 14-inch Macbook Pro with Apple M1 Max and 64 GB RAM. Data I/O was done in Scanpy (v. 1.7.0) (Wolf et al., 2018) . The DL core of our model was developed in PyTorch (v. 1.9.1); however, developing/testing N-ACT on A100 GPUs required installation of a specific version of PyTorch (torch==1.9.0+cu111), which is provided in N-ACT's package repository. A complete list of requirements of Python packages is also available in N-ACT's GitHub repository: https://github.com/SindiLab/NACT.",
+            "cite_spans": [
+                {
+                    "start": 318,
+                    "end": 337,
+                    "text": "(Wolf et al., 2018)",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Appendix and Supplementary Material Appendix A. Computational Environment"
+        },
+        {
+            "text": "All data (count matrices and manual annotations) are publicly available from NCBI gene expression omnibus (GEO) and the Broad Institute Single Cell Portal (SCP), with links provided below. Datasets were processed using the Seurat package (v. 4.1.0) in R (Butler et al., 2018) . Manual annotations were merged with count matrices using a variety of tidyverse (v. 1.3.1) functions, and subsequently added to Seurat object as metadata. Data filtering consisted of the standard practice of removing cells with fewer than 200 expressed genes and removing genes present in fewer than 3 cells. Next, we retained cells with less than 10% mitochondrial reads to mitigate cellular debris. Lastly, cell types containing less than 100 cells were removed and excluded from the dataset.",
+            "cite_spans": [
+                {
+                    "start": 254,
+                    "end": 275,
+                    "text": "(Butler et al., 2018)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. 1. Pre-Processing"
+        },
+        {
+            "text": "After filtering, we identified the top 5,000 highly variable genes (HVG's) for each dataset (HVG procedure is detailed in Appendix C. To perform clustering and generate cell labels (in the unsupervised case), we used Scanpy's pipeline for clustering (consisting of dimensionality reduction using principal component analysis (PCA), followed by Leiden clustering). As mentioned in the main manuscript, we found Leiden resolutions that led to the same number of clusters as the annotated populations in order to compare our predictions to the ground truth labels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. 1. Pre-Processing"
+        },
+        {
+            "text": "To evaluate N-ACT capabilities, we chose four large datasets relevant to immune researchers in light of the current pandemic. Three datasets are comprised of human cells, and one dataset consists of mouse cells. The three human datasets were chosen due to the distinct disease conditions being evaluated in the original studies. These included two COVID viral infection studies and human cSCC cancer study. We included a mouse dataset to demonstrate our model can be effectively used on non-human and non-immune datasets. All datasets were generated using the 10x Genomics platform (see (Goodwin et al., 2016; Heydari & Sindi, 2022) for a review of next-generation scRNAseq). A summary for each dataset is provided in subsequent subsections (see Fig. A.3) . Download Link: https://singlecell.broadinstitute.org/single cell/study/SCP1361/single -cell-transcriptome-analysis-reveals-cellular-heterogeneity-in-the-ascending-aor ta-of-normal-and-high-fat-diet-mice",
+            "cite_spans": [
+                {
+                    "start": 587,
+                    "end": 609,
+                    "text": "(Goodwin et al., 2016;",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 610,
+                    "end": 632,
+                    "text": "Heydari & Sindi, 2022)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 746,
+                    "end": 755,
+                    "text": "Fig. A.3)",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "B. 2. Datasets"
+        },
+        {
+            "text": "Immune-CSF (Heming et al., 2021) [GSE163005] profiles single cells in cerebrospinal fluid (CSF) of Neuro-COVID, non-inflammatory, autoimmune neurological diseases, and viral encephalitis patients. Cells isolated from 31 patients: 8 COVID patients, 9 non-inflammatory, 9 autoimmune, 5 viral encephalitis resulting in a total 80K cells. After processing the dataset contains 70K cells with 15 populations. (Yao et al., 2021) [GSE163005] consists of the evaluation of the transcriptional immune dysfunction triggered during moderate and severe COVID-19 patients using scRNA-seq. Peripheral blood mononuclear cells (PBMC) were isolated from 20 patients and were sequenced. Patients included in the study ranged from healthy (n = 3), moderate COVID (n = 5), acute respiratory distress syndrome (ARDS-Severe, n = 6), and recovering ARDS-Recovering (n = 6), resulting in 69K cells. After pre-processing the dataset, we retained 64K cells. The authors identified 9 populations in the dataset. The downstream task was to predict the correct labels (original labels or generated labels), with the learning objective being a standard cross-entropy loss:",
+            "cite_spans": [
+                {
+                    "start": 11,
+                    "end": 32,
+                    "text": "(Heming et al., 2021)",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 404,
+                    "end": 422,
+                    "text": "(Yao et al., 2021)",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. 2.2. IMMUNE-CSF"
+        },
+        {
+            "text": "where y and\u0177 denote the original/generated labels and model predicted labels, respectively. In this formulation, y is a one-hot encoded vector of the cell types; that is y j = 1 if cell type is j 0 otherwise.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. 2.2. IMMUNE-CSF"
+        },
+        {
+            "text": "In this work, we leverage attention scores generated for each gene in all clusters. First, we calculate the average attention score for each gene per cluster. Next, take the top 100 genes with the highest attention scores per cluster and create an object containing only gene names. Using the top 100 genes per cluster object, we calculate the term frequency(TF)-inverse document frequency(IDF) for each gene in the matrix. TF-IDF is a standard tool in natural language processing (NLP) often used to weight the importance of words appearing in documents, as shown in (A.3).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. 2. Formulation of TF-IDF for Cell Type Querying"
+        },
+        {
+            "text": "where f P is the raw count of term (gene) g in the document (population) P , with a corpus of documents D. We consider each row in the matrix to be a document in which we calculate gene frequencies, and then calculate the IDF, which down-weights more common genes in the matrix. We multiply both TF and IDF for each gene to obtain the TF-IDF score. The generated TF-IDF score down-weights common genes in the top 100 by multiplying the TF-IDF scores by the average attention scores.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. 2. Formulation of TF-IDF for Cell Type Querying"
+        },
+        {
+            "text": "Once the attention scores have been weighted, the top 25 genes per cluster are submitted to CellMeSH (CITE: PMID: 34893819), which generates a prediction cell type.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. 2. Formulation of TF-IDF for Cell Type Querying"
+        },
+        {
+            "text": "To select Highly Variable Genes (HVGs), we utilized Seurat's FindVariableFeatures() function, described in (Stuart et al., 2019) . In this step, the aim is to calculate a measure of single-cell dispersion while including the mean expression.",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 128,
+                    "text": "(Stuart et al., 2019)",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. 3. Selecting Highly Variable Genes"
+        },
+        {
+            "text": "Step one learns a mean-variance relationship from the data, which is then used to calculate an expected standard deviation for each gene. To do so, the mean \u00b5 g and variance \u03c3 g of each gene is computed from raw data. Next, a curve fitting using a 2 nd degree polynomial is applied to learn f (\u00b5 g ) =\u03c3 g , providing a regularized estimator of variance given the mean of a gene g. Using this, we perform feature transformations without removing higher-than-expected variations. That is, given the raw counts X ig for gene g in cell i, the mean raw value for gene g, \u00b5 g , and \u03c3 g , the expected standard deviation of gene g from the global fit, we have the transformed count value of gene g as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. 3. Selecting Highly Variable Genes"
+        },
+        {
+            "text": "for all gene g across all cell i. Finally, variance across the new standard feature values is calculated and used to rank the genes. Although the convention is to select 2,000 HVGs, we chose to select 5,000 HVGs to increase the complexity and truly test model interpretability.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. 3. Selecting Highly Variable Genes"
+        },
+        {
+            "text": "Cell type retrieval position is measured using N-ACT attentive genes for each cell population using Hit@k. Hit@k is a metric measuring retrieval of a target value among the top k retrievals. In our model, a \"hit\" is the published cell type annotation ( C. 5. F1 Score F1 score is a standard metric for evaluating a classifier. F1 score is the harmonic mean of precision and recall, which is shown in Eq. (A.5),",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. 4. Hit@k"
+        },
+        {
+            "text": "For more information on weighted and non-weighted F1 score, see https://scikit-learn.org/stable/modu les/generated/sklearn.metrics.f1 score.html.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. 4. Hit@k"
+        },
+        {
+            "text": "CellMeSH (Mao et al., 2021) is a probabilistic method that generates a cell type prediction based on a gene list. CellMeSH aims to alleviate two common issues with querying gene lists from the literature: 1) publication bias, which relates to specific genes/cell types that are studied more often than other types, and therefore have more literature associated with them; and 2) Noise present in gene/cell-type mapping and the corresponding database. CellMesh uses a database built from the National Library of Medicine (NLM) MEDLINE indexed records called Medical Subject Headings. In building the CellMeSH database, Mao et al. use TF-IDF to reduce publication bias thus addressing publication bias.",
+            "cite_spans": [
+                {
+                    "start": 9,
+                    "end": 27,
+                    "text": "(Mao et al., 2021)",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Appendix D. CellMeSH Cell Type Predictions"
+        },
+        {
+            "text": "To address the second issue, CellMeSH utilizes a probabilistic querying method. Given gene query list Q, CellMeSH assumes a probabilistic model for a query genes g being obtained from a cell-type C, shown in Eq. (A.6):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix D. CellMeSH Cell Type Predictions"
+        },
+        {
+            "text": "with w C (g) being the adjusted weight of gene g in cell type C (using TF-IDF), N g , K C denoting the total number of genes and total number genes with non-zero weight in C. \u03b1 is a parameter which aims to help with noise in the database. For each candidate cell type C, CellMeSH calculates a log-likelihood score:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix D. CellMeSH Cell Type Predictions"
+        },
+        {
+            "text": "which are then used to rank C based on their values. Lastly, CellMeSH uses a maximum likelihood-based estimation to generate predictions. In this framework, the top cell type, C * , can be found as: \"concatenation\" layer (depicted in Fig. A.6 ) allows us to reshape the model output which can be passed along to remaining layers.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 234,
+                    "end": 242,
+                    "text": "Fig. A.6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Appendix D. CellMeSH Cell Type Predictions"
+        },
+        {
+            "text": "To increase model capacity and allow N-ACT to learn complex mappings, outputs are non-linearly \"activated\" through a Point-Wise Feed Forward Neural Network (which can be thought of as 1\u00d7 1 convolution). However, there is the possibility of projection blocks learning a non-linear mapping unrelated to interpretability, resulting in loss of interpretability. Therefore, we hypothesized that adding residual connection between output of the attention module and input of each subsequent layer would improve performance and interpretability. Our ablation studies show that adding a residual connection improves model performance (Table A. 3). Skip connections are added to projection block outputs and normalized using Layer-Norm (Ba et al., 2016) ) before being used as input for the next layer.",
+            "cite_spans": [
+                {
+                    "start": 727,
+                    "end": 744,
+                    "text": "(Ba et al., 2016)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 626,
+                    "end": 635,
+                    "text": "(Table A.",
+                    "ref_id": null
+                }
+            ],
+            "section": "Appendix D. CellMeSH Cell Type Predictions"
+        },
+        {
+            "text": "We investigated the effect of head number in the multi-head projection block and found that 10 heads provided the best results (Table A. 2). We also tested our model accuracy when using one, two and three projection blocks and found that two projection blocks provided the best balance of accuracy and efficiency. To test our hypothesis regarding residual connections, we tested N-ACT (10 heads, 2 projection blocks) with and without skip connections. As shown in Table A .3, model accuracy drops without the residual connections. Residual connections are identity mappings added to the output of each layer, with this quantity normalized and used as inputs for subsequent layers. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 127,
+                    "end": 136,
+                    "text": "(Table A.",
+                    "ref_id": null
+                },
+                {
+                    "start": 464,
+                    "end": 471,
+                    "text": "Table A",
+                    "ref_id": null
+                }
+            ],
+            "section": "F. 2. Multi-Head Ablation Study"
+        },
+        {
+            "text": "As mentioned in the main manuscript, we train N-ACT for 50 epochs using Adam (Kingma & Ba, 2014 ) optimizer, with a fixed learning rate. We tested training N-ACT for more epochs and found that the accuracy of predictions increases; however, a learning rate scheduling is beneficial in avoiding overfitting (when training over 100 epochs). When training for longer epochs, we employed an exponential learning rate decay with \u03b3 = 0.95 and a decay schedule of every 10 epochs. We chose 50 epochs to balance accuracy and training time efficiency. Given that many manual annotations are typically performed with only a few genes (often two or three (Luecken & Theis, 2019) ), it is possible to have populations that are broad and ambiguous. This was the case with two populations of COVID PBMC data (Yao et al., 2021) , namely the original annotations \"Proliferating Lymphocytes\" and \" Unidentified Lymphocytes\" (Fig. A.8 ). Here we utilize N-ACT to disambiguate these broad annotations without re-clustering or further complex analyses.",
+            "cite_spans": [
+                {
+                    "start": 77,
+                    "end": 95,
+                    "text": "(Kingma & Ba, 2014",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 644,
+                    "end": 667,
+                    "text": "(Luecken & Theis, 2019)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 794,
+                    "end": 812,
+                    "text": "(Yao et al., 2021)",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 907,
+                    "end": 916,
+                    "text": "(Fig. A.8",
+                    "ref_id": null
+                }
+            ],
+            "section": "F. 3. Training Scheme"
+        },
+        {
+            "text": "In the results shown in the main manuscript, we utilized CellMesh (Mao et al., 2021) . However, using specialized databases could provide refined predictions. To demonstrate this, we investigated the two broad annotations in the COVID PBMC data and queried attentive genes from the Azimuth Cell Type 2021 database tailored for immune cells (Hao et al., 2021) [using Enrichr R Package (v 3.0) (Chen et al., 2013; Kuleshov et al., 2016; Xie et al., 2021) ], to perform an enrichment analysis. We query our top 25 genes against the Azimuth Cell Types 2021 reference for the enrichment analysis and select the top 25 attentive genes (as described in 4.2 and Appendix C) for \"proliferating lymphocytes\" and \"unidentified lymphocytes.\"",
+            "cite_spans": [
+                {
+                    "start": 66,
+                    "end": 84,
+                    "text": "(Mao et al., 2021)",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 340,
+                    "end": 358,
+                    "text": "(Hao et al., 2021)",
+                    "ref_id": null
+                },
+                {
+                    "start": 392,
+                    "end": 411,
+                    "text": "(Chen et al., 2013;",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 412,
+                    "end": 434,
+                    "text": "Kuleshov et al., 2016;",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 435,
+                    "end": 452,
+                    "text": "Xie et al., 2021)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "F. 4. Supervised ACTI Comparison"
+        },
+        {
+            "text": "Our enrichment analysis for \"proliferating lymphocytes\" resulted in multiple significant (significant adjusted p\u2212values) populations, with the most probable types being CD8+ proliferating T cells (shown in A.8). Intuitively, these results are expected given the quantitative and qualitative similarity of this population with the CD8+ T cell population. It is important to note that the difference in gene overlap percentages of top three predictions, namely CD8 proliferating T, CD4 proliferating T, and proliferating natural killer populations is very small, which may explain why the original annotations were left broadly as proliferating lymphocytes. Enrichment analysis for \"unidentified lymphocytes\" yielded natural killer cells as the most probable cell type, with other viable populations also being statistically significant. Similar to the previous population, our results are possibly intuitive given the closeness of the proliferating lymphocytes to CD8+ T cells and natural killer cells. Additionally, there is known overlap in the gene sets between of CD8+ T cells and natural killer cells. Lastly, we note that the second most probable population based on attentive genes are CD8+ effector memory T, suggesting that the \"unidentified lymphocyte\" population could likely be refined into two or more populations. These results further signify the utility of N-ACT for unsupervised annotation, and the applicability of our framework in tandem with other annotation forms to provide interpretability and validation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "F. 4. Supervised ACTI Comparison"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "References (Appendix)",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Layer normalization",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Ba",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Kiros",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Integrating single-cell transcriptomic data across different conditions, technologies, and species",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Butler",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Hoffman",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Smibert",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Papalexi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Satija",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Nature Biotechnology",
+            "volume": "36",
+            "issn": "",
+            "pages": "411--420",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nbt.4096"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Enrichr: interactive and collaborative html5 gene list enrichment analysis tool",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Tan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Kou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Meirelles",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Clark",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ma&apos;ayan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "BMC Bioinformatics",
+            "volume": "14",
+            "issn": "",
+            "pages": "1471--2105",
+            "other_ids": {
+                "DOI": [
+                    "10.1186/1471-2105-14-128"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Coming of age: ten years of next-generation sequencing technologies",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Goodwin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Mcpherson",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Mccombie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Nature Reviews Genetics",
+            "volume": "17",
+            "issn": "6",
+            "pages": "333--351",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nrg.2016.49"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Integrated analysis of multimodal single-cell data",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Andersen-Nissen",
+                    "suffix": ""
+                },
+                {
+                    "first": "William",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Mauck",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Butler",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Wilk",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Darby",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zager",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hoffman",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Stoeckius",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Papalexi",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Mimitou",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Stuart",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Fleming",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Yeung",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Rogers",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mcelrath",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Blish",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Gottardo",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Smibert",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Satija",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Cell",
+            "volume": "184",
+            "issn": "13",
+            "pages": "3573--3587",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.cell.2021.04.048"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Neurological manifestations of covid-19 feature t cell exhaustion and dedifferentiated monocytes in cerebrospinal fluid",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Heming",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "R\u00e4uber",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Mausberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "A.-L",
+                    "middle": [],
+                    "last": "B\u00f6rsch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hartlehnert",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Singhal",
+                    "suffix": ""
+                },
+                {
+                    "first": "I.-N",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fleischer",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Szepanowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Witzke",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brenner",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Dittmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Yosef",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kleinschnitz",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wiendl",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Stettner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Meyer",
+                    "middle": [],
+                    "last": "Zu H\u00f6rste",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Immunity",
+            "volume": "54",
+            "issn": "1",
+            "pages": "164--175",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Deep learning in spatial transcriptomics: Learning from the next next-generation sequencing. bioRxiv",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Heydari",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Sindi",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1101/2022.02.28.482392"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Multimodal analysis of composition and spatial architecture in human squamous cell carcinoma",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Rubin",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Thrane",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Reynolds",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Meyers",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "George",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mollbrink",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bergenstr\u00e5hle",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Larsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bai",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bhaduri",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Meyers",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Rovira-Clav\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Hollmig",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Aasi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Nolan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lundeberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Khavari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Cell",
+            "volume": "182",
+            "issn": "2",
+            "pages": "497--514",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Single-cell transcriptome analysis reveals cellular heterogeneity in the ascending aortas of normal and high-fat diet-fed mice",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Geng",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "You",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Exp Mol Med",
+            "volume": "53",
+            "issn": "9",
+            "pages": "1379--1389",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "A method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Adam",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Fast, sensitive and accurate integration of single-cell data with harmony",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Korsunsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Millard",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Slowikowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Baglaenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Brenner",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-R",
+                    "middle": [],
+                    "last": "Loh",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Raychaudhuri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nature Methods",
+            "volume": "16",
+            "issn": "12",
+            "pages": "1289--1296",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/s41592-019-0619-0"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Enrichr: a comprehensive gene set enrichment analysis web server 2016 update",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Kuleshov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Rouillard",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Fernandez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Koplev",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Jenkins",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Jagodnik",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lachmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Mcdermott",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Monteiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Gundersen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ma&apos;ayan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Nucleic Acids Res",
+            "volume": "44",
+            "issn": "W1",
+            "pages": "305--1048",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/nar/gkw377"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Current best practices in single-cell rna-seq analysis: a tutorial",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Luecken",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Theis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Molecular Systems Biology",
+            "volume": "15",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "https:/www.embopress.org/doi/abs/10.15252/msb.20188746"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Uniform manifold approximation and projection for dimension reduction",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Mcinnes",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Healy",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Melville",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Umap",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Comprehensive integration of single-cell data",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Stuart",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Butler",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Hoffman",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hafemeister",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Papalexi",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Mauck",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Stoeckius",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Smibert",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Satija",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Cell",
+            "volume": "177",
+            "issn": "7",
+            "pages": "1888--1902",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.cell.2019.05.031"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Shazeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Parmar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Uszkoreit",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Gomez",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "U"
+                    ],
+                    "last": "Kaiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Polosukhin",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Guyon",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Luxburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wallach",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Fergus",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Vishwanathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Garnett",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "30",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Scanpy: large-scale single-cell gene expression data analysis",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Wolf",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Angerer",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Theis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Genome Biology",
+            "volume": "19",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1186/s13059-017-1382-0"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Gene set knowledge discovery with enrichr",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bailey",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Kuleshov",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J B"
+                    ],
+                    "last": "Clarke",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Evangelista",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Jenkins",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lachmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Wojciechowicz",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Kropiwnicki",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Jagodnik",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jeon",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ma&apos;ayan",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Current Protocols",
+            "volume": "1",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "https:/currentprotocols.onlinelibrary.wiley.com/doi/abs/10.1002/cpz1.90"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Cell-type-specific immune dysregulation in severely ill covid-19 patients",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Bora",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Parimon",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Friedman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Palatinus",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Surapaneni",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Matusov",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Chiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Kassar",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Patel",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "E R"
+                    ],
+                    "last": "Green",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Aziz",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Suri",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Suda",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Lopez",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Martins",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Stripp",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Gharib",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Goodridge",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chen",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Cell Rep",
+            "volume": "34",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Evaluating N-ACT's Unsupervised ACTI. [(A), (C)]: To evaluate the interpretability and the performance of the attentive genes, we calculated the Pearson correlations of mean attention values in each population (per gene) for all cell types in (A) Immune cSCC and (C) COVID PBMC. [(B), (D)]:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones,  L., Gomez, A. N., Kaiser, L. u., and Polosukhin, I. Attention is all you need. In Guyon, I., Luxburg, U. V., Bengio, S., Wallach, H., Fergus, R., Vishwanathan, S., and Garnett, R. (eds.), Advances in Neural Information Processing Systems, volume 30. Curran Associates, Inc., 2017. URL https://proceedings.neurips. cc/paper/2017/file/3f5ee243547dee91f bd053c1c4a845aa-Paper.pdf. Xu, B., Wang, N., Chen, T., and Li, M. Empirical evaluation of rectified activations in convolutional network. arXiv preprint arXiv:1505.00853, 2015.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "3). To minimize the biological and technical effects in each dataset based on patient and/or biological conditions such as normal versus disease state, we utilized Harmony (v 0.1.0) to perform integration (Korsunsky et al., 2019). Resulting Uniform Manifold Approximation and Projection (UMAP) (McInnes et al., 2018) plots for each dataset with original annotations are provided in Fig. A.3. SeuratDisk (v. 0.0.0.9019) was used to convert the Seurat data object into an AnnData object compatible with Scanpy.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "A UMAP-reduced plot of cell populations present in each dataset investigated in this work.B. 2.1. MOUSE-HDFMouse-HDF(Kan et al., 2021) [SCP1361] consists of scRNAseq of aortic cells in mice given a normal diet and mice given a high-fat diet (HFD), resulting in 24K cells (24K cells after processing). The authors identified 27 clusters, for 10 different cell populations.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "ground truth label) existing in the database. Rankings for k = {1, 3, 5, 10} are reported in Fig. 2, and in Fig. A.4.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "A.4: (For the ease of the reader) An enlarged version of Hit@K results, initially presented in Fig. 2 of the main manuscript.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "(For the ease of the reader) An enlarged version of correlation results presented inFig. 2of the main manuscript.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "An Implementation View of the N-ACT DL Core. In this illustration, C corresponds to the number of cells inputted, N denotes the number of features (N = 5000 in our results), h is the number of projection heads, k is the number of projection blocks(in our model, h = 10 and k = 2) and T denotes the number of classes (distinct labels) present in the data.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Benchmarking N-ACT on Supervised ACTI. Although the main goal of N-ACT is interpretable ACTI in an unsupervised manner, our model can be used in a supervised setting as well, while still providing biological interpretability. W-F1: Weighted F1 score, NW-F1: Non-Weighted F1 score, Interp: Interpretability",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Download Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE163005",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Download Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE154567",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Ablation Study on the Number of Projection Heads. We fixed all other hyperparameters and studied the effect of head number on accuracy and interpretability. Training times are the average of 5 training runs on an A100 GPU. Accuracy of each model remained the same across different training settings, since all random parameters were initialized with the same random seed.Table A.3: Effectiveness of Residual Connections on N-ACT.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Benchmarking N-ACT on Supervised ACTI. Although the main goal of N-ACT is interpretable ACTI in an unsupervised manner, our model can be used in a supervised setting as well, while still providing biological interpretability. The reported training times are the median of 5 runs for each model. The same random seed was used to initialize all random parameters to ensure reproducibility of results across different runs. Training/Testing Support: the number of samples used in training/evaluation, W-F1: Weighted F1 score, NW-F1: Non-Weighted F1 score MODEL W-F1 NW-F1 TRAINING SUPPORT TESTING SUPPORT MED. TRAINING TIME",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The authors were supported from the National Institutes of Health (R15-HL146779 & R01-GM126548), National Science Foundation (NSF) (DMS-1840265) and University of California (UC) Office of the President and UC Merced COVID-19 Seed Grant. Computational resources were supported by the NSF, Grant No. ACI-2019144 and in part through NSF awards CNS-1730158, ACI-1540112 and ACI-1541349. Due to space constraints, complementary citations are included in the Appendix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements"
+        },
+        {
+            "text": "The idea behind the N-ACT projection block is to learn various representations for different gene subsets in each cell. Projection block design was inspired by the multi-head attention architecture presented in (Vaswani et al., 2017) ; however, the projections are not multi-head attention mechanisms. One way to think about the multi-head projection block is to view it as a set of h linear projections, with each l h : R B\u00d7N \u2192 R B\u00d7d (B is the number of samples and N is the number of genes) done sequentially and independent of one-another (e.g. in a for loop). However, as noted by (Vaswani et al., 2017) , these projections can be done more efficiently through creating a tensor L \u2208 R B\u00d7h\u00d7d , which acts the same way as the collection of the individual linear operators. In this formulation, 0 \u2261 N (mod h), and the last projection component, the Appendix G. Utility of N-ACT for Disambiguation of Broad Annotations ",
+            "cite_spans": [
+                {
+                    "start": 211,
+                    "end": 233,
+                    "text": "(Vaswani et al., 2017)",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 585,
+                    "end": 607,
+                    "text": "(Vaswani et al., 2017)",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "F. 1. Projection Block"
+        }
+    ]
+}

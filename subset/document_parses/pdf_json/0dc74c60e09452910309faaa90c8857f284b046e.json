@@ -1,0 +1,3948 @@
+{
+    "paper_id": "0dc74c60e09452910309faaa90c8857f284b046e",
+    "metadata": {
+        "title": "Fast, Flexible, and Exact Minimum Flow Decompositions via ILP",
+        "authors": [
+            {
+                "first": "Fernando",
+                "middle": [
+                    "H C"
+                ],
+                "last": "Dias",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Helsinki",
+                    "location": {
+                        "country": "Finland"
+                    }
+                },
+                "email": "fernando.cunhadias@helsinki.fi"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "0000\u22120002\u22126398\u2212919X] , Lucia Williams 2[0000\u22120003\u22123785\u22120247] , Brendan Mumey 2[0000\u22120001\u22127151\u22122124] , and Alexandru I. Tomescu 1[0000\u22120002\u22125747\u22128350]",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Abstract. Minimum flow decomposition (MFD) -the problem of finding a minimum set of paths that perfectly decomposes a flow -is a classical problem in Computer Science, and variants of it are powerful models in multiassembly problems in Bioinformatics (e.g. RNA assembly). However, because this problem and its variants are NP-hard, practical multiassembly tools either use heuristics or solve simpler, polynomial-time solvable versions of the problem, which may yield solutions that are not minimal or do not perfectly decompose the flow. Many RNA assemblers also use integer linear programming (ILP) formulations of such practical variants, having the major limitation they need to encode all the potentially exponentially many solution paths. Moreover, the only exact solver for MFD does not scale to large instances, and cannot be efficiently generalized to practical MFD variants.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "In this work, we provide the first practical ILP formulation for MFD (and thus the first fast and exact solver for MFD), based on encoding all of the exponentially many solution paths using only a quadratic number of variables. On both simulated and real flow graphs, our approach solves any instance in under 13 seconds. We also show that our ILP formulation can be easily and efficiently adapted for many practical variants, such as incorporating longer or paired-end reads, or minimizing flow errors.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "We hope that our results can remove the current tradeoff between the complexity of a multiassembly model and its tractability, and can lie at the core of future practical RNA assembly tools. Our implementations are freely available at github.com/algbio/MFD-ILP.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Flow decomposition (FD), the problem of decomposing a network flow into a set of source-to-sink paths and associated weights that perfectly explain the flow values on the edges, is a classical and well-studied concept in Computer Science. For example, it is a standard result that any flow in a directed acyclic graph (DAG) with m edges can be decomposed into at most m weighted paths (see, e.g., [1] ). However, finding an FD with a minimum number of paths (MFD) is NP-hard [53] , even on DAGs. This result was later strengthened by [16] who proved that MFD is hard to approximate (i.e., there is some > 0 such that MFD cannot be approximated to within a (1 + ) factor, unless P=NP). More recent work has shown that the problem is FPT in the size of the minimum decomposition [22] , and that it can be approximated with an exponential factor [33] . It is also possible to decompose all but a \u03b5-fraction of the flow within a O(1/\u03b5) factor of the optimal number of paths [16] . Heuristic approaches to the problem have also been developed, particularly greedy methods based on choosing the widest or longest paths [53] , which can be improved by making iterative modifications to the flow graph before finding a greedy decomposition [45] . But despite this history of work on algorithms for MFD, an exact solver that is fast for instances with large optimal solutions or large flow values remains elusive.",
+            "cite_spans": [
+                {
+                    "start": 397,
+                    "end": 400,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 475,
+                    "end": 479,
+                    "text": "[53]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 534,
+                    "end": 538,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 777,
+                    "end": 781,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 843,
+                    "end": 847,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 970,
+                    "end": 974,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1113,
+                    "end": 1117,
+                    "text": "[53]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 1232,
+                    "end": 1236,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "FD is also a key step in numerous applications. For example, some network routing problems (e.g. [17, 9, 16, 33] ) and transportation problems (e.g. [35, 36] ) require FDs that are optimal with respect to various measures. MFDs in particular are used to reconstruct biological sequences such as RNA transcripts [38, 50, 11, 5, 49, 59] , and viral quasispecies [4] . However, because MFD is NP-hard, all of these tools in fact use heuristics or solve some simpler version of the problem ignoring some information that is available from the sequencing process, resulting in tools that may not reconstruct the correct sequence, even if no other errors are present. More broadly, it has been noted [34] that the lack of exact solvers for many of the sub-problems involved in DNA sequencing has led to heuristic and ad hoc tools with no provable guarantees on the quality of solutions. Additionally, some authors [5, 7] have noted that there is a tradeoff between the complexity of the model for RNA assembly (i.e., how much of the true possible solution space that it supports) and its tractability. But if a fast exact solver for MFD exists, this tradeoff may not be necessary.",
+            "cite_spans": [
+                {
+                    "start": 97,
+                    "end": 101,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 102,
+                    "end": 104,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 105,
+                    "end": 108,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 149,
+                    "end": 153,
+                    "text": "[35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 154,
+                    "end": 157,
+                    "text": "36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 311,
+                    "end": 315,
+                    "text": "[38,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 316,
+                    "end": 319,
+                    "text": "50,",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 320,
+                    "end": 323,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 324,
+                    "end": 326,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 327,
+                    "end": 330,
+                    "text": "49,",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 331,
+                    "end": 334,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 360,
+                    "end": 363,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 694,
+                    "end": 698,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 908,
+                    "end": 911,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 912,
+                    "end": 914,
+                    "text": "7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The main bioinformatics motivation for this paper is multiassembly [61] . In this problem, we seek to reconstruct multiple genomic sequences from mixed samples using short substrings (called reads) generated cheaply and accurately from next-generation sequencing technology. The two major multiassembly problems are RNA assembly and viral quasispecies assembly, which we describe in more detail below.",
+            "cite_spans": [
+                {
+                    "start": 67,
+                    "end": 71,
+                    "text": "[61]",
+                    "ref_id": "BIBREF60"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition in Multiassembly"
+        },
+        {
+            "text": "One mechanism by which complex organisms create a vast array of proteins is alternative splicing of gene sequences, where multiple different RNA transcripts (that are then used to produce different proteins) can be created from the same gene [46] . In humans, over 90% of genes are believed to produce multiple transcripts [57] . Reconstructing the specific RNA transcripts has proved essential in characterizing gene regulation and function, and in studying development and diseases, including cancer; see, e.g., [21, 43] . A second multiassembly problem is the reconstruction of viral quasispecies, for example, the different HIV or hepatitis strains present in a single patient sequencing sample, or the different SARS-CoV-2 strains present in a sewage water sample. Because viruses evolve quickly, there can be many distinct strains present at one time, and this diversity can be an important factor in the success or effect of the virus [54] .",
+            "cite_spans": [
+                {
+                    "start": 242,
+                    "end": 246,
+                    "text": "[46]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 323,
+                    "end": 327,
+                    "text": "[57]",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 514,
+                    "end": 518,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 519,
+                    "end": 522,
+                    "text": "43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 942,
+                    "end": 946,
+                    "text": "[54]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition in Multiassembly"
+        },
+        {
+            "text": "While the biological realities underlying the different multiassembly problems may yield some differences in how the problems can be solved, at their heart many approaches contain the algorithmic step of decomposing a network flow into weighted paths. The basic setup and approach for multiassembly is as follows. Given a sample of unknown sequences, each with some unknown abundance (for example, a set of RNA transcripts or virus strains), all sequences are multiplied and then broken into fragments that can be read by next-generation sequencers to produce millions of sequence reads ranging from hundreds of tens of thousands DNA characters in length. Many approaches are reference-based (e.g., [50, 52, 32, 38, 23, 5, 26] for RNA assembly and [62, 51] for viral quasispecies assembly), meaning that they use a previously-constructed reference genome to guide the assembly process. These approaches construct a graph using the sequences contained in the reads where nodes are strings, edges represent overlaps, and weights on edges give the counts of reads that support each overlap. Because a reference is used, these graphs are always DAGs. In the non-reference case (called de novo), graphs may have cycles; we address this further at the end of the paper. If errors are minimal, the weights on the edges should form a flow on the network, and the underlying sequences and their abundances must be some decomposition of the flow into weighted paths. For RNA assembly, recent work [22, 60] has confirmed the common assertion (e.g., by [50, 44, 23, 31, 64, 28, 30] ) that the true transcripts and abundances should be minimum flow decomposition. No such study has been done for viral quasispecies assembly, but existing tools seek minimum-sized decompositions [4, 58] . However, while the abovementioned tools seek minimum-sized flow decompositions, since MFD is NP-hard, they in fact compute decompositions that are not guaranteed to be minimum (and thus may not give the correct assembly, even when no other errors are present).",
+            "cite_spans": [
+                {
+                    "start": 699,
+                    "end": 703,
+                    "text": "[50,",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 704,
+                    "end": 707,
+                    "text": "52,",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 708,
+                    "end": 711,
+                    "text": "32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 712,
+                    "end": 715,
+                    "text": "38,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 716,
+                    "end": 719,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 720,
+                    "end": 722,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 723,
+                    "end": 726,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 748,
+                    "end": 752,
+                    "text": "[62,",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 753,
+                    "end": 756,
+                    "text": "51]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 1487,
+                    "end": 1491,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1492,
+                    "end": 1495,
+                    "text": "60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 1541,
+                    "end": 1545,
+                    "text": "[50,",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1546,
+                    "end": 1549,
+                    "text": "44,",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 1550,
+                    "end": 1553,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1554,
+                    "end": 1557,
+                    "text": "31,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1558,
+                    "end": 1561,
+                    "text": "64,",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 1562,
+                    "end": 1565,
+                    "text": "28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1566,
+                    "end": 1569,
+                    "text": "30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 1765,
+                    "end": 1768,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1769,
+                    "end": 1772,
+                    "text": "58]",
+                    "ref_id": "BIBREF57"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition in Multiassembly"
+        },
+        {
+            "text": "One promising direction for fast exact solvers for MFD is integer linear programming (ILP). Existing ILP solvers like Gurobi [13] and CPLEX [47] incorporate optimizations that allow for fast runtimes in practice for problems that should be hard in general (see also [14] for various applications of ILP in Bioinformatics). Indeed, many existing multiassembly tools do use ILP to solve MFD as one step in their process. The basic idea behind these existing formulations is to consider some set of source-to-sink paths through the graph and assign each a binary variable indicating whether or not it is selected in the optimal solution, along with constraints to fully encode the FD problem (i.e. that the selected set of paths-with the weights derived for them by the ILP-form an FD) and to model further practical aspects of the specific multiassembly problem. However, the number of paths in a DAG is exponential, meaning that if the tools enumerate all paths (and thus can be guaranteed to find the true optimal solution) they are impractical for larger instances (e.g., Toboggan [22] ). The most common strategy is to pre-select some set of paths, either for all instances (e.g., vg-flow [4] and CLIIQ [28] ), or only when the input is large (e.g., MultiTrans [64] and SSP [40] ). But by pre-selecting paths, these formulations may not find the optimal MFD solution for the instance.",
+            "cite_spans": [
+                {
+                    "start": 125,
+                    "end": 129,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 140,
+                    "end": 144,
+                    "text": "[47]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 266,
+                    "end": 270,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1082,
+                    "end": 1086,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1191,
+                    "end": 1194,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1205,
+                    "end": 1209,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1263,
+                    "end": 1267,
+                    "text": "[64]",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 1276,
+                    "end": 1280,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Limitations of Current ILP Solutions"
+        },
+        {
+            "text": "While the conference version of this paper was in print, the recent transcript assembly method JUMPER [41] was brought to our attention. JUMPER appears to be, to our knowledge, the only prior method incorporating the search for paths in a DAG into an ILP. However, their solution is slightly less general, since it works only for DAGs having a Hamiltonian path. If Hamiltonicity holds, any source-to-sink path can be encoded as a subset of edges that do not pairwise overlap in the Hamiltonian path (i.e., the tail of an edge does not appear before the head of another edge in the Hamiltonian path). As such, to avoid such pairwise edge overlaps they require a number of constraints that is quadratic in the size of the graph.",
+            "cite_spans": [
+                {
+                    "start": 102,
+                    "end": 106,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Limitations of Current ILP Solutions"
+        },
+        {
+            "text": "We give a new ILP approach to the MFD problem on DAGs, and we show that it can be used on both simulated and real RNA assembly graphs under conditions used in many reference-based multiassembly tools. Our approach is:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Our Contributions"
+        },
+        {
+            "text": "Fast and exact: We show in Section 3.1 that it is not necessary to enumerate all paths in order to encode them in an ILP. The key idea is that any path must have a conserved (unit) flow from its start to its end, and that this concept can be encoded using only a number of variables and constraints that is linear in the size of the graph (rather than exponential, as is the case when the model enumerates all possible paths). This is a standard integer programming method for expressing paths in DAGs, used for example in [48] . An implementation of our ILP formulation using CPLEX finds optimal flow decomposition solutions on RNA assembly graphs (simulated and assembled from real reads) in under 13 seconds on average, over all the datasets tested. This is several times faster than the state-of-the-art MFD solver Toboggan [22] , depending on the dataset. While heuristic solvers such as Catfish [45] or CoasterHeuristic [60] finish withing a few seconds, we show that they do not provide optimum solutions. Another benefit of our ILP solutions is that all optimum solutions can be reported by the ILP solver, thus potentially helping in \"identifying\" the correct RNA multiassembly solution (a practical issue acknowledged by e.g. [29, 19] ).",
+            "cite_spans": [
+                {
+                    "start": 523,
+                    "end": 527,
+                    "text": "[48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 828,
+                    "end": 832,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 901,
+                    "end": 905,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 926,
+                    "end": 930,
+                    "text": "[60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 1236,
+                    "end": 1240,
+                    "text": "[29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1241,
+                    "end": 1244,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Our Contributions"
+        },
+        {
+            "text": "Flexible: In practice, many multiassembly tools in fact solve variants of MFD. For example, many tools account for paired-end reads by requiring that they be included in the same path. Another common strategy is to incorporate longer reads as subpath constraints or phasing paths [38, 44, 60] which again must be covered by some predicted transcript (i.e. flow path). In Section 3.2, we give additional constraints that are expressive enough to not only encode paired-end reads and subpath constraints, but also any generic set of edges that must be covered by a single path (e.g., as when modelling the recent Smart-seq3 protocol producing RNA multi-end reads [15] ). Additionally, due to sequencing or read mapping errors, the weights on edges may not be a flow (i.e. flow conservation might not hold). One approach in this case is to consider intervals of edge weights instead, as in [40, 59] . We give a formulation to handle this approach in Section 3. 3 . Our implementation solves subpath constraint instances in similar time to standard instances, while the existing exact solver could not complete on many instances in under 60 seconds. Moreover, while the existing interval heuristic is fast, it finds decompositions that are far from optimum. While all these additional constraints are naturally expressed in ILP (further underlining the flexibility of our approach), the novelty here is their integration with the ILP encoding of all possible paths in the DAG from Section 3. 1. In Appendix B, we give MFD formulations dealing with the total error over all edges. We can consider an upper bound on the total error, or seek a minimum decomposition that also achieves the minimum error, as studied in [49] and used in RNA assemblers such as [26, 24, 5, 50] . Finally, we note that our formulation could also be used to find decompositions for any of the above variants using a fixed, or upper bounded, number of paths, which is useful if further information is available.",
+            "cite_spans": [
+                {
+                    "start": 280,
+                    "end": 284,
+                    "text": "[38,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 285,
+                    "end": 288,
+                    "text": "44,",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 289,
+                    "end": 292,
+                    "text": "60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 661,
+                    "end": 665,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 887,
+                    "end": 891,
+                    "text": "[40,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 892,
+                    "end": 895,
+                    "text": "59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 958,
+                    "end": 959,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1488,
+                    "end": 1490,
+                    "text": "1.",
+                    "ref_id": null
+                },
+                {
+                    "start": 1711,
+                    "end": 1715,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 1751,
+                    "end": 1755,
+                    "text": "[26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1756,
+                    "end": 1759,
+                    "text": "24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1760,
+                    "end": 1762,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1763,
+                    "end": 1766,
+                    "text": "50]",
+                    "ref_id": "BIBREF49"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Our Contributions"
+        },
+        {
+            "text": "Given a graph G = (V, E), with vertex set V and edge set E \u2286 V \u00d7 V , we say that s \u2208 V is a source if s has no in-coming edges. Analogously, we say that t \u2208 V is a sink if t has no out-going edges. Moreover, we say that G is a directed acyclic graph (DAG) if G contains no directed cycles.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "is a DAG with unique source s and unique sink t, where for every edge (u, v) \u2208 E we have an associated positive integer flow value f uv , satisfying conservation of flow for every v \u2208 V \\ {s, t}, namely:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "Given a flow network, a flow decomposition for it consists of a set of source-to-sink flow paths, and associated weights strictly greater than 0, such that the flow value of each edge equals the sum of the weights of the paths passing through that edge. In other words, the superposition of the weighted paths of the flow decomposition equals the flow of the network (see also Fig. 1) . Formally:",
+            "cite_spans": [
+                {
+                    "start": 377,
+                    "end": 384,
+                    "text": "Fig. 1)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "Our above definitions assume integer flow values in the network and integer weights of the flow paths, as is natural since these values count the number of sequenced reads traversing the edges, and are also consistent with previous works such as [22] . However, in practical applications, one could have both fractional flow values and flow path weights, as in e.g., [38] . Note also that the integer and fractional decompositions to the problem may differ. For example, [53] observes that are integer flow networks which admit a k-flow decomposition with fractional weights, but no k -flow decomposition with integer weights, for any k \u2264 k. ",
+            "cite_spans": [
+                {
+                    "start": 246,
+                    "end": 250,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 367,
+                    "end": 371,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 471,
+                    "end": 475,
+                    "text": "[53]",
+                    "ref_id": "BIBREF52"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "In this section we consider the following problem of finding a minimum-size flow decomposition.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "Problem 1 (Minimum flow decomposition (MFD)). Given a flow network G = (V, E, f ), the minimum flow decomposition (MFD) problem is to find a flow decomposition (P, w) such that |P| is minimized.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "Our solution for Problem MFD is based on an ILP formulation of a flow decomposition with a given number k of paths (a k-flow decomposition). Using this, one can easily solve the MFD problem by finding smallest k such that the flow network admits a k-flow decomposition. Notice that any DAG admits a flow decomposition of size at most |E|, see e.g., [1] (since one can iteratively take the edge with smallest flow value and create an s-t path of weight equaling this flow value). Moreover, if assuming integer weights, another trivial upper bound on the size of any flow decomposition is |f |, namely the flow exiting s, and there is always a flow decomposition with |f | paths of weight one. Thus, if there is a k-flow decomposition, there is also a k -flow decomposition, for all k < k \u2264 min{|E|, |f |} (just duplicate a path of weight greater than one, and move weight one from the old copy to the new one). This shows that when searching for the smaller k such that the graph admits a k-flow decomposition we can either do a linear scan in increasing order, or binary search. Since k is usually small in our applications, we just do a linear scan. As mentioned at the end of Section 2, the problem can also be defined as allowing real flow values and/or weights. Our ILP formulation can also handle this variant by just changing the domain of the corresponding variables (in which case we will obtain a Mixed Integer Linear Program (MILP)) 3 .",
+            "cite_spans": [
+                {
+                    "start": 349,
+                    "end": 352,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1443,
+                    "end": 1444,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "We start by recalling the standard formulation of a path used for example by [48] for the shortest path problem. If an s-t path repeats no edge (which is always the case if the graph is a DAG) then we can interpret it simply as the set of edges belonging to the path. If we assign value 1 for each edge on the path, and value 0 for each edge not on the path, then these binary values correspond to a conceptual flow in the graph (V, E) (different from the input flow). Moreover, this conceptual flow induced by the (single) path is such that the flow out-going from s is 1 and the flow in-coming to t is 1. It can be easily checked (cf. e.g., [48] ) that if the graph is a DAG, then this is a precise characterization of an s-t path.",
+            "cite_spans": [
+                {
+                    "start": 77,
+                    "end": 81,
+                    "text": "[48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 643,
+                    "end": 647,
+                    "text": "[48]",
+                    "ref_id": "BIBREF47"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "Thus, for every path i \u2208 {1, . . . , k}, and every edge (u, v) \u2208 E, we can introduce a binary variable x uvi indicating whether the edge (u, v) belongs to the i-th path. The above characterization of a path can be expressed by the following equations (see also Fig. 2 ): Having expressed a set of k s-t paths with already known ILP constraints, we need to introduce the new constraints tailored for the k-flow decomposition problem. That is, we need to state that the superposition of their weights equals the given flow in the network (2). Thus, for each path i we introduce a positive integer variable w i corresponding to its weight, and add the constraint: i\u2208{1,...,k}",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 261,
+                    "end": 267,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "To get the ILP formulation, it remains to linearize equation (4), which is nonlinear because it involves a product of two decision variables. Let us remark that even though non-linear programming solvers exist (such as IPOPT [56] ), they are inefficient, do not scale to a large number of variables and are non-professional grade. Instead, having an ILP formulation means that we can make use of popular solvers such as CPLEX [47] and Gurobi [6] .",
+            "cite_spans": [
+                {
+                    "start": 225,
+                    "end": 229,
+                    "text": "[56]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 426,
+                    "end": 430,
+                    "text": "[47]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 442,
+                    "end": 445,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "Since the decision variables involved in the product in Eq. (4) are bounded (x uvi is binary and w i is at most the largest flow value of any edge), this equation can be linearized by standard techniques as in e.g., [10] and [27] . For that, we introduce the integer decision variable \u03c0 uvi which represents the product between w i and x uvi , and a constant w that is a large enough upper bound for any variable w i (e.g., the largest flow value of any edge). As such, Eq. (4) can be replaced by the following equations:",
+            "cite_spans": [
+                {
+                    "start": 216,
+                    "end": 220,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 225,
+                    "end": 229,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "In these constraints, Eq. (5b) ensures that \u03c0 uvi is 0 if x uvi is 0, and Eqs. (5c) and (5d) ensure that \u03c0 uvi is w i if x uvi is 1. For completeness, see Appendix A for the full ILP formulation for k-Flow Decomposition.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Minimum Flow Decomposition"
+        },
+        {
+            "text": "In this section we consider the flow decomposition variant where we are also given a set of subpath constraints that must appear (as a subpath of some path) in any flow decomposition. Among all such decompositions we must find of one with the minimum number of paths. In multiassembly, subpath constraints represent longer reads that span three or more vertices; they are used in popular RNA assembly tools such as StringTie [23] and Scallop [44] and their usefulness for that problem was confirmed empirically in [60] . Such subpath constraints can also naturally model long RNA-seq reads, and we note that, as several authors also acknowledge [63, 2, 55] , long reads do not render the RNA assembly problem obsolete, because they do not always capture full-length transcripts (due to the conversion from RNA to cDNA), and do not fully capture low-expressed transcripts.",
+            "cite_spans": [
+                {
+                    "start": 425,
+                    "end": 429,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 442,
+                    "end": 446,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 514,
+                    "end": 518,
+                    "text": "[60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 645,
+                    "end": 649,
+                    "text": "[63,",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 650,
+                    "end": 652,
+                    "text": "2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 653,
+                    "end": 656,
+                    "text": "55]",
+                    "ref_id": "BIBREF54"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Subpath Constraints"
+        },
+        {
+            "text": "Formally, the problem can be defined as follows (see also Fig. 3a) . \u2200R j \u2208 R, \u2203P i \u2208 P such that R j is a subpath of P i .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 58,
+                    "end": 66,
+                    "text": "Fig. 3a)",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Subpath Constraints"
+        },
+        {
+            "text": "Problem 2 (Minimum flow decomposition with subpath constraints (MFDSC)). Given a flow network G = (V, E, f ) and subpath constraints R, the minimum flow decomposition with subpath constraints problem is to determine if there exists, and if so, find a flow decomposition (P, w) satisfying (6) such that |P| is minimized. (b) Constraint R1 is satisfied because for the i th path we can set ri1 = 1 (and satisfy Eq. (7b)) so that xaci + xcti \u2265 2ri1 holds (and satisfy Eq. (7a)). Fig. 1 with a subpath constraint (which is satisfied by the 4-flow decomposition from Fig. 1c , but not by the one in Fig. 1b) , and example of a path satisfying the constraint.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 476,
+                    "end": 482,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 562,
+                    "end": 569,
+                    "text": "Fig. 1c",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 594,
+                    "end": 602,
+                    "text": "Fig. 1b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Subpath Constraints"
+        },
+        {
+            "text": "We can expand the previous ILP formulation for k-Flow Decomposition to incorporate the conditions necessary to represent the subpath constraints. Let R be the set of simple paths that are required to be part of at least one path of the flow decomposition. For each R j \u2208 R, we introduce an additional binary variable r ij denoting the presence of the subpath R j in the i th path. It clearly holds that r ij = 1 if and only if for each edge (u, v) in R j we have that x uvi = 1. Let |R j | denote the length (i.e., number of edges) of subpath constraint R j , which is a parameter (i.e. constant). The following inequalities guarantee that each subpath constraint is satisfied by the flow decomposition (see also Fig. 3b ):",
+            "cite_spans": [
+                {
+                    "start": 713,
+                    "end": 720,
+                    "text": "Fig. 3b",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fig. 3: The flow network from"
+        },
+        {
+            "text": "i\u2208{1,...,k}",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 3: The flow network from"
+        },
+        {
+            "text": "Remark 1. In the above ILP formulation we do not use the fact that the edges of subpath constraint R j are consecutive (i.e., form a path). Thus, the same formulation applies also if the constraint consists of a pair of edge-disjoint paths that must all occur in the same transcript, modelling paired-end Illumina reads, or if it consists of a set of edge-disjoint paths (or simply of a set of edges), modelling multi-end Smart-seq3 RNA reads [15] . More specifically, Eq. (7a) simply characterizes when all edges of constraint R j are covered by some flow path i, and Eq. (7b) requires that at least one flow path satisfies the constraint R j .",
+            "cite_spans": [
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fig. 3: The flow network from"
+        },
+        {
+            "text": "While for MFD we could modify the ILP to allow also real positive path weights by setting their lower bound to be 0 (because we solve MFD by increasing k, as discussed at the beginning of Section 3.1), this is no longer possible here, since the resulting model could allow as feasible optimum solution a set of k paths decomposing the flow, plus one 0-weight path added just to satisfy some subpath constraints.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Remark 2."
+        },
+        {
+            "text": "Another variant of the flow decomposition problem is when the given values on the edges of the flow network do not satisfy the conservation of flow property. Instead, they are required to belong to a given interval, for each edge. Thus, we are looking for an inexact flow decomposition, namely one such that the superposition of its weights belongs to the given interval of each edge. This model was studied in [59] and is used in the practical RNA assembler SSP [40] , which seeks a set of transcripts explaining the read coverage within some user-defined error tolerance (i.e., interval around the observed weights) on all edges. The problem is formally stated as follows. . . , w k ) with w i \u2208 Z + such that for each edge (u, v) \u2208 E it holds that:",
+            "cite_spans": [
+                {
+                    "start": 411,
+                    "end": 415,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 463,
+                    "end": 467,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 675,
+                    "end": 676,
+                    "text": ".",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Inexact Flow"
+        },
+        {
+            "text": "In this variant, the same formulation as presented k-Flow Decomposition can be expanded to accommodate the inexact flow component. By simply replacing the flow conservation expressed in Eq. (4) (in the linearized form in Eq. (5a)), with the following two constraints: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Inexact Flow"
+        },
+        {
+            "text": "Solvers. We denote by StandardILP, SubpathConstraintsILP, and InexactFlowILP our ILP formulations for Problems 1 (MFD), 2 (MFDSC) and 3 (MIFD), respectively. We implemented these using the Cplex Python API under default settings. We compare StandardILP with Toboggan, the implementation by [22] for their exact FPT algorithm for MFD, and with Catfish, the implementation by [45] of their heuristic algorithm for MFD. We compare SubpathConstraintsILP with Coaster, the implementation by [60] for MFDSC, which is an exact FPT algorithm extending Toboggan, and also with CoasterHeuristic, which is a heuristic for MFDSC also by [60] . We compare InexactFlowILP with IFDSolver, which is an implementation of a heuristic algorithm for MIFD by [59] . Given the size of the datasets, we set a time limit for each graph, as also done by [22, 60] (we use 1 minute in all cases, except that we also include a run of Toboggan with a 5 minute time limit). The runtimes of our ILP implementations include the linear scan in increasing order to find the smallest k for which there is a k-flow decomposition.",
+            "cite_spans": [
+                {
+                    "start": 290,
+                    "end": 294,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 374,
+                    "end": 378,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 486,
+                    "end": 490,
+                    "text": "[60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 625,
+                    "end": 629,
+                    "text": "[60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 738,
+                    "end": 742,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 829,
+                    "end": 833,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 834,
+                    "end": 837,
+                    "text": "60]",
+                    "ref_id": "BIBREF59"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiment Design"
+        },
+        {
+            "text": "To test the performance of the solvers under a range of biologically-occurring graph topologies and flows weights, we used three human transcriptomic datasets containing a perfect (i.e., the edge weights satisfy conservation of flow) splice graph for each gene of the human genome. The first dataset, produced by the authors of [44] and also used in a number of flow decomposition benchmarking studies [22, 60] , was built using publicly available RNA transcripts from the Sequence Read Archive with quantification using the tool Salmon [37] . We use one of the larger transcriptomes 4 and call this dataset SRR020730-Salmon. We also produce perfect splice graphs by running HiSat2 [20] with the provided GRCh38 reference index and then popular RNA assembly tool StringTie [23] on real RNA reads from SRR307903, and superimposing the resulting transcripts and abundances (after rounding abundances to the nearest integer). We call this dataset SRR307903-StringTie. Finally, we create another dataset by directly simulating expression values for all reference transcripts of all genes in the reference genome GRCh.104 homo sapiens by sampling weights from the lognormal distribution with mean \u22124 and variance 4, as in the default setting of the RNASeqReadSimulator tool [25] . We multiply the simulated values by 1000 and round to the nearest integer.",
+            "cite_spans": [
+                {
+                    "start": 328,
+                    "end": 332,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 402,
+                    "end": 406,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 407,
+                    "end": 410,
+                    "text": "60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 537,
+                    "end": 541,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 682,
+                    "end": 686,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 773,
+                    "end": 777,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1269,
+                    "end": 1273,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "We call this dataset Reference-Sim. For both the Reference-Sim and SRR307903-StringTie datasets, we use only genes on the positive strand.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "For the subpath constraint experiments, we simulate four subpath constraints in each graph as in [60] . For four of the groundtruth paths, we take the prefix of the path that includes three nontrivial junctions (equivalent to three edges in the contracted graph described in [22, Lemma 13] ) as a subpath constraint. If a splice graph has fewer than four groundtruth paths, it is excluded from this experiment.",
+            "cite_spans": [
+                {
+                    "start": 97,
+                    "end": 101,
+                    "text": "[60]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 275,
+                    "end": 279,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 280,
+                    "end": 289,
+                    "text": "Lemma 13]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "For the inexact flow experiments, we simulate interval flows as follows, similar to what was done in [59] . For each true edge flow f uv , we independently sample a perturbed flow f uv from N (f uv , ( f uv ) 2 ), the Gaussian distribution with mean f uv and standard deviation f uv For this experiment we fixed = 0.05. We then create intervals as [0.9f uv , 1.1f uv ] with values rounded to the nearest integer, corresponding to a 10% error tolerance from the observed values. As described in [59] , it is possible that an inexact flow decomposition instance created in this way is infeasible; if an infeasible instance is created, we re-create it until a feasible instance is found.",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 105,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 494,
+                    "end": 498,
+                    "text": "[59]",
+                    "ref_id": "BIBREF58"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "From all datasets, the trivial graphs made up of a single path (i.e. admitting a trivial flow decomposition) are excluded.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "For each dataset and each FD variant, we report min k, the number of paths in a minimum flow decomposition for each problem variant; Amount, namely the number of graphs having that specifc value of min k; Avg., the average time (in seconds) for each instance solved within the time limit; \u03a3, the total time (in seconds) required to solve all instances (this included also the running time of the instances that did not finish within the time limit); Solved, the percentage all instances solved within the time limit; Diff., the average difference between the number of paths obtained with a heuristic algorithm and the optimum one. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Metrics."
+        },
+        {
+            "text": "The results for Problem MFD are shown in Table 1 . For all three datasets, the average time and the total time of Toboggan and Catfish outperform StandardILP for less complex genes, where the number of flow-paths is at most 10 or 15. However, as the genes becomes more complex (larger optimum flow decompositions), StandardILP is capable of solving all instances within an average of 10 seconds, while Toboggan and Catfish require on average 16 and 11 seconds for the solved instances, respectively. In addition, Toboggan does not solve all instances even within the 5 minute time limit. Recall also that Catfish is a heuristic, and thus it does not always return optimum solutions (see column Diff. ) .",
+            "cite_spans": [
+                {
+                    "start": 700,
+                    "end": 701,
+                    "text": ")",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 41,
+                    "end": 48,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "Among the different datasets, SRR020730-Salmon has fewer complex genes and most instances are solved more easily. However for SRR307903-StringTie (constructed from real RNA reads) and Reference-Sim datasets, there is a larger amount of complex genes and consequently fewer instances can be solved by Toboggan and Catfish, while StandardILP remains efficient and scalable. In these results, although StandardILP does not perform as fast as on SRR020730-Salmon, its runtime is still competitive, it can be scaled to graphs with larger k without compromising its efficiency. On the other hand, Toboggan's runtime is exponential in the size of the optimum decomposition, which hinders its usage on larger instances. Moreover, notice that in some applications (e.g. cancer transcriptomics [18] ) the graphs of interest do have a large number of RNA transcripts because of the genetic mechanism driving the disease. Hence, in such applications the need to find a flow decomposition is even greater for large k.",
+            "cite_spans": [
+                {
+                    "start": 784,
+                    "end": 788,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Lastly, one of the key steps in the Toboggan implementation is a reduction of the graph (to simplify nodes with in-degree or out-degree equal to one, see [22] ), which is a key insight behind its efficiency. However, this observation is highly tailored to the MFD problem, and cannot be easily extended to other FD variants (in fact, it is not used by real RNA assemblers).",
+            "cite_spans": [
+                {
+                    "start": 154,
+                    "end": 158,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "The results for Problem MFDSC are shown in Table 2 . For all three datasets, SubpathConstraintsILP is capable of solving instances of any size within a few seconds. As an ILP formulation, the addition of the constraints corresponding to the subpath constraints do not hinder its scalability or efficiency. On the other hand, Coaster is both slow on small instances, and does not solve large instances. This shows that the Toboggan implementation is optimized to use many properties of the standard MFD problem, that are not generalizable to variants of it of practical applicability, such as Problem MFDSC. Moreover, similarly to the Catfish heuristic, CoasterHeuristic does not return optimum solutions.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 43,
+                    "end": 50,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "The results for Problem MIFD are shown in Table 3 . For all three datasets, both formulations run on any instance in a small amount of time. In fact, InexactFlowILP generally has the same running time as StandardILP, which further underscores the flexibility and efficiency of our formulations. However, IFDSolver is a heuristic solver, having a significant difference with respect to the size of a minimum decomposition even for small k. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 42,
+                    "end": 49,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "Flow decomposition is a key problem in Computer Science, with applications in various fields, including the major multiassembly problems from Bioinformatics. Despite this, the only exact solution for MFD is the FPT algorithm of [22] , which does not scale to large values of k, and cannot be efficiently extended to model practical features of real data (such as long reads, or inexact flows). In fact, a large number of practical RNA assemblers use an ILP formulation at their core, thanks to their flexibility in modeling various aspects of real data. However, such formulations are based either on an impractical exhaustive enumeration of all possible s-t paths, or on a greedy heuristic to select a smaller set of candidate s-t paths that might be part of an optimum solution.",
+            "cite_spans": [
+                {
+                    "start": 228,
+                    "end": 232,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        },
+        {
+            "text": "In this paper we show an efficient quadratic-size ILP for MFD and variants, avoiding for the first time the current limitation of (exhaustively) enumerating candidate s-t paths. We also show that many constraints inside state-of-the-art RNA assemblers can be easily modeled on top of our basic ILP (i.e. subpath constraints, inexact and imperfect flows). Further flexibility also comes from the fact that all our ILPs are based on modeling a specific type of flow decomposition with a given, or upper bounded number k of paths (thus, they do not need to solve the minimum version of the problem). On both simulated and real datasets, we show that our ILP formulations finish within 13 seconds on any instance, and within a few seconds on most instances.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        },
+        {
+            "text": "On the practical side, we hope that our flexible ILP formulations can lie at the core of future referencebased RNA assemblers employing exact solutions. Thus, the current tradeoff between the complexity of the model and its tractability might not be necessary anymore. On the theoretical side, our ILP formulation represents the first exact solver for MFD scaling to large values of k, and it could be a reference when e.g. benchmarking various other heuristic or approximation algorithms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        },
+        {
+            "text": "Given the maturity of ILP solvers and Toboggan's intrinsic exponential dependence on k, it is not surprising that an ILP for MFD using a quadratic number of variables performs significantly better than Toboggan for larger k values. However, since for small k values our ILP formulations are still slower, as future work it would be interesting to further devise more efficient MFD solvers (e.g., as a start, run Toboggan when the instance is detected as being \"small enough\").",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        },
+        {
+            "text": "It would also be interesting to extend our ILP formulations to flow networks with cycles. While in this work we focus on reference-based approaches for multiassembly, de novo approaches (e.g., [12, 42] for RNA assembly and [3, 4, 39, 8] for viral quasispecies assembly) may yield graphs with cycles. In this context, any flow in such a network can be decomposed into at most |E| weights s-t paths and cycles.",
+            "cite_spans": [
+                {
+                    "start": 193,
+                    "end": 197,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 198,
+                    "end": 201,
+                    "text": "42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 223,
+                    "end": 226,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 227,
+                    "end": 229,
+                    "text": "4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 230,
+                    "end": 233,
+                    "text": "39,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 234,
+                    "end": 236,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Network flows",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Ahuja",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Magnanti",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Orlin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1988,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Opportunities and challenges in longread sequencing data analysis",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Amarasinghe",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Su",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zappia",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Ritchie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Gouil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Genome biology",
+            "volume": "21",
+            "issn": "1",
+            "pages": "1--16",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Full-length de novo viral quasispecies assembly through variation graph construction",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Baaijens",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Van Der Roest",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "K\u00f6ster",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Stougie",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sch\u00f6nhuth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Bioinformatics",
+            "volume": "35",
+            "issn": "24",
+            "pages": "5086--5094",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Strain-aware assembly of genomes from mixed samples using flow variation graphs",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Baaijens",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Stougie",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sch\u00f6nhuth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Research in Computational Molecular Biology",
+            "volume": "",
+            "issn": "",
+            "pages": "221--222",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Efficient RNA isoform identification and quantification from RNA-Seq data with network flows",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Bernard",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jacob",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mairal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Vert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Bioinformatics",
+            "volume": "30",
+            "issn": "17",
+            "pages": "2447--2455",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "The Gurobi Optimizer. Transp. Re-search",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Bixby",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Part B",
+            "volume": "41",
+            "issn": "2",
+            "pages": "159--178",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "CIDANE: comprehensive isoform discovery and abundance estimation",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Canzar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Andreotti",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Weese",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Reinert",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Klau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Genome biology",
+            "volume": "17",
+            "issn": "1",
+            "pages": "1--18",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "De novo haplotype reconstruction in viral quasispecies using paired-end read guided path finding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Bioinformatics",
+            "volume": "34",
+            "issn": "17",
+            "pages": "2927--2935",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "On the effect of forwarding table size on SDN network utilization",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lewin-Eytan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Naor",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Raz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE INFOCOM 2014-IEEE conference on computer communications",
+            "volume": "",
+            "issn": "",
+            "pages": "1734--1742",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Theoretical and computational study of several linearisation techniques for binary quadratic problems",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Furini",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Traversi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Annals of Operations Research",
+            "volume": "279",
+            "issn": "1",
+            "pages": "387--411",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Ry\u016bt\u014d: network-flow based transcriptome reconstruction",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gatter",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Stadler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "BMC bioinformatics",
+            "volume": "20",
+            "issn": "1",
+            "pages": "1--14",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Trinity: reconstructing a full-length transcriptome without a genome from RNA-Seq data",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Grabherr",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Haas",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yassour",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Levin",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Thompson",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Amit",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Adiconis",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Raychowdhury",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Nature biotechnology",
+            "volume": "29",
+            "issn": "7",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Gurobi Optimization",
+            "authors": [],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Integer linear programming in computational and systems biology: an entry-level text and course",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gusfield",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Single-cell RNA counting at allele and isoform resolution using Smart-seq3",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hagemann-Jensen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Ziegenhain",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramsk\u00f6ld",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hendriks",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Larsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Faridani",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sandberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nature Biotechnology",
+            "volume": "38",
+            "issn": "6",
+            "pages": "708--714",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "How to split a flow?",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hartman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hassidim",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kaplan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Raz",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Segalov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "2012 Proceedings IEEE INFOCOM",
+            "volume": "",
+            "issn": "",
+            "pages": "828--836",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Achieving high utilization with software-driven wan",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kandula",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mahajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Gill",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nanduri",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wattenhofer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the ACM SIGCOMM 2013 conference on SIGCOMM",
+            "volume": "",
+            "issn": "",
+            "pages": "15--26",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Long-read transcriptome sequencing reveals abundant promoter diversity in distinct molecular subtypes of gastric cancer",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "K L"
+                    ],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Tay",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ramnarayanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Padmanabhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "L K"
+                    ],
+                    "last": "Tan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Genome Biology",
+            "volume": "22",
+            "issn": "1",
+            "pages": "1--24",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Safety and Completeness in Flow Decompositions for RNA Assembly",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Khan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kortelainen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "C\u00e1ceres",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Tomescu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2022,
+            "venue": "To appear in RECOMB 2022 -Proceedings of the 26th Annual International Conference on Research in Computational Molecular Biology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Graph-based genome alignment and genotyping with HISAT2 and HISAT-genotype",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Paggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bennett",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Salzberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nature biotechnology",
+            "volume": "37",
+            "issn": "8",
+            "pages": "907--915",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Analysis of copy number variants and segmental duplications in the human genome: Evidence for a change in the process of formation in recent evolutionary history",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Lam",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Urban",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Korbel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Affourtit",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Grubert",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Weissman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Snyder",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Gerstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Genome research",
+            "volume": "18",
+            "issn": "12",
+            "pages": "1865--1874",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "A practical fpt algorithm for flow decomposition and transcript assembly",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kloster",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kuinke",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "O&apos;brien",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Reidl",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Villaamil",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sullivan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Van Der Poel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 Proceedings of the Twentieth Workshop on Algorithm Engineering and Experiments (ALENEX)",
+            "volume": "",
+            "issn": "",
+            "pages": "75--86",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Transcriptome assembly from long-read RNA-seq alignments with StringTie2",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kovaka",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Zimin",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Pertea",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Razaghi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Salzberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pertea",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Genome biology",
+            "volume": "20",
+            "issn": "1",
+            "pages": "1--13",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Sparse linear modeling of next-generation mRNA sequencing (RNA-Seq) data for isoform discovery and abundance estimation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Brown",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bickel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "108",
+            "issn": "50",
+            "pages": "19867--19872",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "RNASeqReadSimulator: a simple RNA-seq read simulator",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "IsoLasso: a LASSO regression approach to RNA-Seq based transcriptome assembly",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of Computational Biology",
+            "volume": "18",
+            "issn": "11",
+            "pages": "1693--1707",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Compact linearization for binary quadratic problems",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Liberti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "4OR",
+            "volume": "5",
+            "issn": "3",
+            "pages": "231--245",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Cliiq: Accurate comparative detection and quantification of expressed isoforms in a population",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Dao",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hach",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bakhshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Mo",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lapuk",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Collins",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Sahinalp",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "International Workshop on Algorithms in Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "178--189",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Finding ranges of optimal transcript expression quantification in cases of non-identifiability. bioRxiv",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kingsford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1101/2019.12.13.875625"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "An integer programming approach to novel transcript reconstruction from paired-end RNA-Seq reads",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mangul",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Caciula",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Seesi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Brinza",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Banday",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kanadia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the ACM Conference on Bioinformatics, Computational Biology and Biomedicine",
+            "volume": "",
+            "issn": "",
+            "pages": "369--376",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Refshannon: A genome-guided transcriptome assembler using sparse flow decomposition",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Pachter",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tse",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kannan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "PloS one",
+            "volume": "15",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Bayesian transcriptome assembly",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Maretty",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Sibbesen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krogh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Genome biology",
+            "volume": "15",
+            "issn": "10",
+            "pages": "1--11",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Parity balancing path flow decomposition and routing",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mumey",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shahmohammadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mcmanus",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yaw",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "2015 IEEE Globecom Workshops (GC Wkshps)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--6",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Sequence assembly demystified",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Nagarajan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pop",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Nature Reviews Genetics",
+            "volume": "14",
+            "issn": "3",
+            "pages": "157--167",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "On the Construction of Optimal Paths from Flows and the Analysis of Evacuation Scenarios",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Ohst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "A study on flow decomposition methods for scheduling of electric buses in public transport based on aggregated time-space network models",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Olsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Kliewer",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wolbeck",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Central European Journal of Operations Research",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10100-020-00705-6"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Salmon: accurate, versatile and ultrafast quantification from RNA-seq data using lightweight-alignment",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Patro",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Duggal",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kingsford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "StringTie enables improved reconstruction of a transcriptome from RNA-seq reads",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pertea",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Pertea",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Antonescu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Mendell",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Salzberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nature biotechnology",
+            "volume": "33",
+            "issn": "3",
+            "pages": "290--295",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "V-pipe: a computational pipeline for assessing viral genetic diversity from high-throughput data",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Posada-C\u00e9spedes",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Seifert",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Topolsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Jablonski",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Metzner",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Beerenwinkel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "SSP: An interval integer linear programming for de novo transcriptome assembly and isoform discovery of RNA-seq reads",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Safikhani",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sadeghi",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Pezeshk",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Eslahchi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Genomics",
+            "volume": "102",
+            "issn": "",
+            "pages": "507--514",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Jumper enables discontinuous transcript assembly in coronaviruses",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sashittal",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "El-Kebir",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Nature Communications",
+            "volume": "12",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/s41467-021-26944-y"
+                ]
+            }
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Oases: robust de novo RNA-seq assembly across the dynamic range of expression levels",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Schulz",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Zerbino",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Vingron",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Birney",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Bioinformatics",
+            "volume": "28",
+            "issn": "8",
+            "pages": "1086--1092",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "The clonal and mutational evolution spectrum of primary triple-negative breast cancers",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Shah",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Goya",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Oloumi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ha",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Turashvili",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Tse",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Haffari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Nature",
+            "volume": "486",
+            "issn": "7403",
+            "pages": "395--399",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Accurate assembly of transcripts through phase-preserving graph decomposition",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shao",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kingsford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Nature biotechnology",
+            "volume": "35",
+            "issn": "12",
+            "pages": "1167--1169",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Theory and a heuristic for the minimum path flow decomposition problem",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shao",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kingsford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE/ACM transactions on computational biology and bioinformatics",
+            "volume": "16",
+            "issn": "2",
+            "pages": "658--670",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Function of alternative splicing",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Stamm",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ben-Ari",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Rafalska",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Toiber",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Thanaraj",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Soreq",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Gene",
+            "volume": "344",
+            "issn": "",
+            "pages": "1--20",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Cplex users manual, version",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "I C O"
+                    ],
+                    "last": "Studio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Integer programming formulations for the elementary shortest path problem",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Taccari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "European Journal of Operational Research",
+            "volume": "252",
+            "issn": "1",
+            "pages": "122--130",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Explaining a weighted dag with few paths for solving genome-guided multi-assembly",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Tomescu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gagie",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Popa",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Rizzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kuosmanen",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE/ACM transactions on computational biology and bioinformatics",
+            "volume": "12",
+            "issn": "6",
+            "pages": "1345--1354",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "A novel min-cost flow method for estimating transcript expression with RNA-Seq",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Tomescu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kuosmanen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Rizzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "BMC bioinformatics",
+            "volume": "14",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Probabilistic inference of viral quasispecies subject to recombination",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "T\u00f6pfer",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Zagordi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Prabhakaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Halperin",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Beerenwinkel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Journal of Computational Biology",
+            "volume": "20",
+            "issn": "2",
+            "pages": "113--123",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Transcript assembly and quantification by RNA-Seq reveals unannotated transcripts and isoform switching during cell differentiation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Trapnell",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Pertea",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mortazavi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Van Baren",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Salzberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Wold",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Pachter",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Nature biotechnology",
+            "volume": "28",
+            "issn": "5",
+            "pages": "511--515",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Simple bounds and greedy algorithms for decomposing a flow into a minimal set of paths",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Vatinlen",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chauvet",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Chr\u00e9tienne",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mahey",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "European Journal of Operational Research",
+            "volume": "185",
+            "issn": "3",
+            "pages": "1390--1401",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.ejor.2006.05.043"
+                ]
+            }
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Quasispecies diversity determines pathogenesis through cooperative interactions in a viral population",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Vignuzzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Stone",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Arnold",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Cameron",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Andino",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Nature",
+            "volume": "439",
+            "issn": "7074",
+            "pages": "344--348",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Next-generation transcriptome assembly: strategies and performance analysis",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Voshall",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Moriyama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "15--36",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "On the implementation of an interior-point filter line-search algorithm for large-scale nonlinear programming",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "W\u00e4chter",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Biegler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Mathematical programming",
+            "volume": "106",
+            "issn": "1",
+            "pages": "25--57",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Alternative isoform regulation in human tissue transcriptomes",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sandberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Khrebtukova",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Mayr",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Kingsmore",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Schroth",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Burge",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Nature",
+            "volume": "456",
+            "issn": "7221",
+            "pages": "470--476",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "HCV quasispecies assembly using network flows",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Westbrooks",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Astrovskaya",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Campo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Khudyakov",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Berman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zelikovsky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "International Symposium on Bioinformatics Research and Applications",
+            "volume": "",
+            "issn": "",
+            "pages": "159--170",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "RNA Transcript Assembly Using Inexact Flows",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Reynolds",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mumey",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "2019 IEEE International Conference on Bioinformatics and Biomedicine (BIBM)",
+            "volume": "",
+            "issn": "",
+            "pages": "1907--1914",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Flow decomposition with subpath constraints",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tomescu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Mumey",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "21st International Workshop on Algorithms in Bioinformatics (WABI 2021). Schloss Dagstuhl-Leibniz-Zentrum f\u00fcr Informatik",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "The multiassembly problem: reconstructing multiple transcript isoforms from est fragment mixtures",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xing",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Resch",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Genome research",
+            "volume": "14",
+            "issn": "3",
+            "pages": "426--441",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Shorah: estimating the genetic diversity of a mixed sample from next-generation sequencing data",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Zagordi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bhattacharya",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Eriksson",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Beerenwinkel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "BMC bioinformatics",
+            "volume": "12",
+            "issn": "1",
+            "pages": "1--5",
+            "other_ids": {}
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Scallop2 enables accurate assembly of multiple-end rna-seq data",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1101/2021.09.03.458862"
+                ]
+            }
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Multitrans: an algorithm for path extraction through mixed integer linear programming for transcriptome assembly",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "IEEE/ACM Transactions on Computational Biology and Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "w k ) with w i \u2208 Z + such that for",
+            "authors": [
+                {
+                    "first": ".",
+                    "middle": [
+                        "."
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF1": {
+            "text": "Example of a flow network and of two flow decompositions of it.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Example of the edge variables of the i th path, satisfying Eqs. (3a) to (3c).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Flow decomposition with subpath constraints). Let G = (V, E, f ) be a flow network. Subpath constraints are defined to be a set of simple paths R = {R 1 , . . . , R } in G (not necessarily s-t paths). A flow decomposition (P, w) satisfies the subpath constraints if and only if",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Inexact flow network). A tuple G = (V, E, f , f ) is said to be an inexact flow network if (V, E) is a DAG with unique source s and unique sink t, where for every edge (u, v) \u2208 E we have associated two positive integer values f uv and f uv , satisfying f uv \u2264 f uv . Problem 3 (Minimum inexact flow decomposition (MIFD) [59]). Given an inexact flow network G = (V, E, f , f ) the minimum inexact flow decomposition problem is to determine if there exists, and if so, find a minimum-size set of s-t paths P = (P 1 , . . . , P k ) and associated weights w = (w 1 , .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Notice that Eq. (9a) can be combined with Eqs. (7a) and (7b) to obtain a solution if one needs to solve an inexact flow decomposition with subpath constraints problem, further underscoring the versatility of the ILP solution in handling various practical variants of the flow decomposition problem.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Results for Problem MFD. min k Amount Avg. \u03a3 Solved Avg. \u03a3 Solved Avg. \u03a3 Solved Avg. \u03a3 Solved Diff.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Results for Problem MFDSC. min k Amount Avg. \u03a3 Solved Avg. \u03a3 Solved Avg. \u03a3 Solved Diff.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Results for Problem MIFD. IFDSolver min k Amount Avg. \u03a3 Solved Avg. \u03a3 Solved Diff.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "A Full ILP formulation for k-Flow Decomposition ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "annex"
+        },
+        {
+            "text": "An alternative approach to handle a graph whose weights to not satisfy the flow conservation property flow consists in directly taking the observed read coverages, and trying to find a set of path whose superposition best explains the observed coverages under some error model, penalizing the difference between the observed coverage of an edge and the sum of the weights of the paths going through that edge. This problem has been formalized in [49] and also proven NP-hard. To formalize this problem, we denote by imperfect flow network any DAG (V, E) with unique source s and unique sink t, where for every edge we have an associated integer positive value f uv (not necessarily satisfying the flow conservation property). A first formulation of such an MFD variant imposes a fixed bound on the total error of all of the edges.Problem 4 (Minimum imperfect flow decomposition (bounded error)). Given an imperfect flow network G = (V, E, f ), and an error bound B \u2265 0, find (if it exists) a minimum-sized set of s-t paths P = (P 1 , . . . , P k )Notice that Problem 4 is a strict generalization of the MFD problem, which is obtained by taking B = 0. As done in Section 3.3, we can obtain an ILP for it by extending the ILP formulation for k-Flow Decomposition to express Eq. (11) by the following two sets of linear equations:This model is for a fixed k value, and a full solution for Problem 4 is obtained by trying all values of k in increasing order until the ILP formulation admits a solution. Notice that the same upper bound k \u2264 |E|, since any solution to Problem 4 (i.e. any set of weighted s-t paths) induces a flow, which is decomposable into at most |E| weighted paths.Another formulation, defined by [49] and at the core of RNA multiassembly tools such as [26, 24, 5, 50] , asks to minimize the total sum of squared errors with a minimum number of paths.Problem 5 (Minimum imperfect flow decomposition (minimum total error) [49] ). Given an imperfect flow network G = (V, E, f ), find a set of s-t paths P = (P 1 , . . . , P k ) and associated weights w = (w 1 , . . . , w k ), minimizingand among all such sets of paths, find one with minimum k (i.e. with minimum cardinality).For a given number k of path, Eq. (12) can be used as an objective function in an Integer Quadratic Problem (IQP), which can solved by commercial solvers such as CPLEX and Gurobi. The main requirements is that the objective function is quadratic and convex, such as:As before, to fully solve Problem 5, one can iterate over k from 1 to |E| (upper bound holding by the same reasoning as above), and choose the smallest one attaining Eq. (13) .",
+            "cite_spans": [
+                {
+                    "start": 446,
+                    "end": 450,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 1712,
+                    "end": 1716,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 1768,
+                    "end": 1772,
+                    "text": "[26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1773,
+                    "end": 1776,
+                    "text": "24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1777,
+                    "end": 1779,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1780,
+                    "end": 1783,
+                    "text": "50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1936,
+                    "end": 1940,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 2626,
+                    "end": 2630,
+                    "text": "(13)",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B Imperfect flow"
+        }
+    ]
+}

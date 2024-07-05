@@ -1,0 +1,2371 @@
+{
+    "paper_id": "bf90330ef716cebf6e399367369c1ce4383c0af0",
+    "metadata": {
+        "title": "Sequence-based prediction of protein-protein interactions: a structure-aware interpretable deep learning model",
+        "authors": [
+            {
+                "first": "Samuel",
+                "middle": [],
+                "last": "Sledzieski",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Computer Science and Artificial Intelligence Lab",
+                    "institution": "Massachusetts Institute of Technology",
+                    "location": {
+                        "postCode": "02139",
+                        "settlement": "Cambridge",
+                        "region": "MA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Rohit",
+                "middle": [],
+                "last": "Singh",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Computer Science and Artificial Intelligence Lab",
+                    "institution": "Massachusetts Institute of Technology",
+                    "location": {
+                        "postCode": "02139",
+                        "settlement": "Cambridge",
+                        "region": "MA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Lenore",
+                "middle": [],
+                "last": "Cowen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Tufts University",
+                    "location": {
+                        "postCode": "02155",
+                        "settlement": "Medford",
+                        "region": "MA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Bonnie",
+                "middle": [],
+                "last": "Berger",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Computer Science and Artificial Intelligence Lab.",
+                    "institution": "Massachusetts Institute of Technology",
+                    "location": {
+                        "postCode": "02139",
+                        "settlement": "Cambridge",
+                        "region": "MA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Protein-protein interaction (PPI) networks have proven to be a valuable tool in systems biology to facilitate the discovery and understanding of protein function. Unfortunately, experimental PPI data remains sparse in most model organisms and even more so in other species. Existing methods for computational prediction of PPIs seek to address this limitation, and while they perform well when sufficient within-species training data is available, they generalize poorly to new species or often require specific types and sizes of training data that may not be available in the species of interest. We therefore present D-SCRIPT, a deep learning method for predicting a physical interaction between two proteins given just their sequences. Compared to existing methods, D-SCRIPT generalizes better to new species and is robust to limitations in training data size. Our approach encodes the intuition that for two proteins to physically interact, a subset of amino acids from each protein should be in contact with the other. The intermediate stages of D-SCRIPT directly implement this intuition; the penultimate stage in D-SCRIPT is a rough estimate of the inter-protein contact map of the protein dimer. This structurally-motivated design enables interpretability of our model and, since structure is more conserved evolutionarily than sequence, improves generalizability across species. We show that a D-SCRIPT model trained on 38,345 human PPIs enables significantly improved functional characterization of fly proteins compared to the state-of-the-art approach. Evaluating the same D-SCRIPT model on protein complexes with known 3-D structure, we find that the inter-protein contact map output by D-SCRIPT has significant overlap with the ground truth. Our work suggests that recent advances in deep learning language modeling of protein structure can be leveraged for protein interaction prediction from sequence. D-SCRIPT is available at",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The systematic mapping of physical protein-protein interactions (PPIs) in the cell has proven extremely valuable in deepening our understanding of protein function and biology. In species such as yeast and humans where a large network of experimentally determined PPIs exists, this PPI network information has proven valuable for downstream inference tasks in understanding functional genomics and biological pathway analysis [1] [2] [3] [4] [5] . However, despite the introduction of high-throughput methods [6] [7] [8] [9] [10] to assay PPIs, the experimentally determined human PPIs to date are believed to represent only a small fraction of the true set of protein pairs that physically bind in the human cell [11] . In other species, the data is even sparser. As Figure 1 shows, in the case of most model organisms, the number of experimentally determined PPIs is far smaller than for human, and in the case of non-model organisms, it can be nearly non-existent. This motivates our study of computational methods to predict PPIs.",
+            "cite_spans": [
+                {
+                    "start": 426,
+                    "end": 429,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 430,
+                    "end": 433,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 434,
+                    "end": 437,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 438,
+                    "end": 441,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 442,
+                    "end": 445,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 509,
+                    "end": 512,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 513,
+                    "end": 516,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 517,
+                    "end": 520,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 521,
+                    "end": 524,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 525,
+                    "end": 529,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 714,
+                    "end": 718,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 768,
+                    "end": 776,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Here, we introduce a new deep learning method, D-SCRIPT (Deep Sequence Contact Residue Interaction Prediction Transfer), for determining if two proteins interact physically in the cell based on their amino acid sequences. Our key conceptual advance is that a well-matched combination of input featurization and model architecture allow for the model to be trained solely from sequence data, supervised only with a binary interaction label, and yet produce an intermediate representation that substantially captures the structural mechanism of interaction between the protein pair. Our feature construction takes advantage of recent advances in deep learning-based language modeling of single protein structures. Using Bepler and Berger's [12] pre-trained language model, we construct informative protein embeddings that are endowed with structural information about each of the proteins. The internal representation of our model uses these features to explicitly encode the intuition that a physical interaction between two proteins requires that a subset of the residues in each protein be in contact with the other protein. We do so by having an interprotein contact-map matrix as the penultimate stage in our model, which is then summarized into a single score ( Figure 2 ). These innovations are combined with a novel pooling operation and a regularization loss function that successfully guide the model towards structurally-plausible contact maps during training.",
+            "cite_spans": [
+                {
+                    "start": 738,
+                    "end": 742,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1266,
+                    "end": 1274,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our design enables D-SCRIPT to offer a combination of advantages that have hitherto been unavailable simultaneously: broad applicability, interpretability, and high cross-species accuracy. It can be applied to arbitrary pairs of protein sequences, including between-species interactions. The intermediate contact- . For readability, we offer both (a) linear and (b) log-scale plots, as well as (c) PPI counts normalized by the square of the species genecount, to adjust for the number of possible gene pairs. Note the relative lack of PPI data in species other than human and yeast. Furthermore, the growth of this corpus over the past five years has been modest (except in the case of human and mouse PPIs). map representation offers a physical interpretation of the interaction. Since structure is more conserved than sequence over evolutionary time [13] , this physical model of interaction should translate well across species, making D-SCRIPT more generalizable. We note that the use of Bepler and Berger's pre-trained model allows us to indirectly benefit from the rich data on 3-D structures of individual proteins. In contrast, a PPI prediction method that was directly supervised with 3-D structures of protein complexes, in order to learn the physical mechanism of interaction, would need to contend with the relatively small size of that corpus [14] [15] [16] . We demonstrate D-SCRIPT's success compared to competing methods in correctly predicting PPIs in organisms with sparse PPI networks. We evaluate D-SCRIPT in the cross-species prediction setting, where a method trained on human PPIs is used to predict PPIs in several less-studied model organisms. We show that in this context, D-SCRIPT substantially improves upon existing methods, including the state-of-theart deep learning method PIPR [17] . To investigate intra-species performance, we compare D-SCRIPT's prediction of PPI interactions in the human PPI network, when trained through cross-validation on human PPI interaction data. We find, as expected, that state-of-the-art PIPR substantially outperforms D-SCRIPT when predicting interactions between proteins that have many PPI examples in the training set, but the situation is reversed for proteins with a paucity of PPI interactions in the training set. A simple hybrid method that jointly incorporates the confidence of each method performs best of all.",
+            "cite_spans": [
+                {
+                    "start": 852,
+                    "end": 856,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1356,
+                    "end": 1360,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1361,
+                    "end": 1365,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1366,
+                    "end": 1370,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1810,
+                    "end": 1814,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To examine if the higher cross-species accuracy of D-SCRIPT translates to improved inference of protein function, we run an analysis pipeline to predict functional modules in Drosophila using networks predicted by D-SCRIPT and PIPR, and show that D-SCRIPT achieves more functionally coherent clusters. On evaluating the physical plausibility of the intermediate contact map representation, we remarkably find that the map partially discovers the structural mechanism of an interaction despite the model having been trained only on sequence data. Specifically, we evaluate our predictions on Vreven et al.'s [18] benchmark database of 3-D structures of docked protein-pairs and observe that our model's predicted contact map is significantly similar to the ground-truth inter-protein contact map in cases where our model predicts an interaction. These contact map predictions could be used to augment methods which predict protein interaction from known contacts, such as Hosur et al. [19] . Furthermore, our modular design enables the investigation of model output at various intermediate stages; we demonstrate that each additional stage captures incremental biological intuition. We also present preliminary predictions for viral-host PPIs between SARS-CoV-2 & Human.",
+            "cite_spans": [
+                {
+                    "start": 607,
+                    "end": 611,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 984,
+                    "end": 988,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Related Work. D-SCRIPT, like other recent successful deep learning methods PIPR and DPPI [17, 20] , belongs to the class of methods that perform PPI prediction from protein amino acid sequence alone, in contrast to a different class of highly successful PPI prediction methods based on network information. Network-based PPI prediction methods use \"guilt by association\" or more sophisticated network propagation or diffusion methods [4] to computationally predict pairs of proteins that physically interact by bootstrapping from the connectivity patterns of the known interactions [21] [22] [23] [24] . Alternatively, other types of protein-protein association that can be more widely available, such as co-expression and co-localization, have also been shown to correlate with physical protein-protein interaction. In cases where there is a reasonably-sized training set and/or a rich set of input data modalities, these methods perform very well and can be powerful tools [3, [25] [26] [27] . Unfortunately, there has been limited success in adopting these methods beyond those few model organisms where there is sufficient known interaction (e.g. yeast and Human networks) or association data (e.g yeast networks). Taking advantage of the abundant genetic-interaction coverage in yeast, Khurana et al. [28] described one of the few successful approaches to transfer them to human (where the data is sparse) to glean insights into neurodegenerative disease.",
+            "cite_spans": [
+                {
+                    "start": 89,
+                    "end": 93,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 94,
+                    "end": 97,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 434,
+                    "end": 437,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 582,
+                    "end": 586,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 587,
+                    "end": 591,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 592,
+                    "end": 596,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 597,
+                    "end": 601,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 975,
+                    "end": 978,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 979,
+                    "end": 983,
+                    "text": "[25]",
+                    "ref_id": null
+                },
+                {
+                    "start": 984,
+                    "end": 988,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 989,
+                    "end": 993,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1306,
+                    "end": 1310,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The advantage of a sequence-based approach like D-SCRIPT is that the input sequence data is almost always available, due to the enormous advances in low-cost genome sequencing. Among sequence-based methods, D-SCRIPT's strength is in its greater cross-species generalizability and more accurate predictions in cases where the existing training data is sparse. Moreover, our contact-map based approach parallels the recent work on deep learning prediction of single-structure contact maps from protein sequence [29] [30] [31] . While these methods are trained on 3-D structure data, our method is designed to be trained using only sequence data. Nonetheless, insights from our approach and these methods could potentially be combined in future work.",
+            "cite_spans": [
+                {
+                    "start": 509,
+                    "end": 513,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 514,
+                    "end": 518,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 519,
+                    "end": 523,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our deep learning model for predicting PPIs directly from protein sequences, similar to previous deep learning methods DPPI [20] and PIPR [17] , can be composed into two stages:",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 128,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Architecture"
+        },
+        {
+            "text": "\u2022 Stage 1: Generate a rich feature representation for each protein separately where we note that the model is trained end-to-end across both stages. In both DPPI and PIPR, most of the complexity in the model is built into Stage 1. Once a feature representation has been computed, the interaction prediction for DPPI or PIPR is based on a direct element-wise product of the two protein feature vectors. A key innovation of D-SCRIPT is in our design of a more structurally-aware Stage 2. Stage 1 is accomplished by using the pre-trained protein sequence model from Bepler & Berger followed by a projection module (Section 2.1.2), where the model learns low-dimensional protein embeddings which can also be used as compact representations for downstream interaction and structural prediction tasks. For the second stage, we present a novel architecture that encodes a physical model of protein interaction: we predict two proteins to interact only if there exists a short sequence of residues in the first protein that is highly compatible with a sequence of residues in the second protein. In the contact module (Section 2.1.3), the low-dimensional embeddings are used to compute a sparse contact map which predicts the locations of contacts between protein residues. Finally, the interaction module (Section 2.1.4) uses a customized maxpooling operation on the contact map to predict the probability of interaction between the input proteins.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Architecture"
+        },
+        {
+            "text": "The input to D-SCRIPT is a pair of protein sequences S 1 , S 2 with lengths (n, m) and it outputs an interaction probabilityp \u2208 [0, 1] and a predicted-contact matrix\u0108 \u2208 [0, 1] n\u00d7m . We first generate embeddings E 1 \u2208 R n\u00d7d 0 , E 2 \u2208 R m\u00d7d 0 by embedding S 1 and S 2 with a pre-trained model from Bepler & Berger. Their model is a Bi-LSTM (bidirectional long short-term memory) neural network trained on three independent pieces of information: 1) the protein's SCOP classification, indicating its general structure, 2) self-contact map of a protein's 3-D structure, and 3) sequence alignment of similar proteins. These embeddings capture both local and global structural features of the protein sequences: the d 0 -dimensional encoding of each amino acid contains information not just about the amino acid and its immediate context, but also the global structure of the protein. This is a key distinction from other approaches (e.g. Chen et al.'s in PIPR), where each amino acid's embedding represents just its biochemical properties or a short-range context (e.g., 5-7 residues) around it. We note that alternative embeddings (e.g. Rives et al. [32] or Luo et al. [33] ) can potentially be substituted here. Each low-dimensional single-protein embedding implicitly includes, among other features, an encoding that broadly captures the protein's residue-contact map. The novel portion of the architecture combines these low-dimensional embeddings to compute a sparse interprotein contact map through a two-step process which first computes a representation for each pair of residues, then incorporates local information using a convolutional filter. The last module (Interaction Prediction Module) uses a customized max-pooling operation (Section 2.1.4) to predict the probability of interaction between the input proteins.",
+            "cite_spans": [
+                {
+                    "start": 1146,
+                    "end": 1150,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 1165,
+                    "end": 1169,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Input & Structure-aware Embedding"
+        },
+        {
+            "text": "In the projection module, we reduce E 1 and E 2 to d-dimensional representations using a fully-connected linear layer (multi-layer perceptron) with d 0 input and d output nodes. Specifically, given an input embedding E \u2208 R n\u00d7d 0 , we compute the embedding projection Z \u2208 R n\u00d7d \u22650 as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Projection Module"
+        },
+        {
+            "text": "with W 1 \u2208 R d 0 \u00d7d , b 1 \u2208 R d as learned weights and biases. The rectified linear unit (ReLU) is a non-linear operation which applies the transformation ReLU(x) = max(0, x). The dropout layer (Drop) randomly sets 50% of the weights to zero, helping prevent over-fitting in W 1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Projection Module"
+        },
+        {
+            "text": "The residue contact model takes the d-dimensional embeddings Z 1 , Z 2 and models the interaction between the residues of each protein. First, for each pair of residue embeddings",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Residue Contact Module"
+        },
+        {
+            "text": "where indicates the element-wise difference and indicates the Hadamard product. This featurization is symmetric and has been previously used in NLP and protein sequence modeling tasks [12, 34] .",
+            "cite_spans": [
+                {
+                    "start": 184,
+                    "end": 188,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 189,
+                    "end": 192,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Residue Contact Module"
+        },
+        {
+            "text": "are the learned weights and biases. The batch normalization operation normalizes the mean and variance of the input features, thus stabilizing the learning process. Each element B i,j captures the direct interaction between residues S 1 i and S 2 j . The broadcast matrix B is used to compute the contact prediction matrix\u0108 \u2208 [0, 1] n\u00d7m , wher\u00ea",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Residue Contact Module"
+        },
+        {
+            "text": "The two-dimensional convolution (Conv) operation with width 2w + 1 and h channels uses the hdimensional representation of all residues within w of B i,j to compute\u0108 i,j , and thus detects local patterns in two-dimensional residue contact space. The broadcast matrix is zero-padded to allow for the convolution operation to be performed at all indices. We again apply a batch normalization to stabilize learning. We apply the sigmoid operation \u03c3, which restricts the output values of\u0108 to be in the range [0,1], and thus they can be interpreted as the predicted probability that two residues are in contact.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Residue Contact Module"
+        },
+        {
+            "text": "The interaction prediction module computes a single probability of interactionp from the n\u00d7m contact map C. To do so, we perform two pooling operations. The first is a standard max-pool: an l-dimensional maxpool divides\u0108 into n l \u00d7 m l non-overlapping regions and takes the maximum value of each region, with zero-padding applied where necessary. This max-pooled matrix P represents the probability of interaction in local regions of the proteins and maintains only the highest-probability residue contacts in each region for global prediction. The second pooling operation is a global pooling operation, calculated as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Interaction Prediction Module"
+        },
+        {
+            "text": "where \u00b5, \u03c3 2 are the mean and variance of the P ij values and \u03b3 is a learned parameter. The matrix Q sparsifies P , maintaining only those contacts which are \u03b3\u03c3 2 greater than the mean, and setting all others to zero. We then predict that the proteins will interact with the average probability of interaction among these high-probability contacts. Together with the regularization that the contact matrix be sparse (see Section 2.2), this global pooling operation captures the intuition that a pair of interacting proteins will be characterized by a relatively small number of high-probability interacting residues or regions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Interaction Prediction Module"
+        },
+        {
+            "text": "The final step of interaction prediction is designed to enhance the bimodality of the output distribution, so that the choice of a cutoff becomes less important in distinguishing positive and negative predictions. We apply the logistic activation function to compute the output probabilityp = \u03c3 (x 0 ,\u03b7) (p raw ) where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Interaction Prediction Module"
+        },
+        {
+            "text": "This activation function, with x 0 = 0.5, takes our raw probability predictions and makes them more \"extreme\", depressing values below x 0 towards 0 and inflating values above x 0 towards 1, with \u03b7 controlling the rate at which this occurs. We returnp and\u0108 as the model prediction, from which we calculate the loss and optimize the gradient as described in Section 2.2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Interaction Prediction Module"
+        },
+        {
+            "text": "Training Objective. Given the true labels, the predicted probabilitiesp, and the contact maps\u0108, we compute the loss as \u03bbL BCE + (1 \u2212 \u03bb)L M AG ; here \u03bb is a hyper-parameter that balances between L BCE , the binary cross-entropy (BCE) loss, and L M AG , the contact-map magnitude loss (MAG). While the BCE loss is standard in a classification context, we introduce L M AG as a novel regularization that enables us to learn realistically sparse contact maps. L M AG for a single training example is calculated as the arithmetic mean value of the contact map\u0108. Jointly minimizing the total magnitude of contact maps with the BCE captures the intuition that interacting proteins are characterized by just a few high probability inter-protein contacts, while most residues will not be in contact.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "Implementation Details. We implemented D-SCRIPT in PyTorch 1.2.0 and trained with a NVIDIA Tesla V100 with 32GB of memory. Embeddings from the pre-trained Bepler & Berger model were produced by concatenating the final values of the output and all hidden layers, so that d 0 = 6165. We used a projection dimension of d = 100, a hidden dimension of h = 50, a convolutional filter with width 2w + 1 = 7, and a local max-pooling width of l = 9. We used x 0 = 0.5, \u03b7 = 20 for the custom logistic activation, and \u03bb = 0.35 for calculating the training loss. Weights were initialized using PyTorch defaults. We used a batch size of 25, the Adam optimizer with a learning rate of 0.001, and trained all models for 10 epochs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "PPI Data Set. To evaluate the performance of D-SCRIPT in predicting protein-protein interactions, we use data from the STRING [26] database (version 11). STRING contains protein pairs corresponding to a variety of primary sources and interaction modalities (e.g., binding vs co-expression). In order to select only high-confidence physical protein interactions, we limited our positive examples to binding interactions associated with a positive experimental-evidence score. From this set, we removed PPIs involving very short proteins (shorter than 50 amino acids) and, due to GPU memory constraints, also excluded proteins longer than 800 amino acids. Next, we removed PPIs with high sequence redundancy to other PPIs, following the precedent of previous approaches [17, 20] . Specifically, we clustered proteins at the 40% similarity threshold using CD-HIT [35, 36] , and a PPI (A-B) was considered sequence redundant (and excluded) if we had already selected another PPI (C-D) such that the protein pairs (A, C) and (B, D) each shared a CD-HIT cluster. Removing sequence redundant PPIs from the data set prevents the model from memorizing interactions based on sequence similarity alone. To generate negative examples of PPI, we followed [20] and randomly paired proteins from the non-redundant set, choosing a 10:1 negative-to-positive ratio to reflect the intuition that true positive PPIs are likely rare. Our human PPI data set contained 47,932 positive and 479,320 negative protein interactions, of which we set apart 80% (38,345) for training and 20% (9,587) for validation. For each of 5 model organisms (Table 1) D-SCRIPT Excels at Cross-Species PPI Prediction. We first sought to see how D-SCRIPT performed on the task of cross-species interaction prediction. We trained a model on human PPIs and evaluated it using PPI data sets from five other model organisms. We compared D-SCRIPT with PIPR, shown by Chen et al. [17] to be the best performing sequence-based PPI prediction method, trained on the same set of human PPIs as the D-SCRIPT model. We compare model complexity of D-SCRIPT and PIPR in Appendix A.2. We also compare to a recently released method by Richoux et al. [37] in Appendix A.3. Additionally, we compared with a hybrid method (PIPR + D-SCRIPT) where PIPR was used to adjust D-SCRIPT's prediction: when PIPR is highly confident that an interaction does occur (p > 0.9), the predicted probability of D-SCRIPT is increased by 50%. In Table 1 , we report the precision, recall, area under precision-recall curve (AUPR) and area under ROC curve (AUROC) of each method in each of five species. For highly unbalanced data, as is the case here, we note that AUPR is generally considered a better metric than AUROC. D-SCRIPT significantly outperforms PIPR cross-species and maintains a high AUPR across all species, even those which are extremely evolutionary distant from human. In fact, its AUPR in these species remains comparable to that seen in human cross-validation. The hybrid method outperforms both D-SCRIPT and PIPR alone, but improves D-SCRIPT only modestly in cross-species analysis.",
+            "cite_spans": [
+                {
+                    "start": 126,
+                    "end": 130,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 768,
+                    "end": 772,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 773,
+                    "end": 776,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 860,
+                    "end": 864,
+                    "text": "[35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 865,
+                    "end": 868,
+                    "text": "36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1242,
+                    "end": 1246,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1929,
+                    "end": 1933,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 2189,
+                    "end": 2193,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1615,
+                    "end": 1624,
+                    "text": "(Table 1)",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 2463,
+                    "end": 2470,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "D-SCRIPT Hybrid Performs Well on Human Cross Validation. While our aim is enhanced crossspecies PPI prediction, we sought to investigate how D-SCRIPT would perform at predicting within-species interactions in Human. We performed 5-fold cross validation and report here the average across all folds. Additionally, we evaluated a hybrid method (PIPR + D-SCRIPT) where we used D-SCRIPT to adjust PIPR's prediction: when D-SCRIPT is highly confident that an interaction does not happen (p < 0.01), we reduce the predicted probability from PIPR by half. Table 1 shows that while PIPR significantly outperforms D-SCRIPT on human PPIs in cross-validation, a combination of the methods outperforms either one alone. Notably, the PIPR + D-SCRIPT hybrid achieves substantially higher precision, though at the expense of recall. This may be a desirable trade-off in certain contexts, e.g., when generating PPI candidates for experimental validation. We further investigated the performance of D-SCRIPT and PIPR on subsets of the human data, seeking to better understand their relative strengths. As we elaborate in Appendix A.4, D-SCRIPT performs better on interactions involving proteins that occur infrequently in the PPI network while PIPR performs better on proteins that occur frequently. This suggests that PIPR may perform better when a large amount of training data is available but D-SCRIPT may generalize better to new proteins (and species). Figure 3 : Distribution of within-cluster similarity scores in Drosophilia melanogaster. D-SCRIPT recovers more functionally coherent clusters than PIPR (p = 0.000723, one-tailed t-test). Clusters were generated by predicting protein interactions using either D-SCRIPT or PIPR, computing the diffusion state distance (DSD) between proteins, and clustering the DSD matrix using spectral clustering. Within-cluster similarity was calculated as the average Jaccard similarity between GO Slim annotations of all pairs of proteins in the cluster.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 549,
+                    "end": 556,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 1442,
+                    "end": 1450,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF13"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "Functional Module Prediction. The importance of PPI networks arises, in part, from the graph-theoretic analyses on them which enable the functional characterization of un-annotated proteins. We therefore sought to test if D-SCRIPT's success at cross-species generalization would translate to better functional inference in new species. In particular, we hypothesized that, compared to PIPR, the D-SCRIPT model trained on human data should facilitate more accurate inference of protein functional modules in Drosophila. Towards this end, we generated a set of 10,475,595 candidate pairs from the set of Drosophila proteins in STRING. Using D-SCRIPT and PIPR's human-trained models, we predicted interactions over this candidate set. Module detection on the resulting PPI networks was performed by spectral clustering, with pairwise distances between proteins assessed using Cao et al.'s [38, 39] diffusion state distance (DSD) metric. This module detection approach performed well in a recent DREAM challenge on functional module detection [5] .",
+            "cite_spans": [
+                {
+                    "start": 886,
+                    "end": 890,
+                    "text": "[38,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 891,
+                    "end": 894,
+                    "text": "39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 1039,
+                    "end": 1042,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "We tested the relative functional coherence of 374 (PIPR) and 384 (D-SCRIPT) clusters using available GO (Gene Ontology) annotations from FlyBase [40] , filtering out electronically-inferred and homologybased annotations. All GO terms were mapped to a limited set of GO Slim terms using the D. Melanogaster species-specific list [41] . For each cluster, we computed the within-cluster functional similarity, calculated as the mean Jaccard similarity of the sets of GO Slim annotations for all pairs of proteins within the cluster. We also used a different, graph-theoretic measure of protein similarity based on GO terms [42] ; it produced similar results (Appendix A.5). Figure 3 shows that the average within-cluster similarity when interactions are predicted using D-SCRIPT is significantly higher than when using PIPR (p = 0.000723, one-tailed t-test), and that D-SCRIPT results in 24% more highly-enriched (top 10% of scores) clusters as PIPR.",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 150,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 329,
+                    "end": 333,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 621,
+                    "end": 625,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 672,
+                    "end": 680,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF13"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "We applied D-SCRIPT and PIPR to computationally screen all SARS-Cov-2 proteins against 19,777 human proteins, predicting approximately 3,000 viral-host PPIs from each method (Appendix A.6). We then characterized each viral protein's function by the GO annotations of its human interactors. Compared to the corresponding annotations derived from 332 experimentally-determined PPIs (Gordon et al. [43] ), we found D-SCRIPT based annotations to overlap more with the experimental results than those from PIPR (p = 0.059, paired onetailed t-test). We have made these predicted PPIs available for the community's use (see A.6), but note that these are preliminary results and need further analysis.",
+            "cite_spans": [
+                {
+                    "start": 395,
+                    "end": 399,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminary prediction of viral-host PPIs between SARS-Cov-2 & Human."
+        },
+        {
+            "text": "To compare our sequence embedding method with other potential ones, we evaluated various protein sequence embeddings under the following framework: the Euclidean distance in an embedding space was used to define a distance measure between proteins. Given a true positive PPI (A, B), we applied this distance measure to identify the k-nearest neighbors of A and B each, and computed how many of the k 2 possible combinations of these neighbors corresponded to a positive PPI. For D-SCRIPT, we used the R n\u00d7d \u22650 output of the projection module (Section 2.1.2) and averaged the features across the length of the protein to obtain a d-dimensional embedding. We compared with a one-hot embedding categorizing each amino acid into one of seven classes based on biochemical properties (\"AAClass\", from [44] ), a 5-residue-context Skip-Gram embedding (\"Vec5\", from [45] ), a concatenation of Vec5 and AAClass (used in the input for PIPR), and a randomly generated 50-dimensional embedding with values drawn uniformly from the range [0, 1]. Additionally, we used BLAST [46] to select k neighbors. Figure 4 shows that D-SCRIPT significantly outperforms all other embeddings. Prediction of Intra-Protein Self Contacts. One of our aims when designing D-SCRIPT was to capture the structural aspects of interaction -the per-protein embedding produced by the trained projection module (Section 2.1.2) should encode structural information. To examine this aspect, we randomly selected 300 proteins from the Protein Data Bank (PDB) and generated (n\u00d7d)-dimensional embeddings of these proteins using the D-SCRIPT model trained on human PPIs. We assessed intra-protein contacts at 8\u00c5 in the PDB structure and converted each protein's contact map to a binary classification data set: a protein sequence of length n corresponded to n(n\u22121) 2 observations, with the observation ij corresponding to a putative contact between residues i and j. We randomly split the 300 PDB structures into a training set of 100 and a test set of 200, evaluating how well a logistic regression that uses the D-SCRIPT embeddings as the input predicts contacts between residues. The regression was L 2 -regularized and class balanced, with its input for observation ij being the concatenation of the d-dimensional embeddings Z i and Z j output by the projection module as well as their combinations diff ij , mul ij as defined in Equations 2 & 3. Figure 5 shows that a linear combination of features in the projection module output is able to recapitulate a significant subset of the ground-truth contacts, achieving a median per-structure AUPR of 0.19 over the test data set. These results strongly suggest that the end-to-end training of D-SCRIPT -using only sequence data -results in Figure 5 : Self-contact prediction using D-SCRIPT embeddings. The PDB identifier 1GNG corresponds to a protein with 356 residues where the D-SCRIPT embedding's self-contact prediction accuracy is near the median of cases we studied (AUPR=0. 19) , while 1CGI corresponds to a short protein (54 residues) in which the embedding achieves a higher accuracy (AUPR=0.38). The original contacts (a, c) were assessed at 8\u00c5. Contacts were predicted (b, d) using a logistic regression model trained on contacts seen in a held-out set of proteins, and the binarization thresholds for panel (e) were chosen so as to result in the same number of contacts as in the original maps.",
+            "cite_spans": [
+                {
+                    "start": 795,
+                    "end": 799,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 857,
+                    "end": 861,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1060,
+                    "end": 1064,
+                    "text": "[46]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 2985,
+                    "end": 2988,
+                    "text": "19)",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1088,
+                    "end": 1096,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 2404,
+                    "end": 2412,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 2744,
+                    "end": 2752,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Comparison of D-SCRIPT Embedding with Other Embeddings."
+        },
+        {
+            "text": "an intermediate representation that captures structural information at the level of each protein.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison of D-SCRIPT Embedding with Other Embeddings."
+        },
+        {
+            "text": "Prediction of Inter-Protein Docking Contacts. We investigated whether the interpretability of our model could aid in predicting inter-protein docking contacts. The output of the Residue Contact Module (Section 2.1.3) of D-SCRIPT is an inter-protein contact map\u0108 where\u0108 ij \u2208 [0, 1] can be interpreted as the probability of residue i from protein S 1 being in contact with residue j of protein S 2 . We verified the contact maps produced after training were consistent with our design goal: the maps corresponding to negative predictions should have uniformly near-zero\u0108 ij scores, while those for positive predictions should be sparse but with isolated regions of high\u0108 ij scores. We found that this was indeed the case generally and show some examples in Figure 6 : the maximum\u0108 value is high for positive examples and low for negative examples.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 755,
+                    "end": 763,
+                    "text": "Figure 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Comparison of D-SCRIPT Embedding with Other Embeddings."
+        },
+        {
+            "text": "We next sought to test if\u0108 is physically representative of the actual docking mechanism of the interaction. We emphasize that this is a high bar given we do not provide any 3-D information to the model nor any guidance on docking and, in principle, the model could perform well on the classification task without C being physically accurate. We performed this test using Hwang et al.'s benchmark data set of docked protein structures [18] . For every pair of chains in each PDB complex in the benchmark set, we generated a candidate PPI. We applied our human-data-trained model on 295 candidate PPIs and evaluated the predicted contact maps against the ground-truth contacts (assessed at 8\u00c5). In cases where our model predicted an interaction, we found\u0108 to indeed recapitulate the ground-truth contacts substantially (Figure 6 a,b) . Even in some of the cases where D-SCRIPT did not predict an interaction, the distribution of\u0108 ij scores was nevertheless consistent with the ground-truth (Figure 6 c) . To systematically evaluate\u0108's accuracy, we interpreted ground truth and predicted contact maps as probability distributions over the n \u00d7 m matrix and measured the 2-D Earth mover's distance between these distributions, computed by solving an optimal transport problem under the Euclidean metric [47] . We chose this metric to measure similarity between regions of the two contact maps rather than measuring per-residue matches (with a metric such as binary cross-entropy) because the convolutional and max-pooling layers in our model aggregate over neighboring residues, thus diffusing the signal. For each candidate PPI, we established random baselines by shuffling\u0108 and recomputing the Earth mover's distance. We estimated the p-value of the actual\u0108 against 500 random trials, finding that in cases where D-SCRIPT predicted an interaction, the\u0108 contact-maps were significantly similar to the ground-truth (median FDR-corrected p = 0.08). Even in cases where D-SCRIPT did not predict an interaction,\u0108's similarity to the ground truth was higher than that of the random baselines. Figure 6 : When D-SCRIPT correctly predicts an interaction, its contact maps\u0108 are significantly similar to the ground truth. We show inter-protein contact maps of protein structures known to dock together. Panels (a,b) correspond to pairs where D-SCRIPT correctly predicted an interaction, while panels (c,d) are cases where it incorrectly predicted no interaction. The black-and-white matrices correspond to the PDB ground truth while the colored matrices correspond to D-SCRIPT's\u0108; for the latter, the color scales of (a,b) differ from (c,d). While\u0108 contains large values for positive pairs, its maximum C max is very low for negative pairs. Panel (e) shows a systematic evaluation of the 2-D Earth mover's distance-based similarity between\u0108 and the ground truth. Not only are the correctly-predicted Cs significantly similar to the ground truth, even when D-SCRIPT incorrectly predicts two proteins don't interact, its contact maps are still similar to ground truth.",
+            "cite_spans": [
+                {
+                    "start": 434,
+                    "end": 438,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1298,
+                    "end": 1302,
+                    "text": "[47]",
+                    "ref_id": "BIBREF46"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 817,
+                    "end": 831,
+                    "text": "(Figure 6 a,b)",
+                    "ref_id": null
+                },
+                {
+                    "start": 988,
+                    "end": 1000,
+                    "text": "(Figure 6 c)",
+                    "ref_id": null
+                },
+                {
+                    "start": 2084,
+                    "end": 2092,
+                    "text": "Figure 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 2290,
+                    "end": 2302,
+                    "text": "Panels (a,b)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Comparison of D-SCRIPT Embedding with Other Embeddings."
+        },
+        {
+            "text": "Performance. D-SCRIPT took approximately 3 days to train for 10 epochs on 843,602 training pairs, and fits within a single 32GB GPU. Running time and GPU memory usage scales roughly quadratically, O(mn), with the protein lengths m, n, since D-SCRIPT models the full n \u00d7 m contact map as an intermediate step.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison of D-SCRIPT Embedding with Other Embeddings."
+        },
+        {
+            "text": "Prediction of new candidate pairs with a trained model is very fast, requiring on average 0.13 seconds/pair and less than 5GB of GPU memory. Since D-SCRIPT generalizes well cross-species, it only needs to be trained once on a large corpus of data, and can be used to make predictions in a variety of settings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison of D-SCRIPT Embedding with Other Embeddings."
+        },
+        {
+            "text": "We have introduced D-SCRIPT, an interpretable method for PPI interaction prediction from sequence. It joins the small but growing set of advances in interpretable deep learning methods in computational biology [48, 49] . We showed that its predictions generalize better than other methods to PPIs for which there are fewer training examples of interactions with the constituent proteins, and importantly, to a cross-species setting where the model is only trained on protein sequences from a different species. This is particularly exciting for organisms such as C. elegans, for which the known portion of the PPI network is still quite sparse. In organisms like D. melanogaster where some PPI data does exist, future work could productively combine that data with D-SCRIPT models trained on human data. We suspect that D-SCRIPT's relative success across species, but under-performance on a within-species evaluation, is due to the simplicity of the model and the extent to which it is regularized. These design choices enhance D-SCRIPT's generalizability, directing it to learn general structural aspects of the interaction, rather than using network structure or the frequency of any individual protein as an interaction partner. However, for certain tasks a balance between the cross-species generalizability of D-SCRIPT and the within-species specificity of other state-of-the-art methods may be desirable. A future research direction might be transfer learning to tune a pre-trained D-SCRIPT model to a target species, while another approach could be to integrate it with graph-theoretic PPI predictions. Insights from recent advances in the prediction of contact maps and structures of individual proteins could also be incorporated into our model architecture. D-SCRIPT illustrates that learning the language of individual proteins, a remarkably successful deep learning effort, also helps decode the language of protein interactions.",
+            "cite_spans": [
+                {
+                    "start": 210,
+                    "end": 214,
+                    "text": "[48,",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 215,
+                    "end": 218,
+                    "text": "49]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "We sourced the PPI data in Figure 1 from BioGRID. While we have sourced PPI data from the STRING database everywhere else in this paper, here we chose to use BioGRID because the publication date of a PPI is easily accessible in BioGRID, allowing us to estimate the number of PPIs assayed in the last five years. While the BioGRID selection may not precisely match the STRING selection due to curation differences between the two databases, our primary aim here is conveying the relative data availability across species; this estimate should not be significantly impacted by differences in curation. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 27,
+                    "end": 35,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "A.1 The Corpus of Experimental PPI Data is Limited"
+        },
+        {
+            "text": "We also compared our method to a model described by Richoux et al. [37] . In it, they trained a multi-layer fully connected network to predict protein interaction given two input sequences. The results comparing this model to D-SCRIPT, presented in Table A .1, are organized like those presented in Table 1 ",
+            "cite_spans": [
+                {
+                    "start": 67,
+                    "end": 71,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 249,
+                    "end": 256,
+                    "text": "Table A",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 299,
+                    "end": 306,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "A.3 Comparison with Another Sequence-based PPI Prediction Method"
+        },
+        {
+            "text": "We investigated the relative performance of D-SCRIPT and PIPR on subsets of human proteins, seeking to better understand their relative strengths.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A.4 Deeper Investigation of D-SCRIPT and PIPR's Relative Strengths"
+        },
+        {
+            "text": "Using protein frequency counts as a predictor PPI networks are dominated by a dense and highly connected core of nodes, where the core includes many hub nodes. A method that does relatively well on these hub proteins will have an advantage on withinspecies evaluations. For our cross-validation setup, we followed the precedent of previous work and split training and test data by edges [17, 20] . Consequently, a protein's relative frequency will be roughly similar in the training and test data sets. In this context, a PPI prediction heuristic that simply remembers frequency counts does strikingly well (see figure below) . Here, we scored the likelihood of a candidate PPI (A, B) being true as the minimum of frequency counts, in training data, of A and B. As part of the investigation of the impact of a protein's frequency in the training set on classifier performance, we created a naive classifier which simply predicts that a pair interacts with probability corresponding to the minimum number of times either of a pair exists in a positive interaction in the training set, normalized over the maximum number of times any such protein appears. We find that this naive classifier actually performs rather well in within-species cross-validation, achieving an AUPR of 0.784. However, such a classifier would output a probability of 0 for all interactions in a data set which did not share any proteins with the training set, as is the case in the cross-species setting.",
+            "cite_spans": [
+                {
+                    "start": 387,
+                    "end": 391,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 612,
+                    "end": 625,
+                    "text": "figure below)",
+                    "ref_id": null
+                }
+            ],
+            "section": "A.4 Deeper Investigation of D-SCRIPT and PIPR's Relative Strengths"
+        },
+        {
+            "text": "To further investigate the finding above, we ranked proteins in the human PPI network by their frequency of occurrence. For a set of quantiles q \u2208 [0, 1], we evaluated out-of-sample D-SCRIPT and PIPR predictions on the human PPI sub-network consisting only of proteins of rank q or lower; here, lower q corresponds to a lower frequency of occurrence. In absolute terms, as the table below indicates, both D-SCRIPT and PIPR become more accurate at higher q. However, D-SCRIPT has a relative advantage at lower q (i.e., infrequently occuring proteins) while PIPR performs better at higher q. In other words, PIPR's better within-species performance can be traced to it being more accurate on proteins that occur frequently. This also suggests an explanation for PIPR's lower cross-species generalizability than D-SCRIPT: when making predictions on an entirely new set of proteins in a different species, knowing the relative frequencies of proteins in the training data might not be particularly useful.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D-SCRIPT performs better on infrequently occurring proteins"
+        },
+        {
+            "text": "The difference between D-SCRIPT and PIPR might stem from their respective architectures. The protein representation learned by D-SCRIPT is constrained to be a linear projection of the Bepler & Berger pretrained embedding, albeit with ReLU and dropout layers. This regularizes how much frequency information can be incorporated into the model; we note that the Bepler and Berger model was trained with data on individual proteins and would not reflect PPI frequency information. In contrast, PIPR's design allows for a lot more leeway in training each protein's representation. This flexibility may allow PIPR to better incorporate the occurrence frequencies into its representation, helping its within-species performance but potentially hurting its cross-species generalizability. Table A .2: Area under precision-recall curve (AUPR) of PPI prediction performance for interactions where proteins appear rarely in the training set. We created increasingly restrictive subsets of the test data, where no protein in the subset may appear more than some cutoff number of times in the training set. While PIPR outperforms D-SCRIPT when frequently trained on proteins are present, at lower quantile values q, D-SCRIPT performs relatively better than PIPR -although the absolute performance of both classifiers drops off as the data set is more challenging. To compute within-cluster functional similarity in the main text, we took the simple but robust approach of mapping GO terms to a limited set of GO Slim terms and then computing Jaccard similarity across the latter (Section 3). In Figure A. 2, we used a recently introduced approach from the literature, Zhao et al.'s GOGO algorithm [42] , to compute the similarity between pairs of GO terms; we then aggregate these to get within-cluster similarity scores. Our evaluation here yields similar results as presented in the main text: D-SCRIPT produces clusters with higher functional similarity than PIPR.",
+            "cite_spans": [
+                {
+                    "start": 1685,
+                    "end": 1689,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 782,
+                    "end": 789,
+                    "text": "Table A",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1583,
+                    "end": 1592,
+                    "text": "Figure A.",
+                    "ref_id": null
+                }
+            ],
+            "section": "D-SCRIPT performs better on infrequently occurring proteins"
+        },
+        {
+            "text": "We performed a preliminary study to predict viral-host interactions between SARS-CoV-2 and human proteins wherein we compared the sets of over-represented GO terms for human interactors of SARS-CoV-2 proteins, as predicted by D-SCRIPT or PIPR, with those over-represented in the experimentally-determined human interactors (Gordon et al. [43] ). Figure A. 3 shows the relative similarity of computationally predicted annotations to the experimentally-determined annotations for each SARS-CoV-2 protein. Overall, we found that sets of enriched terms computed using the D-SCRIPT network overlap slightly more with the true network than those computed using the PIPR network (p = 0.059). Among the putative accessory Distribution of within-cluster similarity scores using GOGO Protein Distances. D-SCRIPT recovers significantly more functionally coherent clusters (p = 3.94e \u2212 06) than PIPR when similarity between proteins is measured using GOGO [42] . Clusters of interacting proteins were constructed from the PIPR and D-SCRIPT networks using spectral clustering, where distances between proteins were computed using the diffusion state distance (DSD) metric [38] . We compute the average similarity between pairs of proteins in each cluster. Similarity between proteins is calculated as GOGO Biological Processes similarity using all FlyBase GO term annotations.",
+            "cite_spans": [
+                {
+                    "start": 338,
+                    "end": 342,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 944,
+                    "end": 948,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 1159,
+                    "end": 1163,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 346,
+                    "end": 355,
+                    "text": "Figure A.",
+                    "ref_id": null
+                }
+            ],
+            "section": "A.6 GO Enrichment of SARS-CoV-2 Proteins"
+        },
+        {
+            "text": "factors (ORF* and Protein 14), D-SCRIPT performs significantly better (mean Jaccard similarity 0.029 vs. 0.118, p = 0.022, paired one-tailed t-test). Visually, PIPR seems to be somewhat better at predicting interaction partners for the non-structural proteins (NSP*), although D-SCRIPT still has a slightly larger mean similarity (0.183 vs. 0.222, p = 0.221). While D-SCRIPT performs better on the intensively studied spike (S) protein, PIPR shows a higher overlap for the nucleocapsid (N). Neither method predicts enriched terms for the other structural proteins encoding the envelope (E) and membrane (M) (0.149 vs. 0.121, p = 0.672 across the four proteins).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A.6 GO Enrichment of SARS-CoV-2 Proteins"
+        },
+        {
+            "text": "Methods. Candidate pairs were generated using the viral sequences from Gordon et al. [43] and 19,777 human sequences from the STRING database (Section 3), and predicted edges using D-SCRIPT and PIPR. We predicted 3,273 edges using D-SCRIPT and 2,922 edges using PIPR. 332 putative true viral-host interactions were taken from Gordon et al. Human sequences were mapped to UniProt sequences identifiers from [43] with sequence similarity \u2265 95% using BLAST [46] , and UniProt identifiers were used to identify a set of Gene Ontology terms for the human interactors of each viral protein. Following [43] , we identified over-represented GO terms using the clusterProfiler R package (version 3.14.3) [50] with a 1% false discovery rate (FDR). Over-represented GO terms were mapped to a common set of terms taken from the ChEMBL Drug Target GO Slim Subset [51] . For each viral protein, we computed the Jaccard similarity between the set of GO Slim terms enriched in the putative true network and each of the computationally predicted methods. We computed a paired one-tailed t-test to statistically compare the relative similarities of D-SCRIPT and PIPR.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 89,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 406,
+                    "end": 410,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 454,
+                    "end": 458,
+                    "text": "[46]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 595,
+                    "end": 599,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 695,
+                    "end": 699,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 850,
+                    "end": 854,
+                    "text": "[51]",
+                    "ref_id": "BIBREF50"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A.6 GO Enrichment of SARS-CoV-2 Proteins"
+        },
+        {
+            "text": "Availability. Virus-host edges predicted using D-SCRIPT or PIPR are available for use by the community at http://dscript.csail.mit.edu. Interactions between SARS-CoV-2 proteins and human proteins were predicted using D-SCRIPT and PIPR. Viral proteins were then annotated with the enriched ChEMBL GO Slim terms linked to their human interactors. Compared to PIPR, interactions computed with D-SCRIPT show a greater annotation overlap (p = 0.059) with those estimated from putative true interactions from Gordon et al. [43] . D-SCRIPT performs especially well at predicting functional enrichments for putative accessory factor proteins, where PIPR recovers none of the enriched functional terms in several cases.",
+            "cite_spans": [
+                {
+                    "start": 517,
+                    "end": 521,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A.6 GO Enrichment of SARS-CoV-2 Proteins"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Network-based prediction of protein function",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ulitsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Shamir",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Molecular systems biology",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "The power of protein interaction networks for associating genes with diseases",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Navlakha",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Kingsford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Bioinformatics",
+            "volume": "26",
+            "issn": "",
+            "pages": "1057--1063",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Compact integration of multi-network topology for functional analysis of genes",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Cell systems",
+            "volume": "3",
+            "issn": "",
+            "pages": "540--548",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Network propagation: a universal amplifier of genetic associations",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Cowen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ideker",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Raphael",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sharan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Nature Reviews Genetics",
+            "volume": "18",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Assessment of network module identification across complex diseases",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Choobdar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nature methods",
+            "volume": "16",
+            "issn": "",
+            "pages": "843--852",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A novel genetic system to detect protein-protein interactions",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Fields",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                }
+            ],
+            "year": 1989,
+            "venue": "Nature",
+            "volume": "340",
+            "issn": "",
+            "pages": "245--246",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Global landscape of protein complexes in the yeast saccharomyces cerevisiae",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Krogan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Nature",
+            "volume": "440",
+            "issn": "",
+            "pages": "637--643",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Protein complexes take the bait",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Snyder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Nature",
+            "volume": "415",
+            "issn": "",
+            "pages": "123--124",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Widespread macromolecular interaction perturbations in human genetic disorders",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Sahni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Cell",
+            "volume": "161",
+            "issn": "",
+            "pages": "647--660",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "A quantitative chaperone interaction network reveals the architecture of cellular protein homeostasis pathways",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Taipale",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Cell",
+            "volume": "158",
+            "issn": "",
+            "pages": "434--448",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Uncovering disease-disease relationships through the incomplete interactome",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Menche",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Science",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Learning protein sequence embeddings using information from structure",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Bepler",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "7th International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Conservation of protein structure over four billion years",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ingles-Prieto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Structure",
+            "volume": "21",
+            "issn": "",
+            "pages": "1690--1697",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Struct2net: integrating structure into protein-protein interaction prediction",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Biocomputing",
+            "volume": "",
+            "issn": "",
+            "pages": "403--414",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Struct2net: a web service to predict protein-protein interactions using a structure-based approach",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Hosur",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Nucleic acids research",
+            "volume": "38",
+            "issn": "",
+            "pages": "508--515",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "iwrap: an interface threading approach with application to prediction of cancer-related protein-protein interactions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Hosur",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bienkowska",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of molecular biology",
+            "volume": "405",
+            "issn": "",
+            "pages": "1295--1310",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Multifaceted protein-protein interaction prediction based on Siamese residual RCNN",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "In Bioinformatics",
+            "volume": "35",
+            "issn": "",
+            "pages": "305--314",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Protein-protein docking benchmark version 4.0",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Hwang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Vreven",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Janin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Weng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proteins: Structure, Function, and Bioinformatics",
+            "volume": "78",
+            "issn": "",
+            "pages": "3111--3114",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "A computational framework for boosting confidence in high-throughput protein-protein interaction datasets",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Hosur",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Genome biology",
+            "volume": "13",
+            "issn": "",
+            "pages": "1--14",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Predicting protein-protein interactions through sequence-based deep learning",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hashemifar",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Neyshabur",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Khan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "In Bioinformatics",
+            "volume": "34",
+            "issn": "",
+            "pages": "802--810",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A novel link prediction algorithm for reconstructing protein-protein interaction networks by topological similarity",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ruan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Bioinformatics",
+            "volume": "29",
+            "issn": "",
+            "pages": "355--364",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Revealing missing parts of the interactome via link prediction",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hulovatyy",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Solava",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Milenkovi\u0107",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "PloS one",
+            "volume": "9",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Network-based prediction of protein interactions",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Kov\u00e1cs",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nature communications",
+            "volume": "10",
+            "issn": "",
+            "pages": "1--8",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Glide: combining local methods and diffusion state embeddings to predict missing interactions in biological networks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Devkota",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Murphy",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Cowen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Bioinformatics",
+            "volume": "36",
+            "issn": "",
+            "pages": "464--473",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "String v11: protein-protein association networks with increased coverage, supporting functional discovery in genome-wide experimental datasets",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Szklarczyk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nucleic acids research",
+            "volume": "47",
+            "issn": "",
+            "pages": "607--613",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Network enhancement as a general method to denoise weighted biological networks",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Nature communications",
+            "volume": "9",
+            "issn": "",
+            "pages": "1--8",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Genome-scale networks link neurodegenerative disease genes to \u03b1-synuclein through specific molecular pathways",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Khurana",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Cell systems",
+            "volume": "4",
+            "issn": "",
+            "pages": "157--170",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Enhancing evolutionary couplings with deep convolutional neural networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Palmedo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Cell systems",
+            "volume": "6",
+            "issn": "",
+            "pages": "65--74",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "High precision in protein contact prediction using fully convolutional neural networks and minimal sequence features",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kandathil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Bioinformatics",
+            "volume": "34",
+            "issn": "",
+            "pages": "3308--3315",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Distance-based protein folding powered by deep learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "116",
+            "issn": "",
+            "pages": "16856--16865",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Biological structure and function emerge from scaling unsupervised learning to 250 million protein sequences",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rives",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "bioRxiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Evolutionary context-integrated deep sequence modeling for protein engineering",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ternational Conference on Research in Computational Molecular Biology",
+            "volume": "",
+            "issn": "",
+            "pages": "261--263",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Improved semantic representations from tree-structured long short-term memory networks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Tai",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1503.00075"
+                ]
+            }
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Cd-hit: a fast program for clustering and comparing large sets of protein or nucleotide sequences",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Godzik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Bioinformatics",
+            "volume": "22",
+            "issn": "",
+            "pages": "1658--1659",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Cd-hit: accelerated for clustering the next-generation sequencing data",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Niu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Bioinformatics",
+            "volume": "28",
+            "issn": "",
+            "pages": "3150--3152",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Comparing two deep learning sequence-based models for protein-protein interaction prediction",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Richoux",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Servantie",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bor\u00e8s",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "T\u00e9letch\u00e9a",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Going the distance for protein function prediction: a new distance metric for protein interaction networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "PloS one",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "New directions for diffusion-based network prediction of protein function: incorporating pathways with confidence",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Bioinformatics",
+            "volume": "30",
+            "issn": "",
+            "pages": "219--227",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Flybase 2.0: the next generation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Thurmond",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Nucleic acids research",
+            "volume": "47",
+            "issn": "",
+            "pages": "759--765",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "The genome sequence of drosophila melanogaster",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Adams",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Science",
+            "volume": "287",
+            "issn": "",
+            "pages": "2185--2195",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Gogo: An improved algorithm to measure the semantic similarity between gene ontology terms",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Scientific reports",
+            "volume": "8",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "A sars-cov-2 protein interaction map reveals targets for drug repurposing",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Gordon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nature",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Predicting protein-protein interactions based only on sequences information",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "104",
+            "issn": "",
+            "pages": "4337--4341",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3111--3119",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Basic local alignment search tool",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Altschul",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Gish",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Miller",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Myers",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lipman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "Journal of molecular biology",
+            "volume": "215",
+            "issn": "",
+            "pages": "403--410",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Pot python optimal transport library",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Flamary",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Courty",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "When causal inference meets deep learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Nature Machine Intelligence",
+            "volume": "2",
+            "issn": "",
+            "pages": "426--427",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Leveraging uncertainty in machine learning accelerates biological discovery and design",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hie",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Bryson",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Cell Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "clusterprofiler: an r package for comparing biological themes among gene clusters",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L.-G",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q.-Y",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Omics: a journal of integrative biology",
+            "volume": "16",
+            "issn": "",
+            "pages": "284--287",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "A drug target slim: using gene ontology and gene ontology annotations to navigate protein-ligand target space in chembl",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mutowo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Journal of biomedical semantics",
+            "volume": "7",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "a. Linear scale b. Logarithmic scale c. Linear scale (normalized for gene count)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "The corpus of experimental PPI data is limited. We show the counts of PPIs in various organisms detected via direct binding experiments (sourced from BioGRID, see Appendix A.1 for details)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Stage 2: Predict an interaction based on these features",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "D-SCRIPT architecture overview. Left to right: The Pre-trained Embedding Model generates features for each individual protein. The Projection Model reduces them to d dimensions.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "we selected 5,000 positive interactions and 50,000 negative interactions using this procedure, with the exception of E.coli (2,000/20,000) where the available set of positive examples in STRING was limited.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Neighborhood interaction search using protein embeddings. Performance comparison of D-SCRIPT projection module (Section 2.1.2) trained on human data with several other embedding methods on recovering true interacting protein pairs in the neighborhood of known PPIs in human (a), yeast (b), and roundworm (c). D-SCRIPT embeddings recover significantly more interacting proteins than any other embedding, regardless of species or number of neighbors checked. AAClass also performs well, likely because it characterizes biochemistry which is preserved at longer evolutionary distances. BLAST performs well at low values of k but has difficulty recovering interactions for larger values -likely due to network rewiring over longer evolutionary distances.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "in the main text. Similarly to Chen et al.'s PIPR model, the Richoux et al. model performs better than D-SCRIPT when trained and tested on human PPIs while D-SCRIPT generalizes better across species, with substantially higher AUPRs than the Richoux model when the human-data-trained model is evaluated on other species. \"Richoux + D-SCRIPT\" refers to the same hybrid combination described in Section 3.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "Performance of a training-counts-only classifier:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "Figure A.2: Distribution of within-cluster similarity scores using GOGO Protein Distances. D-SCRIPT recovers significantly more functionally coherent clusters (p = 3.94e \u2212 06) than PIPR when similarity between proteins is measured using GOGO [42]. Clusters of interacting proteins were constructed from the PIPR and D-SCRIPT networks using spectral clustering, where distances between proteins were computed using the diffusion state distance (DSD) metric [38]. We compute the average similarity between pairs of proteins in each cluster. Similarity between proteins is calculated as GOGO Biological Processes similarity using all FlyBase GO term annotations.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "Similarity of Enriched GO Terms to True Network.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Evaluation of models trained on human PPIs. H. sapiens results are average performance over 5-fold cross validation. All other species were evaluated using a model trained on human data. D-SCRIPT significantly outperforms PIPR cross-species, despite PIPR performing better in human cross-validation. In both cases, a hybrid model is able to achieve better performance than either model alone.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "SCRIPT generalizes much better than PIPR, and does not seem to overfit to the training data.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Cutoff Quantile (q) Cutoff Value % of Test Pairs PIPR D-SCRIPT Functional Enrichment Using GOGO Distance as the GO Term Similarity Metric",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements We thank Tristan Bepler for helpful discussions and technical assistance. SS, RS and BB were supported by the NIH grant R01 GM081871. LC was supported by NSF HDR grant 1939263.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

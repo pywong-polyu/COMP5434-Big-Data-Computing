@@ -1,0 +1,3615 @@
+{
+    "paper_id": "eb3b00d9d0f9dfb20a1bc79ab806f8e791ef779c",
+    "metadata": {
+        "title": "An Order-Aware Dataflow Model for Parallel Unix Pipelines",
+        "authors": [
+            {
+                "first": "Shivam",
+                "middle": [],
+                "last": "Handa",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Pennsylvania",
+                    "location": {
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Konstantinos",
+                "middle": [],
+                "last": "Kallas",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Pennsylvania",
+                    "location": {
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Nikos",
+                "middle": [],
+                "last": "Vasilakis",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Pennsylvania",
+                    "location": {
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Martin",
+                "middle": [
+                    "C"
+                ],
+                "last": "Rinard",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Pennsylvania",
+                    "location": {
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We present a dataflow model for modelling parallel Unix shell pipelines. To accurately capture the semantics of complex Unix pipelines, the dataflow model is order-aware, i.e., the order in which a node in the dataflow graph consumes inputs from different edges plays a central role in the semantics of the computation and therefore in the resulting parallelization. We use this model to capture the semantics of transformations that exploit data parallelism available in Unix shell computations and prove their correctness. We additionally formalize the translations from the Unix shell to the dataflow model and from the dataflow model back to a parallel shell script. We implement our model and transformations as the compiler and optimization passes of a system parallelizing shell pipelines, and use it to evaluate the speedup achieved on 47 pipelines.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Unix pipelines are an attractive choice for specifying succinct and simple programs for data processing, system orchestration, and other automation tasks [McIlroy et al. 1978 ]. Consider, for example, the following program based on the original spell written by Johnson [Bentley 1985 ], lightly modified for modern environments: 1 cat f1.md f2.md | tr A-Z a-z | tr -cs A-Za-z '\\n' | sort | uniq | # (Spell) grep -vx -f dict.txt -> out ; cat out | wc -l | sed 's/$/ mispelled words!/'",
+            "cite_spans": [
+                {
+                    "start": 154,
+                    "end": 174,
+                    "text": "[McIlroy et al. 1978",
+                    "ref_id": null
+                },
+                {
+                    "start": 270,
+                    "end": 283,
+                    "text": "[Bentley 1985",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The first command streams two markdown files into a pipeline that converts characters in the stream into lower case, removes punctuation, sorts the stream in alphabetical order, removes duplicate words, and filters out words from a dictionary file (lines 1 and 2, up to \";\"). A second pipeline (line 2, after \";\") counts the resulting lines to report the number of misspelled words to the user.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "As this example illustrates, the Unix shell offers a programming model that facilitates the composition of commands using unidirectional communication channels that feed the output of one command as an input to another. These channels are either ephemeral, unnamed pipes expressed using the | character and lasting for the duration of the producer and consumer, or persistent, named pipes (Unix FIFOs) created with mkfifo and lasting until explicitly deleted. Each command executes sequentially, with pipelined parallelism available between commands executing in the same pipeline. Unfortunately, this model leaves substantial data parallelism, i.e., parallelism achieved by splitting inputs into pieces and feeding the pieces to parallel instances of the script, unexploited.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This fact is known in the Unix community and has motivated the development of a variety of tools that attempt to exploit latent data parallelism in Unix scripts [Raghavan et al. 2020; Tange 2011; Vasilakis et al. 2021 ]. On the one hand, tools such as GNU Parallel [Tange 2011] can be used by experienced users to achieve parallelism, but could also easily lead to incorrect results. On the other hand, two recent systems, PaSh [Vasilakis et al. 2021 ] and POSH [Raghavan et al. 2020] , focus respectively on extracting data parallelism latent in Unix pipelines to improve the execution time of (i) CPU-intensive shell scripts (PaSh), and (ii) networked IO-intensive shell scripts (POSH). These systems achieve order-of-magnitude performance improvements on sequential pipelines, but their semantics and associated transformations are not clearly defined, making it difficult to ensure that the optimized parallel scripts are sound with respect to the sequential ones.",
+            "cite_spans": [
+                {
+                    "start": 161,
+                    "end": 183,
+                    "text": "[Raghavan et al. 2020;",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 184,
+                    "end": 195,
+                    "text": "Tange 2011;",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 196,
+                    "end": 217,
+                    "text": "Vasilakis et al. 2021",
+                    "ref_id": null
+                },
+                {
+                    "start": 265,
+                    "end": 277,
+                    "text": "[Tange 2011]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 428,
+                    "end": 450,
+                    "text": "[Vasilakis et al. 2021",
+                    "ref_id": null
+                },
+                {
+                    "start": 462,
+                    "end": 484,
+                    "text": "[Raghavan et al. 2020]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To support the ability to reason about and correctly transform Unix shell pipelines, we present a new dataflow model. In contrast to standard dataflow models [Kahn 1974; Kahn and MacQueen 1977; Karp and Miller 1966; Lee and Messerschmitt 1987a,b ], our dataflow model is order-aware-i.e., the order in which a node in the dataflow graph consumes inputs from different edges plays a central role in the semantics of the computation and therefore in the resulting parallelization. This model is different from models that allow multiplexing different chunks of data in a single channel, such as sharding or tagging, or ones that are oblivious to ordering, such as shuffling-and is a direct byproduct of the ordered semantics of the shell and the opacity of Unix commands. In the Spell script shown earlier, for example, while all commands consume elements from an input stream in order-a property of Unix streams e.g., pipes and FIFOs-they differ in how they consume across streams: cat reads input streams in the order of its arguments, sort -m reads input streams in interleaved fashion, and grep -vx -f first reads dict.txt before reading from its standard input.",
+            "cite_spans": [
+                {
+                    "start": 158,
+                    "end": 169,
+                    "text": "[Kahn 1974;",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 170,
+                    "end": 193,
+                    "text": "Kahn and MacQueen 1977;",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 194,
+                    "end": 215,
+                    "text": "Karp and Miller 1966;",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 216,
+                    "end": 245,
+                    "text": "Lee and Messerschmitt 1987a,b",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We use this order-aware dataflow model (ODFM) to express the semantics of transformations that exploit data parallelism available in Unix shell computations. These transformations capture the parallelizing optimizations performed by both PaSh [Vasilakis et al. 2021 ] and POSH [Raghavan et al. 2020] . We also use our model to prove that these transformations are correct, i.e., that they do not affect the program behavior with respect to sequential output. Finally, we formalize bidirectional translations between the shell and ODFM, namely from the shell language to ODFM and vice versa, closing the loop for a complete shell-to-shell parallelizing compiler.",
+            "cite_spans": [
+                {
+                    "start": 243,
+                    "end": 265,
+                    "text": "[Vasilakis et al. 2021",
+                    "ref_id": null
+                },
+                {
+                    "start": 277,
+                    "end": 299,
+                    "text": "[Raghavan et al. 2020]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To illustrate the applicability of our model, we extend PaSh by reimplementing its compilation and optimization phases with ODFM as the centerpiece. The new implementation translates fragments of a shell script to our dataflow model, applies a series of parallelizing transformations, and then translates the resulting parallel dataflow graph back to a parallel shell script that is executed instead of the original fragment. Our new implementation improves modularity and facilitates the development of different transformations independently on top of ODFM. We use the new implementation to evaluate the benefit of a specific transformation by parallelizing 47 unmodified shell scripts with and without this transformation and measuring their execution times. Finally, we present a case study in which we parallelize two scripts using GNU Parallel [Tange 2011 ]; our experience indicates that while it is easy to parallelize shell scripts using such a tool, it is also easy to introduce bugs, leading to incorrect results.",
+            "cite_spans": [
+                {
+                    "start": 850,
+                    "end": 861,
+                    "text": "[Tange 2011",
+                    "ref_id": "BIBREF51"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In summary, this paper makes the following contributions:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 Order-Aware Dataflow Model: It introduces the order-aware dataflow model (ODFM), a dataflow model tailored to the Unix shell that captures information about the order in which nodes consume inputs from different input edges ( \u00a74). \u2022 Translations: It formalizes the bidirectional translations between shell and ODFM required to translate shell scripts into dataflow graphs and dataflow graphs back to parallel scripts ( \u00a75). \u2022 Transformations and Proofs of Correctness: It presents a series of ODFM transformations for extracting data parallelism. It also presents proofs of correctness for these transformations ( \u00a76). \u2022 Results: It reimplements the optimizing compiler of PaSh and presents experimental results that evaluate the speedup afforded by a specific dataflow transformation ( \u00a77). The paper starts with an informal development building the necessary background ( \u00a72) and expounding on Spell ( \u00a73). It then presents the three main contributions outlined above ( \u00a74-7), compares with prior work ( \u00a78), and offers a discussion ( \u00a79), before closing the paper ( \u00a710).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This section reviews background on commands and abstractions in the Unix shell.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "A key Unix abstraction is the data stream, operated upon by executing commands or processes. Streams are sequences of bytes, but most commands process them as higher-level sequences of line elements, with the newline character delimiting each element and the EOF condition representing the end of a stream. Streams are often referenced using a filename, that is an identifier in a global name-space made available by the Unix file-system such as /home/user/x. Streams and files in Unix are isomorphic: some streams can persist as files beyond the execution of the process, whereas other streams are ephemeral in that they only exist to connect the output of one process to the input of another process during their execution. The sequence order is maintained when changing between persistent files and ephemeral streams.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unix Streams:"
+        },
+        {
+            "text": "Commands: Each command is an independent computation unit that reads one or more input streams, performs a computation, and produces one or more output streams. Contrary to languages with a closed set of primitives, there is an unlimited number of Unix commands, each one of which may have arbitrary behaviors-with the command's side-effects potentially affecting the entire environment on which it is executing. These commands may be written in any language or exist only in binary form, and thus Unix is not easily amenable to a single parallelizability analysis. Parallelization tools such as GNU parallel leave such analysis to developers that have to ensure that the script behavior will not be affected by parallelization, whereas transformation-based tools such as PaSh and POSH identify key invariants that hold for entire classes of commands and then resort to annotation libraries to infer whether each invariant is satisfied by each command. For example, an invariant that is used in both PaSh and POSH is whether a command is stateless, i.e., whether it maintains state when processing its inputs, or whether it processes each input line independently. Commands that satisfy this invariant can be parallelized by splitting their inputs in lines and then combining their outputs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unix Streams:"
+        },
+        {
+            "text": "Command flags: Unix commands are often configurable, customizing their behavior based on the task at hand. This is usually achieved via environment variables and command flags. Tools like PaSh and POSH address command behavior variability due to flags by including flags and command arguments in their annotation frameworks. Given command annotations, PaSh and POSH can abstract specific command invocations in a pipeline to black boxes for which some assumptions hold. This makes them applicable in the context of the shell where the space of possible command and flag combinations is exceedingly large.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unix Streams:"
+        },
+        {
+            "text": "Order of input consumption: In Unix, all streams are ordered and all commands can safely assume that they can consume elements from their streams in the order they were produced. Additionally, most commands have the ability to operate on multiple files or streams. The order in which commands access these streams is important. In some cases, they read streams in the order of the stream identifiers provided. In other cases, the order is different-for example, an input stream may configure a command, and thus must be read before all the others. Consider for example grep -f words.txt input.txt, which first reads words.txt to determine the keywords for which it needs to search, and then reads input.txt line by line, emitting all lines that contain one of the words in words.txt. In other cases, reads from multiple streams are interleaved according to some command-specific semantics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unix Streams:"
+        },
+        {
+            "text": "Composition: Unix Operators: Unix provides several primitives for program composition, each of which imposes different scheduling constraints on the program execution. Central among them is the pipe (|), a primitive that passes the output of one process as input to the next. The two processes form a pipeline, producing output and consuming input concurrently and possibly at different rates. The Unix kernel facilitates program scheduling, communication, and synchronization behind the scenes. For example, Spell's first tr transforms each character in the input stream to lower case, passing the stream to the second tr: the two trs form a parallel producer-consumer pair of processes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unix Streams:"
+        },
+        {
+            "text": "Apart from pipes, the language of the Unix shell provides several other forms of program composition-e.g., the sequential composition operator (;) for executing one process after another has completed, and control structures such as if and while. All of these constructs enforce execution ordering between their components. To preserve such ordering and thus ensure correctness, systems such as PaSh and POSH do not \"push\" parallelization beyond these constructs. Instead, they focus on exploiting parallelism in script regions that do not face ordering constraints-which, as they demonstrate, is enough to significantly improve the performance of scripts found out in the wild [Raghavan et al. 2020; Vasilakis et al. 2021 ].",
+            "cite_spans": [
+                {
+                    "start": 678,
+                    "end": 700,
+                    "text": "[Raghavan et al. 2020;",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 701,
+                    "end": 722,
+                    "text": "Vasilakis et al. 2021",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Unix Streams:"
+        },
+        {
+            "text": "This section provides intuition of the order-aware dataflow model proposed in this paper by following the different phases of a shell-to-shell parallelizing compiler (inspired by PaSh and POSH), formalized in the later sections. Given a script such as Spell ( \u00a71), the compiler identifies its dataflow regions, translates them to DFGs (Shell\u2192ODFM), applies graph transformations that expose data parallelism on these DFGs, and replaces the original dataflow regions with the nowparallel regions (ODFM\u2192Shell). Shell\u2192ODFM: Provided a shell script, the compiler starts by identifying subexpressions that are potentially parallelizable. The first step is to parse the script, creating an abstract syntax tree like the one presented on the right. Here we omit any non-stream flags and refer to all the stages between (and including) tr and sort as a dotted edge ending with cat.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Example and Overview"
+        },
+        {
+            "text": "The compiler then identifies parallelism barriers within the shell script: these barriers are operators that enforce synchronization constraints such as the sequential composition operator (\";\"). We call any set of commands that does not include a dataflow barrier a dataflow region. Dataflow regions are then transformed to dataflow graphs (DFGs), i.e., instances of our order-aware dataflow model. In our example, there are two dataflow regions corresponding to the following dataflow graphs: As mentioned earlier ( \u00a72), the compiler exposes parallelism in each DFG separately to preserve the ordering requirements imposed to ensure correctness. For the rest of this section we focus on the parallelization of DFG1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Example and Overview"
+        },
+        {
+            "text": "Command Aggreg. Function cat cat $* tr A-Z a-z cat $* tr -d a cat $* sort sort -m $* uniq uniq $* grep -f a -cat $* wc -l paste -d+ $*|bc sed 's/a/b/' cat $* Parallelizable Commands: Individual nodes of the dataflow graphs are shell commands. Systems like PaSh and POSH assume key information for individual commands, e.g., whether they are amenable to divide-and-conquer data parallelism. Such data parallelism is achieved by splitting the input into pieces (at stream element boundaries), processing partial inputs in parallel, and finally applying an aggregation function to partial outputs to produce the final output. This decomposition breaks a command into two components-a data-parallel function, which is often the command itself, and an aggregation function. The table on the right presents aggregation functions for the shell commands in our example (all of which are parallelizable).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Example and Overview"
+        },
+        {
+            "text": "For example, consider the decomposition of the tr command. Applying tr over the entire input produces the same result as splitting the input into two, applying tr to the two partial inputs, and then merging the partial results with a cat aggregation function. Note that both split and cat are order-aware, i.e., split sends the first half of its input to the first tr and the rest to the second, while cat concatenates its inputs in order. This guarantees that the output of the DFG is the same as the one before the transformation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "Parallelization Transformations: Given the decomposition of individual commands, the compiler's next step is to apply graph transformations to exploit parallelism present in the computation represented by the DFG. As each parallelizable Unix command comes with a corresponding aggregation function, the compiler's transformations first convert the DFG into one that exploits parallelism at each stage. After applying the transformation to the two tr stages, the DFG looks as follows: After these transformations are applied to all DFG nodes, the next transformation pass is applied to pairs of cat and split nodes: whenever a cat is followed by a split of the same width, the transformation removes the pair and connects the parallel streams directly to each other. The goal is to push data parallelism transformations as far down the pipeline as possible to expose the maximal amount of parallelism. Here is the resulting DFG for the transformation applied to the two tr stages: The next node to parallelize is sort. To merge the partial output of parallel sorts, we need to apply a sorted merge. (In GNU systems, this is available as sort -m so we use this as the label of the merging node.) The transformation then removes cat, replicates sort, and merges their outputs with sort -m: cat As mentioned earlier, a similar pass of iterative transformations is applied to DFG2, but the two DFGs are not merged to preserve the synchronization constraint of the dataflow barrier \";\".",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "Order Awareness: Data-parallel systems [Dean and Ghemawat 2008; Zaharia et al. 2012 ] often achieve parallelism using sharding, i.e., partitioning input based on some key, or using shuffling, i.e., arbitrary partitioning of inputs to parallel instances of an operator.",
+            "cite_spans": [
+                {
+                    "start": 39,
+                    "end": 63,
+                    "text": "[Dean and Ghemawat 2008;",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 64,
+                    "end": 83,
+                    "text": "Zaharia et al. 2012",
+                    "ref_id": "BIBREF62"
+                }
+            ],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "However, these techniques cannot be directly applied to the context of the shell, since (1) Unix commands and pipelines assume strict ordering of their input elements, (2) most commands are not independent on the basis of some key (to enable sharding), and (3) many commands are not commutative (e.g., uniq, cat -n). Since our goal is to define a model that applies directly to existing shell scripts, we cannot simply introduce new primitives that support sharding or shuffling, as is done in the case of systems that design an abstraction that fits their needs (e.g., MapReduce, Spark). Thus, data parallelism in the shell requires a careful treatment of input and output ordering. To further explain the need for order-awareness in a model for data parallel Unix pipelines, let's look at the following examples. Consider Spell's cat f1.md f2.md command that starts reading from f2.md only after it has completed reading f1.md; note that any or both input streams may be pipes waiting for results from other processes. This order can be visualized as a label over each input edge. Correctly parallelizing this command requires ensuring that parallel cat (and possibly followup stages) maintains this order.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "grep cat uniq uniq 1 2 1 2 dict As a more interesting example, consider Spell's grep, whose DFG is shown on the right. Parallelizing grep without taking order into account is not trivial, because grep -vx -f's set difference is not commutative: we cannot simply split its input streams into two pairs of partial inputs fed into two copies of grep. Taking input ordering into account, however, highlights an important dependency between grep's inputs. The dict stream can be viewed as configuring grep, and thus grep can be modeled as consuming the entire dict stream before consuming partial inputs. Armed with this insight, the compiler parallelizes grep by passing the same dict.txt stream to both grep copies. This requires an intermediary tee for duplicating the dict.txt stream to both copies of grep, each of which consumes the stream in its entirety before consuming the results of the preceeding uniq.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "Order-awareness is also important for the DFG translation back to a shell script. In the specific example we need to know how to instantiate the arguments of each grep of all possible options-e.g., grep -vx -f p1 p2, cat p1 | grep -vx -f -p2, etc. Aggregators are Unix commands with their own ordering characteristics that need to be accounted for.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "The order of input consumption in the examples of this section is statically known and can be represented for each node as a set of configuration inputs, plus a sequence of the rest of its inputs. To accurately capture the behavior of shell programs, however, ODFM is more expressive, allowing any order of input consumption. The correctness of our parallelization transformations is predicated upon static but configurable orderings: a command reads a set of configuration streams to setup the consumption order of its input streams which are then consumed in-order, one after the other.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "ODFM\u2192Shell: The transformed graph is finally compiled back to a script that uses POSIX shell primitives to drive parallelism explicitly. A benefit of the dataflow model is that it can be directly implemented on top of the shell, simply translating each node to a command, and each edge to a stream. The generated parallel script for Spell can be seen below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "The two DFGs are compiled into the two fragments that start with mkfifo and end with rm. Each fragment uses a series of named pipes (FIFOs) to explicitely manipulate the input and output streams of each data-parallel instance, effectively laying out the structure of the DFG using explicit channel naming (Unix FIFOs are named in the filesystem similar to normal files.) Aggregation functions are used to merge partial outputs from previous commands coming in through multiple FIFOs-for example, sort -m t4 t6 and cat t11 t12 for the first fragment, and paste -d+ t2 t3 | bc and cat t7 t8 for the second. A wait blocks until all commands executing in parallel complete. The parallel script is simplified for clarity of exposition: it does not show the details of input splitting, handling of SIGPIPE deadlocks, and other technical details that are handled by the current implementation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "Readers might be wondering about the correctness of having two sed commands in the parallel script: won't the string \"mispelled words\" appear twice in the output? Note, however, that the",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "output of the wc stage (fifo t4) contains a single line. As a result, the second sed will not be given any input line and thus will not produce any output.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tr cat split tr"
+        },
+        {
+            "text": "In this section we describe the order-aware dataflow model (ODFM) and its semantics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "An Order-aware Dataflow Model"
+        },
+        {
+            "text": "As discussed earlier ( \u00a72), the two main shell abstractions are (i) data streams, and (ii) commands communicating via streams. We represent streams as named variables and commands as functions that read from and write to streams. We first introduce some basic notation formalizing data streams on which our dataflow description language works. For a set , we write * to denote the set of all finite words over . For words , \u2208 * , we write \u00b7 or to denote their concatenation. We write for the empty word and \u22a5 for the End-of-File condition. We say that is a prefix of , and we write \u2264 , if there is a word such that = . The \u2264 order is reflexive, antisymmetric, and transitive (i.e., it is a partial order), and is often called the prefix order. We use the notation * \u00b7 \u22a5 to denote a closed stream, abstractly representing a file/pipe stream that has been closed, i.e., one which no process will open for writing. The notation * is used to denote an open stream, abstractly representing an open pipe. Later, other process may add new elements at the end of this value. In the rest of out formalization we focus on terminating streams, and therefore terminating programs, since all of the data processing scripts that we have encountered are terminating. We discuss extensions for infinite streams in \u00a79. Figure 1 presents the Dataflow Description Language (DDL) for defining dataflow graphs (DFG). A program \u2208 in DDL is of the form I; O; E. I and O represent sets of edges, vectors of the form = \u27e8 1 , 2 , . . . \u27e9. Variables 1 , 2 , . . . represent DFG edges, i.e., streams used as a communication channel between DFG nodes and as the input and output of the entire DFG.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1302,
+                    "end": 1310,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "I is of the form input , where is the set of the input variables. Each variable \u2208 I represents a file file( ) that is read from the Unix filesystem. Note that multiple input variables can refer to the same file.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataflow Description Language"
+        },
+        {
+            "text": "O is of the form output , where is the set of output variables. Each variable \u2208 O represents a file file( ) that is written to the Unix filesystem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataflow Description Language"
+        },
+        {
+            "text": "E represents the nodes of the DFG. A node \u2190 ( ) represents a function from list of input variables (edges) to output variables (edges) . We require that is monotone with respect to a lifting of the prefix order for a sequence of inputs; that is,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataflow Description Language"
+        },
+        {
+            "text": "This captures the idea that a node cannot retract output that it has already produced.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataflow Description Language"
+        },
+        {
+            "text": "We wrap all functions with an execution wrapper \u00b7 that ensures that all outputs of are closed when its inputs are closed:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataflow Description Language"
+        },
+        {
+            "text": "Step",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataflow Description Language"
+        },
+        {
+            "text": "This is helpful to ensure termination. From now on, we only refer to the wrapped function semantics. We also assume that commands do not produce output if they have not consumed any input, i.e., the following is true:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 2. Small Step Execution Semantics"
+        },
+        {
+            "text": "A variable in DDL is assigned only once and consumed by only one node. DDL does not allow the dataflow graph to contain any cycles. This also holds for variables in I and O, which cannot refer to the same variables in I and never assigned a different value in E. Similarly, variables in O are not read by any node in E. All variables which are not included in I and O abstractly represent temporary files/pipes which are created during the execution of a shell script. We assume that within a dataflow program, all variables are reachable from some input variables.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 2. Small Step Execution Semantics"
+        },
+        {
+            "text": "Execution Semantics: Figure 2 presents the small step execution semantics for DDL. Maps \u0393 associates variable names to the data contained in the stream it represents. Map associates variable names to the data in the stream that has already been processed-representing the readonce semantics of Unix pipes. Let \u27e8 \u2032 1 , . . . \u2032 \u27e9 \u2190 ( 1 , . . . ) be a node in our DFG program. The function choice represents the order in which a commands consumes its inputs by returning a set of input indexes on which the function blocks on waiting to read. For example, the choice function for the command cat always returns the next non-closed index-as cat reads its inputs in sequence, each one until depletion.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 21,
+                    "end": 29,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Fig. 2. Small Step Execution Semantics"
+        },
+        {
+            "text": "For a choice function to be valid, it has to return an input index that has not been closed yet. Formally,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 2. Small Step Execution Semantics"
+        },
+        {
+            "text": "We assume that the set returned by choice cannot be empty unless all input indexes are closed, meaning that all nodes consume all of their inputs until depletion even if they do not need the rest of it for processing. The small step semantics nondeterministically picks a variable , such that \u2208 choice ( 1 , . . . ), i.e., is waiting to read some input from , and ( ) < \u0393( ), i.e., there is data on the stream represented by variable that has to be processed. The execution then retrieves the next message to process, and computes new messages 1 , . . . to pass on to the output streams \u2032 1 , . . . \u2032 . Note that any of these messages (input or output) might be \u22a5. We pass \u2022 , which denotes that the previous data is now being combined with the new message , to function . For all functions and new messages , given \u27e8 \u2032 1 , \u2032 2 , . . . \u2032 \u27e9 = ( 1 , . . . , , . . . ) we assume the following constraint holds:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 2. Small Step Execution Semantics"
+        },
+        {
+            "text": "This constraint ensures that first processing arguments 1 , . . . , . . . and then message append to argument \u210e stream is equivalent to processing messages 1 , . . . \u00b7 , . . . at once. Having this property, allows our system to process messages as they arrive or wait for all the messages to arrive, without changing the semantics of the execution. The messages 1 , . . . are passed on to their respective output streams (by updating \u0393). Note that the size of the output messages could vary, and they could even be empty. Finally, is updated to denote that has been processed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "Execution: Let \u27e8I, O, E\u27e9 be a dataflow program, where I = input are the input variables, and output are the output variables. Let be the initial mapping from all variable names in the dataflow program \u27e8I, O, E\u27e9 to empty string . Let \u0393 be the initial mapping for variables in the dataflow program, such that all non-input variables \u2209 , map to the empty string \u0393 ( ) = . In contrast, all input variables \u2208 , i.e., files already present in the file system, are mapped to the contents of the respective input file \u0393 ( ) = \u00b7 \u22a5.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "When no more small step transitions can take place (i.e., all commands have finished processing), the dataflow execution terminates and the contents of output variables in O can be written to their respective output files. Figure 3 represents the constraint that has to be satisfied by \u0393 at the end of execution, i.e., when all variables are processed. We now prove some auxiliary theorems and lemmas to show that dataflow programs always terminate and that when they terminate, the constraint in Figure 3 holds.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 223,
+                    "end": 231,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 497,
+                    "end": 505,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "During any point within the execution of the DFG, the following statement is true:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "Proof by induction on the number of execution steps. Base Case: Let \u0393 and be the initial mappings. For \u2208 \u27e8 1 , . . . \u27e9, ( ) = . For \u2208 \u27e8 \u2032 1 , . . . \u2032 \u27e9, \u0393 ( ) = (since \u2032 1 , . . . \u2032 are not input variables to the DFG, they will be initialized to ). The following property is true for all functions :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "Therefore, or the initial mappings, \u0393 and ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": ". . ( )) Induction Hypothesis: Let \u0393 and be a snapshot of stream mappings during the execution of the DFG such that the following statement is true:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "Induction Case: Let \u0393 and be a snapshot of stream mappings such that the induction hypothesis is true. Let \u0393 \u2032 and \u2032 be the snapshot after a single step of the execution takes place, given the snapshots \u0393 and .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "If for all \u2208 [1, ], ( ) = \u2032 ( ), then a message updating \u2032 1 , . . . \u2032 was not processed (they can only be written by this node). Therefore, for all \u2208 [1, ].\u0393( \u2032 ) = \u0393 \u2032 ( \u2032 ) and the following statement is true (assuming Induction Hypothesis)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "If there exists an \u2208 [1, ] such that \u2032 ( ) = ( ) \u00b7 , \u2260 , then a message was processed. Note that the above statement can only be true for a single . For all \u2260 , ( ) = \u2032 ( ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "The following statement is true from Induction Hypothesis:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": ". . ( )) and from small step semantics, for all \u2208 [1, ]:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "Using the definition of \u00b7 , the following statement is true:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": ". . ( )) Therefore, the following is true:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": ". . \u2032 ( )) The small step semantics will preserve this property. Therefore, by induction, for all \u27e8 \u2032 1 , \u2032 2 , . . . , \u2032 \u27e9 \u2190 ( 1 , . . . ) \u2208 E, the following is always true about \u0393 and , during any point within the execution: Proof. If for all \u2208 [1, ], \u0393( ) is closed and choice is non empty unless ( ) is closed for all , then eventually the execution will take a step to update till, for all \u2208 [1, ], ( ) is closed. When all inputs are closed, \u00b7 dictates that all outputs will be closed as well. Using theorem 4.1, \u0393( \u2032 ) will be closed. \u25a1 Theorem 4.3. Eventually for all variables , \u2203 .\u0393( ) = \u00b7 \u22a5, i.e., all variables will eventually be closed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "Proof. Let C be the set of variables which will be closed eventually. Note that I \u2286 C (all input variables to the DFG will be eventually closed). Using Lemma 4.2, for any node \u27e8 \u2032 1 , \u2032 2 , . . . , \u2032 \u27e9 \u2190 ( 1 , . . . ) \u2208 E, if 1 , . . . \u2208 C, then \u2032 1 , . . . \u2032 \u2208 C. Since the dataflow program contains no cycles, eventually all variables reachable from the input variables are in C. \u25a1 Theorem 4.4. The Dataflow program will always terminate. Let \u0393 and be the stream mappings when the DFG terminates. The for \u0393 and , the constraint 3 will be true.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "Proof. The DFG graph terminates when all variables are closed. From Theorem 4.3, all variables will eventually be closed. Constraint 3 follows from Theorem 4.1, all variables being closed when DFG terminates, and the properties of \u00b7 . \u25a1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ". Execution Constraints"
+        },
+        {
+            "text": "This section formalizes the translations between the shell and our order-aware dataflow model. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "From Shell Scripts to DFGs and Back Again"
+        },
+        {
+            "text": "Given a shell script the compiler starts by recursing on the AST, replacing subtrees in a bottom-up fashion with dataflow programs. Fig. 4 shows a relevant subset of shell syntax, adapted from Smoosh [Greenberg and Blatt 2020] . Intuitively, some shell constructs (such as pipes |) allow for the composition of the dataflow programs of their components, while others (such as ;) prevent it. Figure 5 shows the translation rules for some interesting constructs, and Figure 6 shows several auxiliary relations that are part of this translation. We denote compilation from a shell AST to a shell AST as \u2191 \u2032 , and compilation to a dataflow program as \u2191 \u27e8 , \u27e9 where is a dataflow program and \u2208 {bg, fg} denotes whether the program is to be executed in the foreground or background .",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 226,
+                    "text": "[Greenberg and Blatt 2020]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 132,
+                    "end": 138,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 391,
+                    "end": 399,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 465,
+                    "end": 473,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF9"
+                }
+            ],
+            "section": "Shell to ODFM"
+        },
+        {
+            "text": "The first two rules CommandTrans and CommandId describe compilation of commands. The bulk of the work is done in cmd2node, which, when possible, defines a correspondence between a command and a dataflow node. Predicate pure indicates whether the command is pure, i.e., whether it only interacts with its environment by reading and writing to files. All commands that we have seen until now (grep, sort, uniq) satisfy this predicate. The relations ins and outs define a correspondence between a commands arguments and the nodes inputs and outputs. We assume that a variable is uniquely identified from the file that it refers too, therefore if two variables have the same name, then they also refer to the same files. Finally, relation func extracts information about the execution of the command (such as its choice function and w) to be able to reconstruct it later on. Note that the four relations pure, ins, outs, and func act as axioms, and the soundness of our model and translations depends on their correctness. Prior work [Raghavan et al. 2020; Vasilakis et al. 2021 ] has shown how to construct such relations for specific commands using annotation frameworks, with PaSh providing annotations for more than 50 commands in POSIX and GNU Coreutils-two large and widely used sets of commands.",
+            "cite_spans": [
+                {
+                    "start": 1030,
+                    "end": 1052,
+                    "text": "[Raghavan et al. 2020;",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1053,
+                    "end": 1074,
+                    "text": "Vasilakis et al. 2021",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Shell to ODFM"
+        },
+        {
+            "text": "The rule BackgroundDfg sets the background flag for the underlying dataflow program; if the operand of a & is not compiled to a dataflow program then it is simply left as is. The last part holds for all shell constructs, we currently only create dataflow nodes from a single command.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Shell to ODFM"
+        },
+        {
+            "text": "The next set of rules refer to the sequential composition operator \";\". This operator acts as a dataflow barrier since it enforces an execution ordering between its two operands. Because of that, it forces the dataflow programs that are generated from its operands to be optimized (with opt) and then compiled back to shell scripts (with \u21d3). However, there is one case (SeqBothBg) where a dataflow region can propagate through a \";\" and that is if the first component is to be executed in the background. In this case \";\" does not enforce an execution order constraint between its two cmd2node( , \u2190 ( )) add_metadata( , , ) = \u2032 redir( , , , \u2032 , \u2032 ) \u2191 \u27e8input \u2032 ; output \u2032 ; \u2032 \u2190 \u2032 ( \u2032 ), fg\u27e9 CommandTrans operands and the generated dataflow programs can be safely composed into a bigger one. The rules for \"&&\" and \"||\" are similar (omitted).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Shell to ODFM"
+        },
+        {
+            "text": "The relation compose unifies two dataflow programs by combining the inputs of one with the outputs of the other and vice versa. Before doing that, it ensures that the composed dataflow graph will be valid by checking that there is at most one reader and one writer for each internal and output variable, as well as all the rest of the dataflow program invariants, e.g., the absence of cycles ( \u00a74).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Shell to ODFM"
+        },
+        {
+            "text": "The remaining rules (not shown) introduce synchronization constraints and are not part of our parallelization effort-for example, we consider all branching operators as strict dataflow barriers. Figure 7 presents the compilation \u21d3 of a dataflow program = I; O; E to a shell program. The compilation can be separated in a prologue, the main body, and an epilogue.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 195,
+                    "end": 203,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "Shell to ODFM"
+        },
+        {
+            "text": "The prologue creates a named pipe (i.e., Unix FIFO) for every variable in the program. Named pipes are created in a temporary directory using the mkfifo command, and are similar in behavior to ephemeral pipes except that they are explicitly associated to a file-system identifier-i.e., they are a special file in the file-system. Named pipes are used in place of ephemeral pipes (|) in the original script.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ODFM to Shell"
+        },
+        {
+            "text": "(vars(E 1 ) \\ vars(I 1 )) \u2229 (vars(E 2 ) \\ vars(I 2 )) = \u2205 I The epilogue inserts a wait to ensure that all the nodes in the dataflow have completed execution, and then removes all named pipes from the temporary directory using rm. The design of the prologue-epilogue pair mimics how Unix treats ephemeral pipes, which correspond to temporary identifiers in a hidden file-system.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ODFM to Shell"
+        },
+        {
+            "text": "The main body expresses the parallel computation and can also be separated into three components. For each of the input variables \u2208 I, we add a command that copies the file f = file( ) to its designated pipe. Similarly, for all output variables \u2208 O we add a command that copies the designated pipe to the output file in the filesystem f = file( ). Finally, we translate each node in E to a shell command that reads from the pipes corresponding to its input variables and writes to the pipes corresponding to its output variables. In order to correctly translate a node back to a command, we use the node-command correspondence functions (similar to the ones for \u2191) that were used for the translation of the command to a node. Since a translated command might get its input from (or send its output to) a named pipe, we need to also add those as new redirections with in_out. For example, for a node 3 \u2190 ( 1 , 2 ) that first reads 1 and then reads 2 , where = grep -f, the following command would be produced:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ODFM to Shell"
+        },
+        {
+            "text": "grep -f p1 p2 > p3 &",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ODFM to Shell"
+        },
+        {
+            "text": "In this section we define a set of transformations that expose data parallelism on a dataflow graph. We start by defining a set of helper DFG nodes and a set of auxiliary transformations to simplify the graph and enable the parallelization transformations. Then we identify a property on dataflow nodes that indicates whether the node can be executed in a data parallel fashion. We then define the parallelization transformations and we conclude with a proof that applying all of the transformations preserves the semantics of the original DFG.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parallelization Transformations"
+        },
+        {
+            "text": "Before we define the parallelization transformations, we introduce several helper functions that can be used as dataflow nodes. The first function is split. split takes a single input variable (file or pipe) and sequentially splits into multiple output variables. The exact size of the data written in each output variable is left abstract since it does not affect correctness but only performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Helper Nodes and Auxiliary Transformations"
+        },
+        {
+            "text": "\u2190 split( ) = \u27e8 1 \u00b7 \u22a5, 2 \u00b7 \u22a5, . . . \u22121 \u00b7 \u22a5, , , . . . \u27e9,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Helper Nodes and Auxiliary Transformations"
+        },
+        {
+            "text": "The second function is cat, which coincidentally behaves the same as the Unix command cat. cat, given a list of input variables, combines their values and assigns it to a single output variable. Formally cat is defined below:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Helper Nodes and Auxiliary Transformations"
+        },
+        {
+            "text": "The third function is tee, which behaves the same way as the Unix command tee, i.e. copying its input variable to several output variables. Formally tee is defined below: The final function is relay. relay works as an identity function. Formally relay is defined below:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Helper Nodes and Auxiliary Transformations"
+        },
+        {
+            "text": "\u2190 relay( ), \u2200 . relay( ) = , \u2200 . relay( \u00b7 \u22a5) = \u00b7 \u22a5 Using these helper nodes our compiler performs a set of auxiliary transformations that are depicted in Figure 8 . relay acts an identity function, therefore any edge can be transformed to include a relay between them. Spliting in multiple stages to get edges is the same as splitting in one step into edges. Similarly, combining edges in multiple stages is the same as combining edges in a single stage. If we split an edge into edges, and then combine the edges back, this behaves as an identity. A cat can be pushed following a tee by creating copies of the tee function. If a cat has single incoming edge, we can convert it into a relay. If a split has a single outgoing edge, we can convert it into a relay.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 154,
+                    "end": 162,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF12"
+                }
+            ],
+            "section": "Helper Nodes and Auxiliary Transformations"
+        },
+        {
+            "text": "The first seven transformations can be performed both ways. The last transformations is one way. A split after a cat can be converted into relays, if the input arity of cat is the same as output arity of split. The reverse transformation in this case is not allowed as, using (Relay) rule, we can cat and split any two or more streams in the dataflow graph. This will allow us to pass the output of any function in our graph to any other function as an input. This will break the semantics of our Dataflow graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Helper Nodes and Auxiliary Transformations"
+        },
+        {
+            "text": "The dataflow model exposes task parallelism as each different node can execute independentlyonly communicating with the other nodes through their communication channels. In addition to that, it is possible to achieve data parallelism by executing some nodes in parallel by partitioning part of their input.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Parallelism and Transformations"
+        },
+        {
+            "text": "We are interested in nodes that produce a single output and consume their inputs in sequence (one after the other when they are depleted), after having consumed the rest of their inputs as an initialization and configuration phase. Note that there are several examples of shell commands that correspond to such nodes, e.g. grep, sort, grep -f, and sha1sum. Let such a node \u2032 = ( 1 , . . . , + ), where w.l.o.g. 1 , 2 , . . . , represent the configuration inputs and +1 , . . . , + represent the sequential consumption inputs. The consumption order of such a command is shown below:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "If we know that a command satisfies the above property we can safely transform it to a = cat( +1 , . . . , + ) followed by a command \u2032 = \u2032 ( , 1 , . . . , ), without altering the semantics of the graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Data Parallel Nodes: We now shift our focus to a subset of the sequential consumption nodes, namely those that can be executed in a data parallel fashion by splitting their inputs. These are nodes that can be broken down in a parallel map and an associative aggregate . Formally, these nodes have to satisfy the following equation:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "We denote data parallel nodes as dp( , , ) Example of such a node that satisfies this property is the sort command, where = sort and = sort -m. In addition to the above equation, a map function should not output anything when its input closes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "( , ) = ( \u00b7 \u22a5, ) Note that could have multiple outputs and be different than the original function . As has been noted in prior research [Farzan and Nicolet 2017] this is important as some functions require auxiliary information in the map phase in order to be parallelized. An important observation is that a subset of all data parallel nodes are completely stateless, meaning that = and = cat, and therefore are embarrasingly parallel.",
+            "cite_spans": [
+                {
+                    "start": 137,
+                    "end": 162,
+                    "text": "[Farzan and Nicolet 2017]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "We can now define a transformation on any data parallel node , that replaces it with a map followed by an aggregate. This transformation is formally shown in Figure 9 . Essentially, all the sequential consumption inputs (that are concatenated using cat) are given to different nodes the outputs of which are then aggregated using while preserving the input order. Note that the configuration inputs have to be duplicated using tee to ensure that all parallel s and s will be able to read them in case they are pipes and not files on disk.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 158,
+                    "end": 166,
+                    "text": "Figure 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Using the auxiliary transformations-by adding a split followed by cat before a data parallel node, we can always parallelize them using the parallelization transformation. where \u0393 , \u0393 \u2032 are the initial mappings for and \u2032 respectively, and \u0393 , \u0393 \u2032 are the mappings when and \u2032 have completed their execution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Theorem 6.1. Let = \u27e8I, O, E \u222a \u27e9 and \u2032 = \u27e8I, O, E \u222a \u2032 \u27e9 be two dataflow programs. Let S be the set of input variables in node set (variables read in but not assigned inside ). Let S be the set of output variables in the node set (variables assigned in but not read inside ). Let S \u2032 , S \u2032 be the input variables and output variables of \u2032 . We assume S = S \u2032 and S = S \u2032 . If \u27e8S , S , \u27e9 is equivalent to \u27e8S , S , \u2032 \u27e9, then program \u27e8I, O, E \u222a \u2032 \u27e9 is equivalent to \u27e8I, O, E \u222a \u27e9.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Proof. Given any initial mapping \u0393 , let \u0393 , \u0393 \u2032 be the mappings when and \u2032 complete their execution. For all \u2208 S , \u0393 ( ) = \u0393 \u2032 ( ) as there are no cycles in the dataflow graph, and the subgraph which computes S is same in both and \u2032 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Since \u27e8S , S , \u27e9 is equivalent to \u27e8S , S , \u2032 \u27e9, and for all \u2208 S , \u0393 ( ) = \u0393 \u2032 ( ), for all \u2208 S , \u0393 ( ) = \u0393 \u2032 ( ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Only variables in set S are the variables assigned in and \u2032 , that are used in computing the value of the output variables O. Since the value of the variables is same in both these programs, given the same input mapping \u0393 , for all output variables \u2208 O, \u0393 ( ) = \u0393 \u2032 ( ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Therefore, both these programs are equivalent. \u25a1 Theorem 6.2. Transformations presented in Figure 8 and Figure 9 preserve program equivalence.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 91,
+                    "end": 99,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF12"
+                },
+                {
+                    "start": 104,
+                    "end": 112,
+                    "text": "Figure 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Proof. The (Relay) transformation preserves program equivalence as the program terminates, the value of is equal to the value of .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "The remaining transformations, transforming an input program \u27e8I, O, E \u222a \u27e9 to an output program \u27e8I \u2032 , O \u2032 , E \u222a \u2032 \u27e9. For all transformations S = S \u2032 and S = S \u2032 (where S , S \u2032 , S , S \u2032 are defined above). First seven transformations, equivalence of programs \u27e8S , S , \u27e9 and \u27e8S , S , \u2032 \u27e9 follow from the execution semantics for cat, relay, split, tee, the properties of and for data parallel commands .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "The (Concat-Split) transformation relies on the additional property that the program produces the same output independent of how the split breaks the input stream. Choice of a particular way of breaking the stream does not change the value of the program's output variables when it terminates.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Since, \u27e8S , S , \u27e9 is equivalent to \u27e8S , S , \u2032 \u27e9, these transformations preserve equivalence (Theorem 6.1). \u25a1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Consumption Nodes:"
+        },
+        {
+            "text": "Our evaluation consists of two parts. The first part is a case study of applying GNU Parallel to two scripts, demonstrating the difficulty of manually reasoning about parallel shell pipelines and the challenges that one has to address in order to achieve a parallel implementation. The second part demonstrates the performance benefits of our transformations on 47 unmodified shell scripts. Before discussing our evaluation, we offer a brief outline of the compiler implementation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Implementation: We reimplement the compilation and optimization phases of PaSh [Vasilakis et al. 2021 ] according to our model and associated transformations. The new implementation is about 1500 lines of Python code and uses the order-aware dataflow model as the centerpiece intermediate representation. It is also more modular and facilitates the development of additional transformations, closely mirroring the back-and-forth shell-to-ODFM translations described in Section 5 and the parallezing transformations described in Section 6. While we expect that most users would use PaSh by writing shell scripts, completely ignoring the ODFM, it is also possible to manually describe programs in the intermediate representation, enabling other frontend and backend frameworks to interface with it. By reimplementing PaSh's optimization phase to mirror our transformations we also discovered and solved a bug in PaSh. The old implementation did not tee the configuration inputs of a parallelized command, but rather allowed all parallel copies to read from the same input. While this is correct if the configuration input is a file on disk, the semantics indicated that in the general case it leads to incorrect results-for example, in cases where this input is a stream-because all parallel commands consume items from a single stream, only reading a subset of them.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 101,
+                    "text": "[Vasilakis et al. 2021",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "We describe an attempt to achieve data parallelism in two scripts using GNU parallel [Tange 2011 ], a tool for running shell commands in parallel. We chose GNU parallel because it compares favorably to other alternatives in the literature [Tange 2020 ], but note that GNU parallel sits somewhere between an automated compiler, like PaSh and POSH, and a fully manual approachillustrating only some of the issues that one might face while manually trying to parallelize their shell scripts.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 96,
+                    "text": "[Tange 2011",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 239,
+                    "end": 250,
+                    "text": "[Tange 2020",
+                    "ref_id": "BIBREF52"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Case Study: GNU Parallel"
+        },
+        {
+            "text": "Spell: We first apply parallel on Spell's first pipeline ( \u00a71):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study: GNU Parallel"
+        },
+        {
+            "text": "TEMP_C1=\"/tmp/{/}.out1\" TEMP1=$(seq -w 0 $(($JOBS -1)) | sed 's+^+/tmp/in+' | sed 's/$/.out1/' | tr '\\n' ' ') TEMP1=$(echo $TEMP1) mkfifo $TEMP1 parallel \"cat {} | col -bx | tr -cs A-Za-z '\\n' | tr A-Z a-z | \\ tr -d '[:punct:]' | sort > $TEMP_C1\" ::: $IN & sort -m $TEMP1 | parallel -k --jobs ${JOBS} --pipe --block \"$BLOCK_SIZE\" \"uniq\" | uniq | parallel -k --jobs ${JOBS} --pipe --block \"$BLOCK_SIZE\" \"grep -vx -f $dict -\" rm $TEMP1 It took us a few iterations to get the parallel version right, leading to a few observations. First, despite its automation benefits, parallel still requires manual placement of the intermediate FIFO pipes and functions. Additionally, achieving ideal performance requires some tweaking: setting --block to 10K, 250K, and 250M yields widely different execution times-27, 4, and 3 minutes respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study: GNU Parallel"
+        },
+        {
+            "text": "Most importantly, omitting the -k flag in the last two fragments breaks correctness due to reordering related to scheduling non-determinism. These fragments are fortunate cases in which the -k flag has the desired effect, because their output order follows the same order as the arguments of the commands they parallelize. Other commands face problems, in that the correct output order is not the argument order nor an arbitrary interleaving.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study: GNU Parallel"
+        },
+        {
+            "text": "Set-difference: We apply parallel to Set-diff, a script that compares two streams using sort and comm: mkfifo s1 s2 TEMP_C1=\"/tmp/{/}.out1\" TEMP1=$(seq -w 0 $(($JOBS -1)) | sed 's+^+/tmp/in+' | sed 's/$/.out1/' | tr '\\n' ' ') TEMP1=$(echo $TEMP1) TEMP_C2=\"/tmp/{/}.out2\" TEMP2=$(seq -w 0 $(($JOBS -1)) | sed 's+^+/tmp/in+' | sed 's/$/.out2/' | tr '\\n' ' ') TEMP2=$(echo $TEMP2) mkfifo ${TEMP1} ${TEMP2} parallel \"cat {} | cut -d ' ' -f 1 | tr [:lower:] [:upper:] | sort > $TEMP_C1\" ::",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study: GNU Parallel"
+        },
+        {
+            "text": "In addition to the issues highlighted in Spell, this parallel implementation has a subtle bug. GNU parallel spawns several instances of grep -vx -f s2that all read FIFO s2. When the first parallel instance exits, the kernel sends a SIGPIPE signal to the second sort -m. This forces sort to exit, in turn leaving the rest of the parallel grep -vx -f instances blocked waiting for new input.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study: GNU Parallel"
+        },
+        {
+            "text": "The most straightforward way we have found to address this bug is to remove (1) the \"&\" operator after the second sort -m, and (2) s2 from mkfifo. This modification sacrifices pipeline parallelism, as the first stage of the pipeline completes before executing grep -vx -f. The parallel pipeline modified for correctness completes in 4m54s. Our compiler does not sacrifice pipeline parallelism by using tee to replicate s2 for all parallel instances of grep -vx -f ( \u00a72), completing in 4m7s.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Case Study: GNU Parallel"
+        },
+        {
+            "text": "Methodology: We use three sets of benchmark programs from various sources, including GitHub, StackOverflow, and the Unix literature [Bentley 1985; Bentley et al. 1986; Bhandari 2020; Jurafsky 2017; McIlroy et al. 1978; Taylor 2004] .",
+            "cite_spans": [
+                {
+                    "start": 132,
+                    "end": 146,
+                    "text": "[Bentley 1985;",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 147,
+                    "end": 167,
+                    "text": "Bentley et al. 1986;",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 168,
+                    "end": 182,
+                    "text": "Bhandari 2020;",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 183,
+                    "end": 197,
+                    "text": "Jurafsky 2017;",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 198,
+                    "end": 218,
+                    "text": "McIlroy et al. 1978;",
+                    "ref_id": null
+                },
+                {
+                    "start": 219,
+                    "end": 231,
+                    "text": "Taylor 2004]",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Performance Results"
+        },
+        {
+            "text": "\u2022 Expert Pipelines: The first set contains 9 pipelines: NFA-regex, Sort, Top-N, WF, Spell, Difference, Bi-grams, Set-Difference, and Shortest-Scripts. Pipelines in this set contain 2-7 stages (mean: 5.2), ranging from a scalable CPU-intensive grep stage in NFA-regex to a non-parallelizable diff stage in Difference. These scripts are written by Unix experts: a few pipelines are from Unix legends [Bentley 1985; Bentley et al. 1986; McIlroy et al. 1978] , one from a book on Unix scripting [Taylor 2004] , and a few are from top Stackoverflow answers [Jurafsky 2017 ]. Parallel, and No Cat-Split, with 16\u00d7-parallelism. et al. 1978] . We found unofficial solutions to all-but-three problems on GitHub [Bhandari 2020 ], expressed as pipelines with 2-12 stages (mean: 5.58). They make extensive use of standard commands under a variety of flags, and appear to be written by non-experts-contrary to the previous set, they often use sub-optimal or non-Unix-y constructs. We execute each pipeline as-is, without any modification. \u2022 COVID-19 Mass-Transit Analysis Pipelines: The third set contains 4 pipelines that were used to analyze real telemetry data from bus schedules during the COVID-19 response in one of Europe's largest cities [Tsaliki and Spinellis 2021] . The pipelines compute several statistics on the transit system per day-such as average serving hours per day and average number of vehicles per day. Pipelines range between 9 and 10 stages (mean: 9.2) and use typical Unix staples such as sed, awk, sort, and uniq.",
+            "cite_spans": [
+                {
+                    "start": 398,
+                    "end": 412,
+                    "text": "[Bentley 1985;",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 413,
+                    "end": 433,
+                    "text": "Bentley et al. 1986;",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 434,
+                    "end": 454,
+                    "text": "McIlroy et al. 1978]",
+                    "ref_id": null
+                },
+                {
+                    "start": 491,
+                    "end": 504,
+                    "text": "[Taylor 2004]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 552,
+                    "end": 566,
+                    "text": "[Jurafsky 2017",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 570,
+                    "end": 632,
+                    "text": "Parallel, and No Cat-Split, with 16\u00d7-parallelism. et al. 1978]",
+                    "ref_id": null
+                },
+                {
+                    "start": 701,
+                    "end": 715,
+                    "text": "[Bhandari 2020",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1232,
+                    "end": 1260,
+                    "text": "[Tsaliki and Spinellis 2021]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Performance Results"
+        },
+        {
+            "text": "We use our implementation of PaSh to parallelize all of the pipelines in these benchmark sets, working with three configurations:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Performance Results"
+        },
+        {
+            "text": "\u2022 Baseline: Our compiler simply executes the script using a standard shell (in our case bash) without performing any optimizations. This configuration is used as our baseline. Note that it is not completely sequential since the shell already achieves pipeline and task parallelism based on | and &. \u2022 No Cat-Split: Our compiler performs all transformations except Concat-Split. This configuration achieves parallelism by splitting the input before each command and then merging it back. It is used as a baseline to measure the benefits achieved by the Concat-Split transformation. \u2022 Parallel: Our compiler performs all transformations. The Concat-Split transformation, which removes a cat with inputs followed by a split with outputs, ensures that data is not merged unnecessarily between parallel stages.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Performance Results"
+        },
+        {
+            "text": "Experiments were run on a 2.1GHz Intel Xeon E5-2683 with 512GB of memory and 64 physical cores, Debian 4.9.144-3.1, GNU Coreutils 8.30-3, GNU Bash 5.0.3(1), OCaml 4.05.0, and Python 3.7.3. All pipelines are set to (initially) read from and (finally) write to the file system. For \"Expert Pipelines\", we use 10GB-collections of inputs from Project Gutenberg [Hart 1971 ]; for \"Unix50 Pipelines\", we gather their inputs from each level in the game [Labs 2019] and multiply them up to 10GB. For \"Bus Route Analysis Pipelines\" we use the real bus telemetry data for the year 2020 (~3.4GB). The inputs for all pipelines are split in 16 equal sized chunks, corresponding to the intended parallelism level. Fig. 10 shows the execution times on all programs with 16\u00d7 parallelism and for all three configurations mentioned in the beginning of the evaluation. It shows that all programs achieve significant improvements with the addition of the Concat-Split transformation. The average speedup without Concat-Split over the bash baseline is 2.26\u00d7. The average speedup with the transformation is 6.16\u00d7. The figure on the right explains the differences in the effect of the transformation based on the kind of commands involved in the pipelines. It offers a correlation between sequential time and speedup, and shows that different programs that involve commands with similar characteristics (color) see similar speedups (y-axis). Programs containing only parallelizable commands see the highest speedup (10.4-14.5\u00d7). Programs with limited speedup either (1) contain sort, which does not scale linearly, (2) are not CPU-intensive, resulting in pronounced IO and constant costs, or (3) are deep pipelines, already exploiting significant pipeline-based parallelism. Programs with non-parallelizable commands see no significant change in execution time (0.9-1.3\u00d7). Finally, programs containing head have a very small sequential execution, typically under 1 , and thus their parallel equivalents see a slowdown due to constant costs-still remaining under 1 .",
+            "cite_spans": [
+                {
+                    "start": 357,
+                    "end": 367,
+                    "text": "[Hart 1971",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 700,
+                    "end": 707,
+                    "text": "Fig. 10",
+                    "ref_id": null
+                }
+            ],
+            "section": "Performance Results"
+        },
+        {
+            "text": "Dataflow Graph Models: Graph models of computation where nodes represent units of computation and edges represent FIFO communication channels have been studied extensively [Dennis 1974; Kahn 1974; Kahn and MacQueen 1977; Karp and Miller 1966; Lee and Messerschmitt 1987a,b] . ODFM sits somewhere between Kahn Process Networks [Kahn 1974; Kahn and MacQueen 1977] (KPN), the model of computation adopted by Unix pipes, and Synchronous Dataflow [Lee and Messerschmitt 1987a,b] (SDF). A key difference between ODFM and SDF is that ODFM does not assume fixed item rates-a property used by SDF for efficient scheduling determined at compiletime. Two differences between ODFM from KPNs is that (i) ODFM does not allow cycles, and (ii) ODFM exposes information about the input consumption order of each node. This order provides enough information at compile time to perform parallelizing transformations while also enabling translation of the dataflow back to a Unix shell script.",
+            "cite_spans": [
+                {
+                    "start": 172,
+                    "end": 185,
+                    "text": "[Dennis 1974;",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 186,
+                    "end": 196,
+                    "text": "Kahn 1974;",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 197,
+                    "end": 220,
+                    "text": "Kahn and MacQueen 1977;",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 221,
+                    "end": 242,
+                    "text": "Karp and Miller 1966;",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 243,
+                    "end": 273,
+                    "text": "Lee and Messerschmitt 1987a,b]",
+                    "ref_id": null
+                },
+                {
+                    "start": 326,
+                    "end": 337,
+                    "text": "[Kahn 1974;",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 338,
+                    "end": 361,
+                    "text": "Kahn and MacQueen 1977]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 442,
+                    "end": 473,
+                    "text": "[Lee and Messerschmitt 1987a,b]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Systems for batch [Dean and Ghemawat 2008; Murray et al. 2013; Zaharia et al. 2012] , stream [Gordon et al. 2006; Mamouras et al. 2017; Thies et al. 2002] , and signal processing [Bourke and Pouzet 2013; Lee and Messerschmitt 1987a] provide dataflow-based abstractions. These abstractions are different from ODFM which operates on the Unix shell, an existing language with its own peculiarities that have guided the design of the model.",
+            "cite_spans": [
+                {
+                    "start": 18,
+                    "end": 42,
+                    "text": "[Dean and Ghemawat 2008;",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 43,
+                    "end": 62,
+                    "text": "Murray et al. 2013;",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 63,
+                    "end": 83,
+                    "text": "Zaharia et al. 2012]",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 93,
+                    "end": 113,
+                    "text": "[Gordon et al. 2006;",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 114,
+                    "end": 135,
+                    "text": "Mamouras et al. 2017;",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 136,
+                    "end": 154,
+                    "text": "Thies et al. 2002]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 179,
+                    "end": 203,
+                    "text": "[Bourke and Pouzet 2013;",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 204,
+                    "end": 232,
+                    "text": "Lee and Messerschmitt 1987a]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "One technique for retrofitting order over unordered streaming primitives such as sharding and shuffling is to extend the types of elements using tagging [Arvind and Nikhil 1990; Arvind et al. 1984; Watson and Gurd 1979] . This technique would not work in the Unix shell, because (1) commands are black boxes operating on stream elements in unconstrained ways (but in known order), and (2) because data streams exchanged between commands contain flat strings, without support for additional metadata extensions, and thus no obvious way to augment elements with tags. ODFM instead captures ordering on the edges of the dataflow graph, and leverages the consumption order of nodes (the choice function) in the graph to orchestrate execution appropriately.",
+            "cite_spans": [
+                {
+                    "start": 153,
+                    "end": 177,
+                    "text": "[Arvind and Nikhil 1990;",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 178,
+                    "end": 197,
+                    "text": "Arvind et al. 1984;",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 198,
+                    "end": 219,
+                    "text": "Watson and Gurd 1979]",
+                    "ref_id": "BIBREF60"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Synchronous languages [Berry and Gonthier 1992; Halbwachs et al. 1991; Le Guernic et al. 1986; Maraninchi and R\u00e9mond 2001] model stream graphs as circuits where nodes are state machines and edges are wires that carry a single value. Lustre [Halbwachs et al. 1991 ] is based on a dataflow model that is similar to ours, but its focus is different as it is not intended for exploiting data-parallelism.",
+            "cite_spans": [
+                {
+                    "start": 22,
+                    "end": 47,
+                    "text": "[Berry and Gonthier 1992;",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 48,
+                    "end": 70,
+                    "text": "Halbwachs et al. 1991;",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 71,
+                    "end": 94,
+                    "text": "Le Guernic et al. 1986;",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 95,
+                    "end": 122,
+                    "text": "Maraninchi and R\u00e9mond 2001]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 240,
+                    "end": 262,
+                    "text": "[Halbwachs et al. 1991",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Semantics and Transformations: Prior work proposes semantics for streaming extensions to relational query languages based on dataflow [Arasu et al. 2006; Li et al. 2005] . In contrast to our work, it focuses on transformations of time-varying relations.",
+            "cite_spans": [
+                {
+                    "start": 134,
+                    "end": 153,
+                    "text": "[Arasu et al. 2006;",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 154,
+                    "end": 169,
+                    "text": "Li et al. 2005]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "More recently, there has been significant work on the correct parallelization of distributed streaming applications by proposing sound optimizations and compilation techniques [Hirzel et al. 2014; Schneider et al. 2013 ], type systems [Mamouras et al. 2019] , and differential testing [Kallas et al. 2020 ]. These efforts aim at producing a parallel implementation of a dataflow streaming computation using techniques that do not require knowledge of the order of consumption of each node-a property that very important in our setting.",
+            "cite_spans": [
+                {
+                    "start": 176,
+                    "end": 196,
+                    "text": "[Hirzel et al. 2014;",
+                    "ref_id": null
+                },
+                {
+                    "start": 197,
+                    "end": 218,
+                    "text": "Schneider et al. 2013",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 235,
+                    "end": 257,
+                    "text": "[Mamouras et al. 2019]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 285,
+                    "end": 304,
+                    "text": "[Kallas et al. 2020",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Recent work proposes a semantic framework for stream processing that uses monoids to capture the type of data streams [Mamouras 2020 ]. That work mostly focuses on generality of expression, showing that several already proposed programming models can be expressed on top of it. It also touches upon soundness proofs of optimizations using algebraic reasoning, which is similar to our approach.",
+            "cite_spans": [
+                {
+                    "start": 118,
+                    "end": 132,
+                    "text": "[Mamouras 2020",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Divide and Conquer Decomposition: Prior work has shown the possibility of decomposing programs or program fragments using divide-and-conquer techniques Nicolet 2017, 2019; Rugina and Rinard 1999; Smith and Albarghouthi 2016] . The majority of that work focuses on parallelizing special constructs-e.g., loops, matrices, and arrays-rather than stream-oriented primitives. Techniques for automated synthesis of MapReduce-style distributed programs [Smith and Albarghouthi 2016] can be of significant aid for individual commands. In some cases Nicolet 2017, 2019] , the map phase is augmented to maintain additional metadata used by the reducer phase. These techniques complement our work, since they can be used to derive aggregators and the parallelizability properties of yet unknown shell commands, making them possible to capture in our model. Parallel Shell Scripting: Tools exposing parallelism on modern Unixes such as qsub [Gentzsch 2001] , SLURM [Yoo et al. 2003 ], AMFS [Zhang et al. 2013 ] and GNU parallel [Tange 2011 ] are predicated upon explicit and careful orchestration from their users. Similarly, several shells [Duff 1990; McDonald and Dix 1988; Spinellis and Fragkoulis 2017a; Walker et al. 2009 ] add primitives for non-linear pipe topologies-some of which target parallelism. Here too, however, users are expected to manually rewrite scripts to exploit these new primitives without jeopardizing correctness.",
+            "cite_spans": [
+                {
+                    "start": 152,
+                    "end": 171,
+                    "text": "Nicolet 2017, 2019;",
+                    "ref_id": null
+                },
+                {
+                    "start": 172,
+                    "end": 195,
+                    "text": "Rugina and Rinard 1999;",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 196,
+                    "end": 224,
+                    "text": "Smith and Albarghouthi 2016]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 446,
+                    "end": 475,
+                    "text": "[Smith and Albarghouthi 2016]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 541,
+                    "end": 560,
+                    "text": "Nicolet 2017, 2019]",
+                    "ref_id": null
+                },
+                {
+                    "start": 929,
+                    "end": 944,
+                    "text": "[Gentzsch 2001]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 947,
+                    "end": 969,
+                    "text": "SLURM [Yoo et al. 2003",
+                    "ref_id": null
+                },
+                {
+                    "start": 978,
+                    "end": 996,
+                    "text": "[Zhang et al. 2013",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 1016,
+                    "end": 1027,
+                    "text": "[Tange 2011",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 1129,
+                    "end": 1140,
+                    "text": "[Duff 1990;",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1141,
+                    "end": 1163,
+                    "text": "McDonald and Dix 1988;",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1164,
+                    "end": 1195,
+                    "text": "Spinellis and Fragkoulis 2017a;",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1196,
+                    "end": 1214,
+                    "text": "Walker et al. 2009",
+                    "ref_id": "BIBREF59"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Our work is inspired by PaSh [Vasilakis et al. 2021 ] and POSH [Raghavan et al. 2020] , two recent systems that use command annotations to parallelize and distribute shell programs by operating on dataflow fragments of the Unix shell. Our work is tied to PaSh [Vasilakis et al. 2021] , as it (i) uses its annotation framework for instantiating the correspondence of commands to dataflow nodes ( \u00a75.1), and (ii) serves as its formal foundation since it reimplements all of its parallelizing transformations and proves them correct. POSH [Raghavan et al. 2020 ] too translates shell scripts to dataflow graphs and optimizes them achieving performance benefits, but its goal is to offload commands close to their data in a distributed environment. Thus, POSH only performs limited parallelization transformations, and focusing more on the scheduling problem of determining where to execute each command. It only parallelizes commands that require a concatenation combiner, i.e., a subset of the transformations that we prove correct in this work, and thus replacing its intermediate representation with our ODFM would be possible. POSH also proposes an annotation framework that captures several command characteristics. Some of these characteristics, such as parallelizability, are also captured by PaSh. Others are related to the scheduling problem-for example, whether a command such as grep produces output smaller than its input, making it a good candidate for offloading close to the input data.",
+            "cite_spans": [
+                {
+                    "start": 29,
+                    "end": 51,
+                    "text": "[Vasilakis et al. 2021",
+                    "ref_id": null
+                },
+                {
+                    "start": 63,
+                    "end": 85,
+                    "text": "[Raghavan et al. 2020]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 260,
+                    "end": 283,
+                    "text": "[Vasilakis et al. 2021]",
+                    "ref_id": null
+                },
+                {
+                    "start": 536,
+                    "end": 557,
+                    "text": "[Raghavan et al. 2020",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "POSIX Shell Semantics: Our work depends on Smoosh, an effort focused on formalizing the semantics of the POSIX shell [Greenberg and Blatt 2020] . Smoosh focuses on POSIX semantics, whereas our work introduces a novel dataflow model in order to transform programs and prove the correctness of parallelization transformations on them. One of the Smoosh authors has also argued for making concurrency explicit via shell constructs [Greenberg 2018 ]. This is different from our work, since it focuses on the capabilities of the shell language as an orchestration language, and does not deal with the data parallelism of pipelines.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 143,
+                    "text": "[Greenberg and Blatt 2020]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 428,
+                    "end": 443,
+                    "text": "[Greenberg 2018",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Parallel Userspace Environments: By focusing on simplifying the development of distributed programs, a plethora of environments inadvertently assist in the construction of parallel software. Such systems [Barak and La'adan 1998; Mullender et al. 1990; Ousterhout et al. 1988 ], languages [Killian et al. 2007; Sewell et al. 2005; Virding et al. 1996] , or system-language hybrids [Epstein et al. 2011; Pike et al. 1990; Vasilakis et al. 2015 ] hide many of the challenges of dealing with concurrency as long as developers leverage the provided abstractions-which are strongly coupled to the underlying operating or runtime system. Even when these efforts are shell-oriented, such as Plan9's rc, they are backward-incompatible with the Unix shell, and often focus primarily on hiding the existence of a network rather than on modelling data parallelism.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 228,
+                    "text": "[Barak and La'adan 1998;",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 229,
+                    "end": 251,
+                    "text": "Mullender et al. 1990;",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 252,
+                    "end": 274,
+                    "text": "Ousterhout et al. 1988",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 288,
+                    "end": 309,
+                    "text": "[Killian et al. 2007;",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 310,
+                    "end": 329,
+                    "text": "Sewell et al. 2005;",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 330,
+                    "end": 350,
+                    "text": "Virding et al. 1996]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 380,
+                    "end": 401,
+                    "text": "[Epstein et al. 2011;",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 402,
+                    "end": 419,
+                    "text": "Pike et al. 1990;",
+                    "ref_id": null
+                },
+                {
+                    "start": 420,
+                    "end": 441,
+                    "text": "Vasilakis et al. 2015",
+                    "ref_id": "BIBREF57"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Command Annotations: The translation of shell scripts to dataflow programs is based on knowledge about command characteristics, such as the predicate pure that determines whether a command does not perform any side-effect except for writing to a set of output files ( \u00a75.1). In the current implementation, this information is acquired through the annotation language and annotations provided by PaSh [Vasilakis et al. 2021 ]. An interesting avenue for future research would be to explore analyses for inferring or checking the annotations for commands. Such work could help extend the set of supported commands (which currently requires manual effort). Furthermore, it would be interesting to explore extensions to the annotation language in order to enable additional optimizations; for example, commands that are commutative and associative could be parallelized more efficiently, by relaxing the requirement for input order and better utilizing the underlying resources.",
+            "cite_spans": [
+                {
+                    "start": 400,
+                    "end": 422,
+                    "text": "[Vasilakis et al. 2021",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Directly accessing the IR in the implementation: As described earlier ( \u00a77), our implementation currently allows manually developing programs in the ODFM intermediate representation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "However, this interface is not that convenient to use as an end-user since it requires manually instantiating each node of the graph with the necessary command metadata, e.g., inputs and outputs. It would be interesting future work to design different frontends that interface with this IR. For example, a frontend compiler from the language proposed by dgsh [Spinellis and Fragkoulis 2017a]; a shell that supports extended syntax for creating DAG pipelines. The IR could also act as an interface for different backends, for example one that implements ODFM in a distributed setting.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Parallel Script Debugging: Debugging standard shell pipelines can be hard and it usually requires several iterations of trial and error until the user gets the script right. Our approach does not make the debugging experience any worse, as the system produces as output a parallel shell script, which can be inspected and modified like any standard shell script (as seen in \u00a73). For example, a user could debug a script by removing a few stages of the parallel pipeline, or redirecting some intermediate outputs to permanent files for inspection. This is possible because of the expressiveness of ODFM and the existence of a bidirectional transformation from dataflow programs to shell scripts, which allows the compiler to simply use a standard shell such as bash as its backend.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "An approach that is particularly helpful, and which we have used ourselves, is to ask the compiler to add a relay node between every two nodes of the graph and then instantiate this relay node with an identity command that duplicates its input to its output and also a log file.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "This allows for stream introspection without affecting the behavior of the pipeline, facilitating debugging since the user can inspect all intermediate outputs at once.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tee $LOG < $IN > $OUT"
+        },
+        {
+            "text": "Stream Finiteness and Extensions: In our current model, parallelism is achieved by partitioning the finite stream, processing the partitions in parallel, and merging the results. Like PaSh and POSH, our model is designed to support terminating computations over large but finite data streams. All of the data processing scripts that we have encountered conform to this model and are terminating. One way to extend our work to support and parallelize infinite streams-such as the ones produced by yes and tail -f-would involve repeated applications of partitioning, processing, and merging.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "tee $LOG < $IN > $OUT"
+        },
+        {
+            "text": "We presented an order-aware dataflow model for exploiting data parallelism latent in Unix shell scripts. The dataflow model is order-aware, accurately capturing the semantics of complex Unix pipelines: in our model, the order in which a node in the dataflow graph consumes inputs from different edges plays a central role in the semantics of the computation and therefore in the resulting parallelization. The model captures the semantics of transformations that exploit data parallelism available in Unix shell computations and prove their correctness. We additionally formalized the translations from the Unix shell to the dataflow model and from the dataflow model back to a parallel shell script. We implemented our model and transformations as the compiler and optimization passes of PaSh, a system parallelizing shell pipelines, and used it to evaluate the speedup achieved on 47 data-processing pipelines.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "While the shell has been mostly ignored by the research community for most of its 50-year lifespan, recent work [Greenberg and Blatt 2020; Greenberg et al. 2021a,b; Raghavan et al. 2020; Spinellis and Fragkoulis 2017b; Vasilakis et al. 2021] indicates renewed community interest in shell-related research. We view our work partly as providing the missing correctness piece of the shell-optimization work done by the systems community [Raghavan et al. 2020; Vasilakis et al. 2021] , and partly as a stepping stone for further studies on the dataflow fragment of the shell, e.g., the development of more elaborate transformations and optimizations.",
+            "cite_spans": [
+                {
+                    "start": 112,
+                    "end": 138,
+                    "text": "[Greenberg and Blatt 2020;",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 139,
+                    "end": 164,
+                    "text": "Greenberg et al. 2021a,b;",
+                    "ref_id": null
+                },
+                {
+                    "start": 165,
+                    "end": 186,
+                    "text": "Raghavan et al. 2020;",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 187,
+                    "end": 218,
+                    "text": "Spinellis and Fragkoulis 2017b;",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 219,
+                    "end": 241,
+                    "text": "Vasilakis et al. 2021]",
+                    "ref_id": null
+                },
+                {
+                    "start": 434,
+                    "end": 456,
+                    "text": "[Raghavan et al. 2020;",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 457,
+                    "end": 479,
+                    "text": "Vasilakis et al. 2021]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The CQL continuous query language: semantic foundations and query execution",
+            "authors": [
+                {
+                    "first": "Arvind",
+                    "middle": [],
+                    "last": "Arasu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shivnath",
+                    "middle": [],
+                    "last": "Babu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jennifer",
+                    "middle": [],
+                    "last": "Widom",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "The VLDB Journal",
+            "volume": "15",
+            "issn": "2",
+            "pages": "121--142",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Executing a program on the MIT tagged-token dataflow architecture",
+            "authors": [
+                {
+                    "first": "Arvind",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Nikhil",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "IEEE Trans. Comput",
+            "volume": "39",
+            "issn": "",
+            "pages": "300--318",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/12.48862"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "The tagged token dataflow architecture",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "D Culler Arvind",
+                    "suffix": ""
+                },
+                {
+                    "first": "Vinod",
+                    "middle": [],
+                    "last": "Iannucci",
+                    "suffix": ""
+                },
+                {
+                    "first": "Keshav",
+                    "middle": [],
+                    "last": "Kathail",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pingali",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "The MOSIX multicomputer operating system for high performance cluster computing",
+            "authors": [
+                {
+                    "first": "Amnon",
+                    "middle": [],
+                    "last": "Barak",
+                    "suffix": ""
+                },
+                {
+                    "first": "Oren",
+                    "middle": [],
+                    "last": "La&apos;adan",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Future Generation Computer Systems",
+            "volume": "13",
+            "issn": "",
+            "pages": "361--372",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Programming Pearls: A Spelling Checker",
+            "authors": [
+                {
+                    "first": "Jon",
+                    "middle": [],
+                    "last": "Bentley",
+                    "suffix": ""
+                }
+            ],
+            "year": 1985,
+            "venue": "Commun. ACM",
+            "volume": "28",
+            "issn": "",
+            "pages": "456--462",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3532.315102"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Programming Pearls: A Literate Program",
+            "authors": [
+                {
+                    "first": "Jon",
+                    "middle": [],
+                    "last": "Bentley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Don",
+                    "middle": [],
+                    "last": "Knuth",
+                    "suffix": ""
+                },
+                {
+                    "first": "Doug",
+                    "middle": [],
+                    "last": "Mcilroy",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "Commun. ACM",
+            "volume": "29",
+            "issn": "",
+            "pages": "471--483",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/5948.315654"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "The Esterel synchronous programming language: Design, semantics, implementation",
+            "authors": [
+                {
+                    "first": "G\u00e9rard",
+                    "middle": [],
+                    "last": "Berry",
+                    "suffix": ""
+                },
+                {
+                    "first": "Georges",
+                    "middle": [],
+                    "last": "Gonthier",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "Science of computer programming",
+            "volume": "19",
+            "issn": "",
+            "pages": "87--152",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Solutions to unixgame",
+            "authors": [
+                {
+                    "first": "Pawan",
+                    "middle": [],
+                    "last": "Bhandari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2020--2024",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Z\u00e9lus: A synchronous language with ODEs",
+            "authors": [
+                {
+                    "first": "Timothy",
+                    "middle": [],
+                    "last": "Bourke",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marc",
+                    "middle": [],
+                    "last": "Pouzet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 16th international conference on Hybrid systems: computation and control",
+            "volume": "",
+            "issn": "",
+            "pages": "113--118",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "MapReduce: Simplified Data Processing on Large Clusters",
+            "authors": [
+                {
+                    "first": "Jeffrey",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sanjay",
+                    "middle": [],
+                    "last": "Ghemawat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Commun. ACM",
+            "volume": "51",
+            "issn": "",
+            "pages": "107--113",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1327452.1327492"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "First Version of a Data Flow Procedure Language",
+            "authors": [
+                {
+                    "first": "Jack",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Dennis",
+                    "suffix": ""
+                }
+            ],
+            "year": 1974,
+            "venue": "Programming Symposium",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Rc-A shell for Plan 9 and Unix systems",
+            "authors": [
+                {
+                    "first": "Tom",
+                    "middle": [],
+                    "last": "Duff",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "AUUGN",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Towards Haskell in the Cloud",
+            "authors": [
+                {
+                    "first": "Jeff",
+                    "middle": [],
+                    "last": "Epstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Black",
+                    "suffix": ""
+                },
+                {
+                    "first": "Simon Peyton-Jones",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the 4th ACM Symposium on Haskell (Haskell '11)",
+            "volume": "",
+            "issn": "",
+            "pages": "118--129",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2034675.2034690"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Synthesis of Divide and Conquer Parallelism for Loops",
+            "authors": [
+                {
+                    "first": "Azadeh",
+                    "middle": [],
+                    "last": "Farzan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Victor",
+                    "middle": [],
+                    "last": "Nicolet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 38th ACM SIGPLAN Conference on Programming Language Design and Implementation",
+            "volume": "",
+            "issn": "",
+            "pages": "540--555",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3062341.3062355"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Modular Divide-and-Conquer Parallelization of Nested Loops",
+            "authors": [
+                {
+                    "first": "Azadeh",
+                    "middle": [],
+                    "last": "Farzan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Victor",
+                    "middle": [],
+                    "last": "Nicolet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 40th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI 2019)",
+            "volume": "",
+            "issn": "",
+            "pages": "610--624",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3314221.3314612"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Sun grid engine: Towards creating a compute power grid",
+            "authors": [
+                {
+                    "first": "Wolfgang",
+                    "middle": [],
+                    "last": "Gentzsch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings First IEEE/ACM International Symposium on Cluster Computing and the Grid",
+            "volume": "",
+            "issn": "",
+            "pages": "35--36",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Exploiting coarse-grained task, data, and pipeline parallelism in stream programs",
+            "authors": [
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Michael I Gordon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Saman",
+                    "middle": [],
+                    "last": "Thies",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Amarasinghe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "ACM SIGPLAN Notices",
+            "volume": "41",
+            "issn": "11",
+            "pages": "151--162",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "The POSIX shell is an interactive DSL for concurrency",
+            "authors": [
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Greenberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Executable Formal Semantics for the POSIX Shell: Smoosh: the Symbolic, Mechanized, Observable, Operational Shell",
+            "authors": [
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Greenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Austin",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Blatt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. ACM Program. Lang. 4, POPL, Article 43",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3371111"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "The Future of the Shell: Unix and Beyond",
+            "authors": [
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Greenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Kallas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nikos",
+                    "middle": [],
+                    "last": "Vasilakis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the Workshop on Hot Topics in Operating Systems (HotOS '21)",
+            "volume": "",
+            "issn": "",
+            "pages": "240--241",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3458336.3465296"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Unix Shell Programming: The Next 50 Years",
+            "authors": [
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Greenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Kallas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nikos",
+                    "middle": [],
+                    "last": "Vasilakis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "Proceedings of the Workshop on Hot Topics in Operating Systems (HotOS '21)",
+            "volume": "",
+            "issn": "",
+            "pages": "104--111",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3458336.3465294"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "The synchronous data flow programming language LUSTRE",
+            "authors": [
+                {
+                    "first": "Nicholas",
+                    "middle": [],
+                    "last": "Halbwachs",
+                    "suffix": ""
+                },
+                {
+                    "first": "Paul",
+                    "middle": [],
+                    "last": "Caspi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pascal",
+                    "middle": [],
+                    "last": "Raymond",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Pilaud",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "Proc. IEEE",
+            "volume": "79",
+            "issn": "",
+            "pages": "1305--1320",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "A catalog of stream processing optimizations",
+            "authors": [
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Hart",
+                    "suffix": ""
+                }
+            ],
+            "year": 1971,
+            "venue": "ACM Computing Surveys (CSUR)",
+            "volume": "46",
+            "issn": "",
+            "pages": "1--34",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Unix for Poets",
+            "authors": [
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Jurafsky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "The Semantics of a Simple Language for Parallel Programming",
+            "authors": [
+                {
+                    "first": "Gilles",
+                    "middle": [],
+                    "last": "Kahn",
+                    "suffix": ""
+                }
+            ],
+            "year": 1974,
+            "venue": "Information Processing",
+            "volume": "74",
+            "issn": "",
+            "pages": "471--475",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Coroutines and Networks of Parallel Processes. Information Processing",
+            "authors": [
+                {
+                    "first": "Gilles",
+                    "middle": [],
+                    "last": "Kahn",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Macqueen",
+                    "suffix": ""
+                }
+            ],
+            "year": 1977,
+            "venue": "",
+            "volume": "77",
+            "issn": "",
+            "pages": "993--998",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "DiffStream: differential output testing for stream processing programs",
+            "authors": [
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Kallas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Filip",
+                    "middle": [],
+                    "last": "Niksic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Caleb",
+                    "middle": [],
+                    "last": "Stanford",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rajeev",
+                    "middle": [],
+                    "last": "Alur",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the ACM on Programming Languages",
+            "volume": "4",
+            "issn": "",
+            "pages": "1--29",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Properties of a Model for Parallel Computations: Determinacy, Termination, Queueing",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Richard",
+                    "suffix": ""
+                },
+                {
+                    "first": "Raymond",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Karp",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Miller",
+                    "suffix": ""
+                }
+            ],
+            "year": 1966,
+            "venue": "SIAM J. Appl. Math",
+            "volume": "14",
+            "issn": "",
+            "pages": "1390--1411",
+            "other_ids": {
+                "DOI": [
+                    "10.1137/0114108"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Mace: Language Support for Building Distributed Systems",
+            "authors": [
+                {
+                    "first": "Charles",
+                    "middle": [
+                        "Edwin"
+                    ],
+                    "last": "Killian",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Anderson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ryan",
+                    "middle": [],
+                    "last": "Braud",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ranjit",
+                    "middle": [],
+                    "last": "Jhala",
+                    "suffix": ""
+                },
+                {
+                    "first": "Amin",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Vahdat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the 28th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI '07)",
+            "volume": "",
+            "issn": "",
+            "pages": "179--188",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1250734.1250755"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "The Unix Game-Solve puzzles using Unix pipes",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2020--2023",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Signal-A data flow-oriented language for signal processing",
+            "authors": [
+                {
+                    "first": "Albert",
+                    "middle": [],
+                    "last": "Paul Le Guernic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Patricia",
+                    "middle": [],
+                    "last": "Benveniste",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thierry",
+                    "middle": [],
+                    "last": "Bournai",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Gautier",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "IEEE transactions on acoustics, speech, and signal processing",
+            "volume": "34",
+            "issn": "",
+            "pages": "362--374",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Static scheduling of synchronous data flow programs for digital signal processing",
+            "authors": [
+                {
+                    "first": "Edward Ashford",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Messerschmitt",
+                    "suffix": ""
+                }
+            ],
+            "year": 1987,
+            "venue": "IEEE Transactions on computers",
+            "volume": "100",
+            "issn": "",
+            "pages": "24--35",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Synchronous data flow. Proc. IEEE",
+            "authors": [
+                {
+                    "first": "Edward",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Messerschmitt",
+                    "suffix": ""
+                }
+            ],
+            "year": 1987,
+            "venue": "",
+            "volume": "75",
+            "issn": "",
+            "pages": "1235--1245",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Semantics and evaluation techniques for window aggregates in data streams",
+            "authors": [
+                {
+                    "first": "Jin",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Maier",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kristin",
+                    "middle": [],
+                    "last": "Tufte",
+                    "suffix": ""
+                },
+                {
+                    "first": "Vassilis",
+                    "middle": [],
+                    "last": "Papadimos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Peter A",
+                    "middle": [],
+                    "last": "Tucker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 2005 ACM SIGMOD international conference on Management of data",
+            "volume": "",
+            "issn": "",
+            "pages": "311--322",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Semantic Foundations for Deterministic Dataflow and Stream Processing",
+            "authors": [
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Mamouras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "European Symposium on Programming",
+            "volume": "",
+            "issn": "",
+            "pages": "394--427",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "StreamQRE: Modular specification and efficient evaluation of quantitative queries over streaming data",
+            "authors": [
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Mamouras",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mukund",
+                    "middle": [],
+                    "last": "Raghothaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rajeev",
+                    "middle": [],
+                    "last": "Alur",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zachary",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Ives",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sanjeev",
+                    "middle": [],
+                    "last": "Khanna",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 38th ACM SIGPLAN Conference on Programming Language Design and Implementation",
+            "volume": "",
+            "issn": "",
+            "pages": "693--708",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Data-Trace Types for Distributed Stream Processing Systems",
+            "authors": [
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Mamouras",
+                    "suffix": ""
+                },
+                {
+                    "first": "Caleb",
+                    "middle": [],
+                    "last": "Stanford",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rajeev",
+                    "middle": [],
+                    "last": "Alur",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zachary",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Ives",
+                    "suffix": ""
+                },
+                {
+                    "first": "Val",
+                    "middle": [],
+                    "last": "Tannen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 40th ACM SIGPLAN Conference on Programming Language Design and Implementation",
+            "volume": "",
+            "issn": "",
+            "pages": "670--685",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3314221.3314580"
+                ]
+            }
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Argos: an automaton-based synchronous language",
+            "authors": [
+                {
+                    "first": "Florence",
+                    "middle": [],
+                    "last": "Maraninchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yann",
+                    "middle": [],
+                    "last": "R\u00e9mond",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Computer languages",
+            "volume": "27",
+            "issn": "",
+            "pages": "61--92",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Support for graphs of processes in a command interpreter",
+            "authors": [
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "Trevor",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Dix",
+                    "suffix": ""
+                }
+            ],
+            "year": 1988,
+            "venue": "Software: Practice and Experience",
+            "volume": "18",
+            "issn": "",
+            "pages": "1011--1016",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Amoeba: A distributed operating system for the 1990s",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sape",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guido",
+                    "middle": [],
+                    "last": "Mullender",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Van Rossum",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robbert",
+                    "middle": [],
+                    "last": "Tanenbaum",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hans",
+                    "middle": [],
+                    "last": "Van Renesse",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Van Staveren",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "Computer",
+            "volume": "23",
+            "issn": "",
+            "pages": "44--53",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Naiad: A Timely Dataflow System",
+            "authors": [
+                {
+                    "first": "Derek",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Murray",
+                    "suffix": ""
+                },
+                {
+                    "first": "Frank",
+                    "middle": [],
+                    "last": "Mcsherry",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rebecca",
+                    "middle": [],
+                    "last": "Isaacs",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Isard",
+                    "suffix": ""
+                },
+                {
+                    "first": "Paul",
+                    "middle": [],
+                    "last": "Barham",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mart\u00edn",
+                    "middle": [],
+                    "last": "Abadi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the Twenty-Fourth ACM Symposium on Operating Systems Principles (SOSP '13)",
+            "volume": "",
+            "issn": "",
+            "pages": "439--455",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2517349.2522738"
+                ]
+            }
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "The Sprite network operating system",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "John",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Ousterhout",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fred",
+                    "middle": [],
+                    "last": "Cherenson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Douglis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Brent",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Nelson",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Welch ; Howard Trickey",
+                    "suffix": ""
+                }
+            ],
+            "year": 1988,
+            "venue": "Proceedings of the summer 1990 UKUUG Conference. 1-9",
+            "volume": "21",
+            "issn": "",
+            "pages": "23--36",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "{POSH}: A Data-Aware Shell",
+            "authors": [
+                {
+                    "first": "Sadjad",
+                    "middle": [],
+                    "last": "Deepti Raghavan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Philip",
+                    "middle": [],
+                    "last": "Fouladi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matei",
+                    "middle": [],
+                    "last": "Levis",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zaharia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "2020 {USENIX} Annual Technical Conference ({USENIX} {ATC} 20",
+            "volume": "",
+            "issn": "",
+            "pages": "617--631",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Automatic Parallelization of Divide and Conquer Algorithms",
+            "authors": [
+                {
+                    "first": "Radu",
+                    "middle": [],
+                    "last": "Rugina",
+                    "suffix": ""
+                },
+                {
+                    "first": "Martin",
+                    "middle": [],
+                    "last": "Rinard",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Proceedings of the Seventh ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming (PPoPP '99)",
+            "volume": "",
+            "issn": "",
+            "pages": "72--83",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/301104.301111"
+                ]
+            }
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Safe data parallelism for general streaming",
+            "authors": [
+                {
+                    "first": "Scott",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "Martin",
+                    "middle": [],
+                    "last": "Hirzel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bu\u011fra",
+                    "middle": [],
+                    "last": "Gedik",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kun-Lung",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE transactions on computers",
+            "volume": "64",
+            "issn": "",
+            "pages": "504--517",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Acute: High-level Programming Language Design for Distributed Computation",
+            "authors": [
+                {
+                    "first": "Peter",
+                    "middle": [],
+                    "last": "Sewell",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Leifer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Keith",
+                    "middle": [],
+                    "last": "Wansbrough",
+                    "suffix": ""
+                },
+                {
+                    "first": "Francesco",
+                    "middle": [
+                        "Zappa"
+                    ],
+                    "last": "Nardelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mair",
+                    "middle": [],
+                    "last": "Allen-Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pierre",
+                    "middle": [],
+                    "last": "Habouzit",
+                    "suffix": ""
+                },
+                {
+                    "first": "Viktor",
+                    "middle": [],
+                    "last": "Vafeiadis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the Tenth ACM SIGPLAN International Conference on Functional Programming (ICFP '05)",
+            "volume": "",
+            "issn": "",
+            "pages": "15--26",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1086365.1086370"
+                ]
+            }
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "MapReduce Program Synthesis",
+            "authors": [
+                {
+                    "first": "Calvin",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "Aws",
+                    "middle": [],
+                    "last": "Albarghouthi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 37th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI '16)",
+            "volume": "",
+            "issn": "",
+            "pages": "326--340",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2908080.2908102"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Extending Unix Pipelines to DAGs",
+            "authors": [
+                {
+                    "first": "Diomidis",
+                    "middle": [],
+                    "last": "Spinellis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marios",
+                    "middle": [],
+                    "last": "Fragkoulis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Comput",
+            "volume": "66",
+            "issn": "",
+            "pages": "1547--1561",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Extending Unix Pipelines to DAGs",
+            "authors": [
+                {
+                    "first": "Diomidis",
+                    "middle": [],
+                    "last": "Spinellis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marios",
+                    "middle": [],
+                    "last": "Fragkoulis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Comput",
+            "volume": "66",
+            "issn": "",
+            "pages": "1547--1561",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "GNU Parallel-The Command-Line Power Tool. ;login: The USENIX Magazine",
+            "authors": [
+                {
+                    "first": "Ole",
+                    "middle": [],
+                    "last": "Tange",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "36",
+            "issn": "",
+            "pages": "42--47",
+            "other_ids": {
+                "DOI": [
+                    "10.5281/zenodo.16303"
+                ]
+            }
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "DIFFERENCES BETWEEN GNU Parallel AND ALTERNATIVES",
+            "authors": [
+                {
+                    "first": "Ole",
+                    "middle": [],
+                    "last": "Tange",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Wicked Cool Shell Scripts: 101 Scripts for Linux, Mac OS X, and Unix Systems",
+            "authors": [
+                {
+                    "first": "Dave",
+                    "middle": [],
+                    "last": "Taylor",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "StreamIt: A language for streaming applications",
+            "authors": [
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Thies",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michal",
+                    "middle": [],
+                    "last": "Karczmarek",
+                    "suffix": ""
+                },
+                {
+                    "first": "Saman",
+                    "middle": [],
+                    "last": "Amarasinghe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "International Conference on Compiler Construction",
+            "volume": "",
+            "issn": "",
+            "pages": "179--196",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "The real statistics of buses in Athens",
+            "authors": [
+                {
+                    "first": "Eleftheria",
+                    "middle": [],
+                    "last": "Tsaliki",
+                    "suffix": ""
+                },
+                {
+                    "first": "Diomidis",
+                    "middle": [],
+                    "last": "Spinellis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2021,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Konstantinos Mamouras, Achilles Benetopoulos, and Lazar Cvetkovi\u0107. 2021. PaSh: Light-Touch Data-Parallel Shell Processing",
+            "authors": [
+                {
+                    "first": "Nikos",
+                    "middle": [],
+                    "last": "Vasilakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Konstantinos",
+                    "middle": [],
+                    "last": "Kallas",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "49--66",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3447786.3456228"
+                ]
+            }
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "From Lone Dwarfs to Giant Superclusters: Rethinking Operating System Abstractions for the Cloud",
+            "authors": [
+                {
+                    "first": "Nikos",
+                    "middle": [],
+                    "last": "Vasilakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ben",
+                    "middle": [],
+                    "last": "Karel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jonathan",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 15th USENIX Conference on Hot Topics in Operating Systems (HOTOS'15). USENIX Association",
+            "volume": "",
+            "issn": "",
+            "pages": "15--15",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Concurrent Programming in ERLANG (2Nd Ed.)",
+            "authors": [
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Virding",
+                    "suffix": ""
+                },
+                {
+                    "first": "Claes",
+                    "middle": [],
+                    "last": "Wikstr\u00f6m",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mike",
+                    "middle": [],
+                    "last": "Williams",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Composing and Executing Parallel Data-Flow Graphs with Shell Pipes",
+            "authors": [
+                {
+                    "first": "Edward",
+                    "middle": [],
+                    "last": "Walker",
+                    "suffix": ""
+                },
+                {
+                    "first": "Weijia",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Vinoth",
+                    "middle": [],
+                    "last": "Chandar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the 4th Workshop on Workflows in Support of Large-Scale Science (WORKS '09)",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1645164.1645175"
+                ]
+            }
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "A prototype data flow computer with token labelling",
+            "authors": [
+                {
+                    "first": "Ian",
+                    "middle": [],
+                    "last": "Watson",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Gurd",
+                    "suffix": ""
+                }
+            ],
+            "year": 1979,
+            "venue": "1979 International Workshop on Managing Requirements Knowledge (MARK)",
+            "volume": "",
+            "issn": "",
+            "pages": "623--628",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Slurm: Simple linux utility for resource management",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Andy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Morris",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Yoo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mark",
+                    "middle": [],
+                    "last": "Jette",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Grondona",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Workshop on Job Scheduling Strategies for Parallel Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "44--60",
+            "other_ids": {}
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Resilient Distributed Datasets: A Fault-tolerant Abstraction for In-memory Cluster Computing",
+            "authors": [
+                {
+                    "first": "Matei",
+                    "middle": [],
+                    "last": "Zaharia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mosharaf",
+                    "middle": [],
+                    "last": "Chowdhury",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tathagata",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ankur",
+                    "middle": [],
+                    "last": "Dave",
+                    "suffix": ""
+                },
+                {
+                    "first": "Justin",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Murphy",
+                    "middle": [],
+                    "last": "Mccauley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Franklin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Scott",
+                    "middle": [],
+                    "last": "Shenker",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ion",
+                    "middle": [],
+                    "last": "Stoica",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the 9th USENIX Conference on Networked Systems Design and Implementation (NSDI'12). USENIX Association",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Parallelizing the Execution of Sequential Scripts",
+            "authors": [
+                {
+                    "first": "Zhao",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Katz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Timothy",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Armstrong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Justin",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Wozniak",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ian",
+                    "middle": [],
+                    "last": "Foster",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the International Conference on High Performance Computing, Networking, Storage and Analysis (SC '13)",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2503210.2503222"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF2": {
+            "text": "continues pushing parallelism down the pipeline, after applying a split function to split sort -m's outputs.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Let \u27e8 \u2032 1 , \u2032 2 , . . . , \u2032 \u27e9 \u2190 ( 1 , . . . ) \u2208 E. If \u2200 \u2208 [1, ] \u0393( ) = \u00b7 \u22a5, then eventually \u2200 \u2208 [1, ], ( ) = \u00b7 \u22a5 and eventually \u2200 \u2208 [1, ], \u0393( \u2032 ) = \u2032 \u00b7 \u22a5.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "A relevant subset of shell syntax presented in Smoosh[Greenberg and Blatt 2020].",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": ". . . \u2191 \u27e8 , \u27e9 PipeFG Fig. 5. A subset of the compilation rules.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "( , , ?) outs ( , , ?) func( , ) node2cmd( \u2190 ( ), , ?, ?)O \u2032 = O [ stdin / stdout ] connectpipe(I; O; E) = I; O \u2032 ; E node2cmd( \u2032 \u2190 ( \u2032 ), , ?, ?) get_metadata( ) = \u27e8 , \u27e9 redir( \u2032 , \u2032 , , , ) \u2032 = in_out( ,Auxiliary relations for translating commands to nodes and back. I = input 1 , . . . O = output 1 , . . . E = 1 , . . . cin = cat ( 1 ) > ( 1 ) & ; . . . ;cat ( ) > ( ) & cin = cat ( 1 ) > ( 1 ) & ; . . . ;cat ( ) > ( ) & cnodes = instantiate( 1 ) & ; . . . ;instantiate( ) & body(I, O, E) = cin ; cout ; cnodes vars( ) = \u27e8 1 , . . . , \u27e9 prologue( ) = mkfifo /tmp/p{1..n} prologue( ) = epilogue( ) = \u21d3 ;body( ) ; vars( ) = \u27e8 1 , . . . , \u27e9 epilogue( ) = wait ; rm /tmp/p{1..n}",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "DFG to shell transformations.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "tee( ) = \u27e8 , , . . . , \u27e9,\u2200 . tee( ) = Unused\u2032 \u2190 Unused(I, O, E), = \u27e8 , \u2032 \u27e9 \u2190 split( ), \u27e8 1 , . . . \u27e9 \u2190 split( ), \u27e8 +1 , . . . \u27e9 \u2190 split( \u2032 ) I, O, E \u222a \u27e8 1 , . . . \u27e9 \u2190 split( ) \u21d0\u21d2 I, O, E \u222a Split-Split, \u2032 \u2190 Unused(I, O, E), = \u2190 cat(\u27e8 1 , . . . \u27e9), \u2032 \u2190 cat(\u27e8 +1 , . . . \u27e9), \u2190 cat(\u27e8 , \u2032 \u27e9) I, O, E \u222a \u2190 cat(\u27e8 1 , . . . \u27e9) \u21d0\u21d2 I, O, E \u222a Concat-Concat \u2190 Unused(I, O, E), = \u2190 split( ), \u2190 cat( ) I, O, E \u222a \u2190 relay( ) \u21d0\u21d2 I, O, E \u222a Split-Concat 1 , 1 , 2 , 2 , . . . , \u2190 Unused(I, O, E),",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "Auxiliary Transformation , , 1 , . . . , 1 , . . . , 1 , . . . , 1 , . . . \u2190 Unused(I, O, E) dp( , , ) = \u27e8 1 , . . . , , +1 \u27e9 \u2190 tee( ) : \u2200 \u2208 \u222a \u2190 ( , ) : \u2200 \u2208 {1 . . . } \u222a \u2190 ( 1 , . . . , , +1 ) I, O, E \u222a \u2190 cat( 1 , . . . , ), \u2190 ( , ) =\u21d2 I, O, E \u222a Parallel Fig. 9. Parallelization Transformation = \u27e8 \u00b7 \u22a5, \u00b7 \u22a5, . . . , \u00b7 \u22a5\u27e9, \u2200 . tee( \u00b7 \u22a5) =",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "Correctness of Transformations:We now proceed to prove a series of statements regarding the semantics-preservation properties of dataflow programs.Program Equivalence: Let = \u27e8I, O, E\u27e9 and \u2032 = \u27e8I \u2032 , O \u2032 , E \u2032 \u27e9 be two dataflow programs, where I = \u27e8 1 , . . . \u27e9, I \u2032 = \u27e8 1 , . . . \u27e9, O = \u27e8 1 , . . . \u27e9, and O \u2032 = \u27e8 1 , . . . \u27e9. These programs are equivalent if and only if, assuming initial value of input values are equal (for all \u2208 [1, ]. is equal to the value of ), for the value of the output variables is the same, when both of these DFGs terminate. Formally, for all values 1 , . . . , if \u2200 \u2208 [1, ].\u0393 ( ) = \u0393 \u2032 ( ) = \u2200 \u2208 [1, ].\u0393 ( ) = \u0393 \u2032 ( )",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF14": {
+            "text": "Unix50 Pipelines: The second set contains 34 pipelines solving the Unix 50 game [Labs 2019]. This set is from a recent set of challenges celebrating of Unix's 50-year legacy, solvable by Unix pipelines. The problems were designed to highlight Unix's modular philosophy [McIlroyFig. 10. Execution times with configurations Baseline,",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Applying this transformation to the first three stages-i.e., cat, tr, and tr-of DFG1 produces the following transformed DFG.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "We thank Konstantinos Mamouras for preliminary discussions that helped spark an interest for this work, Dimitris Karnikis for help with the artifact, Diomidis Spinellis for benchmarks and discussions, Michael Greenberg and Jiasi Shen for comments on the presentation of our work, the anonymous ICFP reviewers and our shepherd Rishiyur Nikhil for extensive feedback, and the ICFP artifact reviewers for their comments that significantly improved the paper artifact. This research was funded in part by DARPA contracts HR00112020013 and HR001120C0191, and NSF award CCF 1763514. Any opinions, findings, conclusions, or recommendations expressed in this material are those of the authors and do not necessarily reflect those of DARPA or other agencies.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgments"
+        },
+        {
+            "text": "n f a -r e g e x s o r t to p -n w f s p e ll b i-g r a m s d if f e r e n c e s e t-d if f e r e n c e s h o r te s t-s c r ip ts u n ix 5 0 -0 u n ix 5 0 -1 u n ix 5 0 -2 u n ix 5 0 -3 u n ix 5 0 -4 u n ix 5 0 -5 u n ix 5 0 -6 u n ix 5 0 -7 u n ix 5 0 -8 u n ix 5 0 -9 u n ix 5 0 -1 0 u n ix 5 0 -1 1 u n ix 5 0 -1 2 u n ix 5 0 -1 3 u n ix 5 0 -1 4 u n ix 5 0 -1 5 u n ix 5 0 -1 6 u n ix 5 0 -1 7 u n ix 5 0 -1 8 u n ix 5 0 -1 9 u n ix 5 0 -2 0 u n ix 5 0 -2 1 u n ix 5 0 -2 2 u n ix 5 0 -2 3 u n ix 5 0 -2 4 u n ix 5 0 -2 5 u n ix 5 0 -2 6 u n ix 5 0 -2 7 u n ix 5 0 -2 8 u n ix 5 0 -2 9 u n ix 5 0 -3 0 u n ix 5 0 -3 1 u n ix 5 0 -3 2 u n ix 5 ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "annex"
+        }
+    ]
+}
