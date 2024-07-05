@@ -246,19 +246,29 @@ meta_df = meta_df.dropna(subset=['publish_time'])
 
 # Plot histogram of publication years
 plt.figure(figsize=(12, 6))
-meta_df['publish_time'].dt.year.value_counts().sort_index().plot(kind='bar')
+ax = meta_df['publish_time'].dt.year.value_counts().sort_index().plot(kind='bar')
 plt.title('Histogram of Publication Years')
 plt.xlabel('Year')
 plt.ylabel('Number of Papers')
+
+# Add labels to each bar
+for p in ax.patches:
+    ax.annotate(str(p.get_height()), (p.get_x() * 1.005, p.get_height() * 1.005))
+
 plt.show()
 
 # Plot histogram of journals
 plt.figure(figsize=(12, 6))
-df['journal'].value_counts().head(20).plot(kind='bar')
+ax = df['journal'].value_counts().head(20).plot(kind='bar')
 plt.title('Top 20 Journals by Number of Papers')
 plt.xlabel('Journal')
 plt.ylabel('Number of Papers')
 plt.xticks(rotation=90)
+
+# Add labels to each bar
+for p in ax.patches:
+    ax.annotate(str(p.get_height()), (p.get_x() * 1.005, p.get_height() * 1.005))
+
 plt.show()
 
 # Filter years with too many or too few data points
@@ -272,8 +282,13 @@ filtered_meta_df = meta_df[meta_df['publish_time'].dt.year.isin(filtered_years)]
 
 # Plot filtered histogram of publication years
 plt.figure(figsize=(12, 6))
-filtered_meta_df['publish_time'].dt.year.value_counts().sort_index().plot(kind='bar')
+ax = filtered_meta_df['publish_time'].dt.year.value_counts().sort_index().plot(kind='bar')
 plt.title('Filtered Histogram of Publication Years')
 plt.xlabel('Year')
 plt.ylabel('Number of Papers')
+
+# Add labels to each bar
+for p in ax.patches:
+    ax.annotate(str(p.get_height()), (p.get_x() * 1.005, p.get_height() * 1.005))
+
 plt.show()
