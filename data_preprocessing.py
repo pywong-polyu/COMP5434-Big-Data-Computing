@@ -3,11 +3,13 @@ import os
 import json
 import glob
 import nltk
+import string
 from tqdm import tqdm
 import pandas as pd
 from langdetect import detect
 from langdetect import DetectorFactory
 from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -45,43 +47,30 @@ def glob_json_files_from_local(data_root):
     return json_files
 
 
-
-
-
-
-
-def get_breaks(content, length):
-    data = ""
+# Function to truncate text
+def truncate_text(content, length):
     words = content.split(' ')
-    total_chars = 0
-
-    # add break every length characters
-    for i in range(len(words)):
-        total_chars += len(words[i])
-        if total_chars > length:
-            data = data + "<br>" + words[i]
-            total_chars = 0
-        else:
-            data = data + " " + words[i]
-    return data
-
-
+    if len(words) > length:
+        return ' '.join(words[:length]) + "..."
+    else:
+        return ' '.join(words)
 
 def get_full_data_df(meta_df,json_files):
 
+    # Dictionary to hold data
     dict_ = {'paper_id': [], 'doi':[], 'abstract': [], 'body_text': [],
             'authors': [], 'title': [], 'journal': [], 'abstract_summary': []}
 
-
+    # Iterate through json files and extract content
     for idx, entry in tqdm(enumerate(json_files), total=len(json_files)):
         try:
             content = FileReader(entry)
         except Exception as e:
-            continue  # invalid paper format, skip
+            continue  # Invalid paper format, skip
 
-        # get metadata information
+        # Get metadata information
         meta_data = meta_df.loc[meta_df['sha'] == content.paper_id]
-        # no metadata, skip this paper
+        # No metadata, skip this paper
         if len(meta_data) == 0:
             continue
         if len(content.body_text) == 0:
@@ -89,51 +78,54 @@ def get_full_data_df(meta_df,json_files):
         dict_['abstract'].append(content.abstract)
         dict_['paper_id'].append(content.paper_id)
         dict_['body_text'].append(content.body_text)
-        # also create a column for the summary of abstract to be used in a plot
+        
+        # Also create a column for the summary of abstract to be used in a plot
         if len(content.abstract) == 0:
-            # no abstract provided
-            dict_['abstract_summary'].append("Not provided.")
+            # No abstract provided, use truncated body text
+            summary = truncate_text(content.body_text, 100)
+            dict_['abstract_summary'].append(summary)
+            
         elif len(content.abstract.split(' ')) > 100:
-            # abstract provided is too long for plot, take first 300 words append with ...
+            # Abstract provided is too long for plot, take first 100 words append with ...
             info = content.abstract.split(' ')[:100]
-            summary = get_breaks(' '.join(info), 40)
-            dict_['abstract_summary'].append(summary + "...")
+            summary = ' '.join(info) + "..."
+            dict_['abstract_summary'].append(summary)
         else:
-            # abstract is short enough
-            summary = get_breaks(content.abstract, 40)
+            # Abstract is short enough
+            summary = content.abstract
             dict_['abstract_summary'].append(summary)
 
-        # get metadata information
+        # Get metadata information
         meta_data = meta_df.loc[meta_df['sha'] == content.paper_id]
 
         try:
-            # if more than one author
+            # If more than one author
             authors = meta_data['authors'].values[0].split(';')
             if len(authors) > 2:
-                # more than 2 authors, may be problem when plotting, so take first 2 append with ...
-                dict_['authors'].append(get_breaks('. '.join(authors), 40))
+                # More than 2 authors, may be problem when plotting, so take first 2 append with ...
+                dict_['authors'].append('. '.join(authors[:2]) + '...')
             else:
-                # authors will fit in plot
+                # Authors will fit in plot
                 dict_['authors'].append(". ".join(authors))
         except Exception as e:
-            # if only one author - or Null valie
+            # If only one author - or Null value
             dict_['authors'].append(meta_data['authors'].values[0])
 
-        # add the title information, add breaks when needed
+        # Add the title information, add breaks when needed
         try:
-            title = get_breaks(meta_data['title'].values[0], 40)
+            title = truncate_text(meta_data['title'].values[0], 40)
             dict_['title'].append(title)
-        # if title was not provided
+        # If title was not provided
         except Exception as e:
             dict_['title'].append(meta_data['title'].values[0])
 
-        # add the journal information
+        # Add the journal information
         dict_['journal'].append(meta_data['journal'].values[0])
 
-        # add doi
+        # Add doi
         dict_['doi'].append(meta_data['doi'].values[0])
 
-
+    # Create a DataFrame
     df = pd.DataFrame(dict_, columns=['paper_id', 'doi', 'abstract', 'body_text',
                                             'authors', 'title', 'journal', 'abstract_summary'])
 
@@ -210,24 +202,48 @@ def load_data_from_local(data_root):
     # Text processing
     df = remove_stopwords(df)
     
-    df = df.reset_index()
+    df = df.reset_index().rename(columns={'index':'doc_num'})
+
     return df
 
 
 def load_stopword():
     nltk.download('stopwords')
-    return stopwords.words('english')
+    nltk.download('punkt')
+    stop_words = list(stopwords.words('english'))
+    punctuations = list(string.punctuation)
+    stop_words += punctuations
+    return stop_words
 
+
+
+def clean_text(text):
+    words = word_tokenize(text)
+    words = [word for word in words if word.isalnum()]
+    return ' '.join(words)
+
+# def spacy_tokenizer(sentence):
+#     mytokens = nlp(sentence)
+#     mytokens = [word.lemma_.lower().strip() if word.lemma != '-PORN-' else word.lower_ for word in mytokens]
+#     mytokens = [word for word in mytokens if word not in stopwords and word not in punctuations]
+#     mytokens = " ".join([i for i in mytokens])
+#     return mytokens
+
+
+# df['procesed_text'] = df['body_text'].progress_apply(spacy_tokenizer)
 
 def remove_stopwords(df):
     # Remove stopwords
-    stopwords = load_stopword()
+    stop_words = load_stopword()
     
-    for word in stopwords:
+    for word in stop_words:
         df['processed_text'] = df['body_text'].str.lower().str.replace(word,'')
-        df['processed_text'] = df['processed_text'].str.replace('  ',' ')
+    
+    # Apply text cleaning to body_text and generate processed_test
+    df['processed_text'] = df['processed_text'].apply(clean_text)
     
     return df
+
 
 # def tokenize_text(df):
 #     # Tokenize body text
@@ -236,6 +252,8 @@ def remove_stopwords(df):
 
 #     return df
 
+
+# Class to read JSON files
 class FileReader:
     def __init__(self, file_path):
         with open(file_path) as file:
