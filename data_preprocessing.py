@@ -202,6 +202,7 @@ def load_data_from_local(data_root):
     # Text processing
     df = remove_stopwords(df)
     
+    df = df.reset_index(drop=True)
     df = df.reset_index().rename(columns={'index':'doc_num'})
 
     return df
