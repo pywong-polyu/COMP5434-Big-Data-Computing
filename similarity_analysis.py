@@ -122,19 +122,19 @@ def get_minhash_signature(X,p):
     
     return s
 
-def check_minhash_similarity(s,target_doc_num):
+def check_minhash_similarity(s,X,target_doc_num):
 
     sig_jaccard_list = []
     sig_cosine_list = []
-    # doc_jaccard_list = []
+    doc_jaccard_list = []
     
     # Similarity from signature matrix
-    # s is 50(permutation) x 8041(document)
+    # s is (permutation) x (document)
     
     target_sig = s.T[target_doc_num]
     target_sig_norm = np.linalg.norm(target_sig)
     
-    # target_doc = X.T[target_doc_num]
+    target_doc = X.T[target_doc_num]
     
     # loop through all document to create a list of score
     for sig in s.T:
@@ -147,18 +147,18 @@ def check_minhash_similarity(s,target_doc_num):
         sig_jaccard = sig_intersection / sig_union
         sig_jaccard_list.append(sig_jaccard)   
 
-    # for doc in X.T:
-    #     doc_intersection = len(list(set(target_doc).intersection(doc)))
-    #     doc_union = (len(set(target_doc)) + len(set(doc))) - doc_intersection
-    #     doc_jaccard = doc_intersection / doc_union
-    #     doc_jaccard_list.append(doc_jaccard)
+    for doc in X.T:
+        doc_intersection = target_doc @ doc.T
+        doc_union = sum(np.clip(target_doc+doc,0,1))
+        doc_jaccard = doc_intersection / doc_union
+        doc_jaccard_list.append(doc_jaccard)
         
         
     df = pd.DataFrame(
         {
             'sig_cosine_similarity':sig_cosine_list,
             'sig_jaccard_similarity':sig_jaccard_list,
-            # 'doc_jaccard_similarity':doc_jaccard_list
+            'doc_jaccard_similarity':doc_jaccard_list
         }
     )
     
@@ -180,7 +180,7 @@ def minhash_with_different_permutation(df,X_clip,clip_result,target_doc_num,num_
         p = get_permutate_matrix(X_clip,num_perm=num_perm)
         s = get_minhash_signature(X_clip,p)
         
-        minhash_result = check_minhash_similarity(s,target_doc_num)
+        minhash_result = check_minhash_similarity(s,X_clip,target_doc_num)
         minhash_result = clip_result.merge(minhash_result,how='outer',on='doc_num')
         minhash_result = minhash_result.sort_values(by=['sig_jaccard_similarity'],ascending=False)
         
@@ -198,7 +198,7 @@ def compare_minhash_fine_tune(permutation_dict):
     document will have a close similarity score when using the signature matrix.
     The relation between the characteristic matrix similarity and the signature 
     matrix similarity can be expressed as the correlation between the characteristic 
-    matrix cosine similarity and the signature matrix Jaccard similarity.
+    matrix Jaccard similarity and the signature matrix Jaccard similarity.
     Therefore, a higher Pearson correlation implies a better performance in 
     dimension reduction while maintaining the data pattern in the characteristic matrix.
     '''
@@ -210,7 +210,7 @@ def compare_minhash_fine_tune(permutation_dict):
     for num_perm in permutation_dict:
         
         minhash_result = permutation_dict[num_perm]
-        correlation, pvalue = pearsonr(minhash_result['sig_jaccard_similarity'],minhash_result['doc_cosine_similarity'])
+        correlation, pvalue = pearsonr(minhash_result['sig_jaccard_similarity'],minhash_result['doc_jaccard_similarity'])
         
         num_perm_list.append(num_perm)
         correlation_list.append(correlation)
