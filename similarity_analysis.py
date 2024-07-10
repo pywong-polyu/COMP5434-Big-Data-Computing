@@ -56,9 +56,10 @@ def check_document_similarity(X,df,target_doc_num):
     )
     
     result = result.reset_index().rename(columns={'index':'doc_num'})
-    result = result.merge(df[['doc_num','abstract_summary']],how='left',on='doc_num')
+    result = result.merge(df[['doc_num','abstract_summary','doc_type']],how='left',on='doc_num')
     
     return result
+
 
 def get_permutate_matrix(X,num_perm=50):
     
@@ -68,7 +69,6 @@ def get_permutate_matrix(X,num_perm=50):
     '''
     
     N = len(X) # number of features
-
     p = []
 
     for i in range(0,num_perm):
@@ -81,7 +81,6 @@ def get_permutate_matrix(X,num_perm=50):
         for j in range(0,N):
             # Buckets are set to be 1 to N
             hash_value = (a*j+b)%N+1
-            
             # When 2 hashes mapped to the same bucket, the second hash move to the next bucket.
             while hash_value not in not_used:
                 hash_value += 1
@@ -103,10 +102,6 @@ def get_minhash_signature(X,p):
     '''
 
     s = []
-    
-    # X is 4096(feature) x 8041(document)
-    # p is 4096(feature) x 50 (permutation)
-    # Create a signature matrix with size as number of permutation x number of document
 
     for perm in p.T:
         doc_sig = np.array([])
@@ -367,19 +362,22 @@ def get_doc2vec_result(model,tokenizer,original_docs,target_doc_num,df):
     
         
     doc_num_list = []
-    rank_list = []
+    # rank_list = []
+    similarity_list = []
 
     for i in range(0,len(similar_docs)):
         doc = similar_docs[i]
         # rank start from 1 instead of 0, 1 has highest similarity
-        rank = i + 1
+        # rank = i + 1
         doc_num = int(doc[0])
+        similarity = doc[1]
         
-        rank_list.append(rank)
+        # rank_list.append(rank)
+        similarity_list.append(similarity)
         doc_num_list.append(doc_num)
         
-    result = pd.DataFrame({'doc2vec':rank_list,'doc_num':doc_num_list})
-    result = result.merge(df[['doc_num','abstract_summary']],how='left',on='doc_num')
+    result = pd.DataFrame({'doc_num':doc_num_list,'doc2vec_similarity':similarity_list})
+    result = result.merge(df[['doc_num','abstract_summary','doc_type']],how='left',on='doc_num')
     
     return result
 
@@ -443,7 +441,8 @@ def get_performance_rank(tfidf_result,count_result,clip_result,minhash_result,si
     simhash_rank['simhash_hamming'] = simhash_rank['sig_hamming_distance'].rank(ascending=True)
     performance_df = performance_df.merge(simhash_rank[['doc_num','simhash_hamming']],how='outer',on='doc_num')
     
-    doc2vec_rank = doc2vec_result[['doc_num','doc2vec']]
+    doc2vec_rank = doc2vec_result[['doc_num','doc2vec_similarity']]
+    doc2vec_rank['doc2vec'] = doc2vec_rank['doc2vec_similarity'].rank(ascending=False)
     performance_df = performance_df.merge(doc2vec_rank[['doc_num','doc2vec']],how='outer',on='doc_num')
     
     return performance_df
