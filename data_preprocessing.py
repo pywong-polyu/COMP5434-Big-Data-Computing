@@ -2,14 +2,20 @@
 import os
 import json
 import glob
+import re
 import nltk
 import string
 from tqdm import tqdm
 import pandas as pd
+import datetime as dt
+
 from langdetect import detect
 from langdetect import DetectorFactory
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+
+import spacy
+from spacy.lang.en import STOP_WORDS
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -58,7 +64,7 @@ def truncate_text(content, length):
 def get_full_data_df(meta_df,json_files):
 
     # Dictionary to hold data
-    dict_ = {'paper_id': [], 'doi':[], 'abstract': [], 'body_text': [],
+    dict_ = {'paper_id': [], 'publish_time': [], 'doi':[], 'abstract': [], 'body_text': [],
             'authors': [], 'title': [], 'journal': [], 'abstract_summary': []}
 
     # Iterate through json files and extract content
@@ -124,9 +130,19 @@ def get_full_data_df(meta_df,json_files):
 
         # Add doi
         dict_['doi'].append(meta_data['doi'].values[0])
-
+        
+        # add publish time
+        publish_time = meta_data['publish_time'].values[0]
+        if len(publish_time) > 4:
+            publish_time = dt.datetime.strptime(publish_time, '%Y-%m-%d') 
+        elif len(publish_time) == 4:
+            publish_time += '-01-01'
+            publish_time = dt.datetime.strptime(publish_time, '%Y-%m-%d')
+            
+        dict_['publish_time'].append(publish_time)
+    
     # Create a DataFrame
-    df = pd.DataFrame(dict_, columns=['paper_id', 'doi', 'abstract', 'body_text',
+    df = pd.DataFrame(dict_, columns=['paper_id', 'publish_time', 'doi', 'abstract', 'body_text',
                                             'authors', 'title', 'journal', 'abstract_summary'])
 
     df = df.dropna()
@@ -209,19 +225,94 @@ def load_data_from_local(data_root):
 
 
 def load_stopword():
-    nltk.download('stopwords')
-    nltk.download('punkt')
-    stop_words = list(stopwords.words('english'))
-    punctuations = list(string.punctuation)
-    stop_words += punctuations
-    return stop_words
+    
+    stopwords = set(STOP_WORDS)
+
+    custom_stop_words = {
+        'doi','preprint','copyright','peer','reviewed','org','https','et','al','author','figure',
+        'rights','reserved','permission','used','using','biorxiv','medrxiv','license','fig','fig.',
+        'al.','Elsevier','PMC','CZI', 'are', 'their', 'be',
+        'a', 'after', 'also', 'an', 'and', 'as', 'at', 'base', 'between', 'but', 'by', 'did', 'do', 'does', 'during', 'for', 'from', 
+        'have', 'has', 'had', 'however',
+        'in', 'is', 'it', 'its', 'new', 'of', 'on', 'or', 
+        'that', 'the', 'to', 'use', 'using', 'was', 'we', 'were', 'which', 'with', '=', 'br',
+        'drug', 'this', 'our', 'may', 'among', 'can', 'these' ,'there', 'been',
+    }
+
+    stopwords = stopwords | custom_stop_words
+
+    return stopwords
+            
+    
 
 
 
-def clean_text(text):
-    words = word_tokenize(text)
-    words = [word for word in words if word.isalnum()]
-    return ' '.join(words)
+
+def singularize_word(word):
+    
+    SINGULAR_SUFFIX = [
+        ('people', 'person'),
+        ('men', 'man'),
+        ('wives', 'wife'),
+        ('menus', 'menu'),
+        ('us', 'us'),
+        ('ss', 'ss'),
+        ('is', 'is'),
+        ("'s", "'s"),
+        ('ies', 'y'),
+        ('ies', 'y'),
+        ('es', 'e'),
+        ('s', '')
+    ]
+        
+    for suffix, singular_suffix in SINGULAR_SUFFIX:
+        if word.endswith(suffix):
+            return word[:-len(suffix)] + singular_suffix
+    return word
+
+def spacy_tokenizer(sentence):
+    mytokens = nlp(sentence)
+    mytokens = [word.lemma_.lower().strip() if word.lemma != '-PORN-' else word.lower_ for word in mytokens]
+    mytokens = [word for word in mytokens if len(word) > 2 
+                and p.match(word)
+                and word.isalpha() 
+                and word not in stopwords 
+                and word not in punctuations 
+                and word in nlp.vocab]
+    #mytokens = [word for word in mytokens if detect(word) == 'en' and word.isalpha()]
+    mytokens = " ".join([i for i in mytokens])
+    return mytokens
+    
+def clean_test(df):    
+    # Parser
+    # Only tokenization and lemmation are performed, POS tagging, NER and syntactic parsing are skipped.
+    nlp = spacy.load('en_core_web_sm',disable=["tagger","parser","ner"])
+    nlp.max_length = 7000000
+
+    stopwords = load_stopword()
+    punctuations = set(string.punctuation)
+    p = re.compile('[a-zA-Z]+')
+    
+    df['procesed_title'] = df['title'].progress_apply(spacy_tokenizer)
+    df['procesed_abstract'] = df['abstract'].progress_apply(spacy_tokenizer)
+    df['procesed_text'] = df['body_text'].progress_apply(spacy_tokenizer)
+
+    df['procesed_title_list'] = df['procesed_title'].str.split()
+    df['procesed_abstract_list'] = df['procesed_abstract'].str.split()
+    df['procesed_text_list'] = df['procesed_text'].str.split()
+
+
+    df['all_text_list'] = df['procesed_title_list'] + df['procesed_abstract_list'] + df['procesed_text_list']
+
+    return df
+
+
+
+
+# def clean_text(text):
+#     words = word_tokenize(text)
+#     words = [word for word in words if word.isalnum()]
+#     return ' '.join(words)
 
 # def spacy_tokenizer(sentence):
 #     mytokens = nlp(sentence)
@@ -233,17 +324,17 @@ def clean_text(text):
 
 # df['procesed_text'] = df['body_text'].progress_apply(spacy_tokenizer)
 
-def remove_stopwords(df):
-    # Remove stopwords
-    stop_words = load_stopword()
+# def remove_stopwords(df):
+#     # Remove stopwords
+#     stop_words = load_stopword()
     
-    for word in stop_words:
-        df['processed_text'] = df['body_text'].str.lower().str.replace(word,'')
+#     for word in stop_words:
+#         df['processed_text'] = df['body_text'].str.lower().str.replace(word,'')
     
-    # Apply text cleaning to body_text and generate processed_test
-    df['processed_text'] = df['processed_text'].apply(clean_text)
+#     # Apply text cleaning to body_text and generate processed_test
+#     df['processed_text'] = df['processed_text'].apply(clean_text)
     
-    return df
+#     return df
 
 
 # def tokenize_text(df):
