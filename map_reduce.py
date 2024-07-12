@@ -20,21 +20,20 @@ def load_documents_mr(data_path):
 
 
 # Mapper function
-def map_function(documents_MR):
+def map_function(document):
     # Split the document into words and assign an ID to each word
-    for idx, word in enumerate(documents_MR.split(), start=1):
+    for idx, word in enumerate(document.split(), start=1):
       yield (word.lower(), 1)
 
 def map_reduce(documents_MR):
     
     # Specify the words to include in the stoplist
-    custom_stop_words = load_custom_stopword()
-
+    custom_stop_words = load_stopword()
 
     # Step 1: Map phase
     mapped = []
-    for documents_MR in documents_MR:
-        mapped.extend(map_function(documents_MR))
+    for document in documents_MR:
+        mapped.extend(map_function(document))
 
     # Step 2: Shuffle and sort phase (group by key)
     shuffled = defaultdict(list)

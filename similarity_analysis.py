@@ -55,6 +55,7 @@ def check_document_similarity(X,df,target_doc_num):
         }
     )
     
+    result = result.fillna(0)
     result = result.reset_index().rename(columns={'index':'doc_num'})
     result = result.merge(df[['doc_num','abstract_summary','doc_type']],how='left',on='doc_num')
     
@@ -110,6 +111,7 @@ def get_minhash_signature(X,p):
             sig_set.discard(0)
             
             # If an entire column is zero, set the minimum hash value as 1.
+            # This happens due to a limited amount of tokens are used.
             if len(sig_set) == 0:
                 sig_set.add(1)
             
@@ -162,6 +164,8 @@ def check_minhash_similarity(s,X,target_doc_num):
         }
     )
     
+    df = df.fillna(0)
+    
     df = df.reset_index().rename(columns={'index':'doc_num'})
     
     return df
@@ -195,12 +199,13 @@ def compare_minhash_fine_tune(permutation_dict):
     The performance of MinHash is defined by how the signature matrix gives a 
     close similarity score compare with the characteristic matrix.
     In the other words, documents have a high similarity score to a target 
-    document will have a close similarity score when using the signature matrix.
-    The relation between the characteristic matrix similarity and the signature 
-    matrix similarity can be expressed as the correlation between the characteristic 
-    matrix Jaccard similarity and the signature matrix Jaccard similarity.
-    Therefore, a higher Pearson correlation implies a better performance in 
-    dimension reduction while maintaining the data pattern in the characteristic matrix.
+    document is more likely to have a high similarity score when comparing with
+    the signature matrix. The relation between the characteristic matrix similarity
+    and the signature matrix similarity can be expressed as the Pearson correlation
+    between the characteristic matrix Jaccard similarity and the signature
+    matrix Jaccard similarity. Therefore, a higher Pearson correlation implies a
+    better performance in dimension reduction while maintaining the data pattern
+    in the characteristic matrix.
     '''
     
     num_perm_list = []
@@ -227,6 +232,11 @@ def compare_minhash_fine_tune(permutation_dict):
     return df
 
 def get_feature_hash(feature_list,hashing):
+    
+    '''
+    Hash all feature name into 128 bits.
+    Reture a matrix of all feature of bits array.
+    '''
     
     if hashing not in ['md5','sha1']:
         raise ValueError(f'Argument hashing is not md5 or sha1: {hashing}')

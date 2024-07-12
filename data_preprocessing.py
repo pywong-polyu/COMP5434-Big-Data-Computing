@@ -197,9 +197,9 @@ def detect_language(df):
         
     return languages
 
-def filter_languages_by_eng(df,languages):
+def filter_language(df,languages,lang):
     df['language'] = languages
-    df = df[df['language'] == 'en']
+    df = df[df['language'] == lang]
     return df
 
 
@@ -213,10 +213,10 @@ def load_data_from_local(data_root):
     
     # Filter English paper only
     languages = detect_language(df)
-    df = filter_languages_by_eng(df,languages)
+    df = filter_language(df,languages,'en')
     
     # Text processing
-    df = clean_test(df)
+    df = clean_text(df)
     
     df = df.reset_index(drop=True)
     df = df.reset_index().rename(columns={'index':'doc_num'})
@@ -229,8 +229,10 @@ def load_stopword():
     stopwords = set(STOP_WORDS)
 
     custom_stop_words = load_custom_stopword()
-
-    stopwords = stopwords | custom_stop_words
+    
+    punctuations = set(string.punctuation)
+    
+    stopwords = stopwords | custom_stop_words | punctuations
 
     return stopwords
             
@@ -238,14 +240,31 @@ def load_stopword():
 def load_custom_stopword():
     
     custom_stop_words = {
+        # Exists in most paper format
         'doi','preprint','copyright','peer','reviewed','org','https','et','al','author','figure',
-        'rights','reserved','permission','used','using','biorxiv','medrxiv','license','fig','fig.',
-        'al.','elsevier','pmc','czi', 'are', 'their', 'be',
-        'a', 'after', 'also', 'an', 'and', 'as', 'at', 'base', 'between', 'but', 'by', 'did', 'do', 'does', 'during', 'for', 'from', 
-        'have', 'has', 'had', 'however',
-        'in', 'is', 'it', 'its', 'new', 'of', 'on', 'or', 
-        'that', 'the', 'to', 'use', 'using', 'was', 'we', 'were', 'which', 'with',
-        'drug', 'this', 'our', 'may', 'among', 'can', 'these' ,'there', 'been',
+        'rights','reserved','permission','biorxiv','medrxiv','license','fig','fig.',
+        'al.','elsevier','pmc','czi',
+        
+        # General stopwords in alphabetical order
+        'a', 'after', 'all', 'also', 'an', 'are', 'and', 'as', 'at','among', 'am',
+        'be', 'been', 'base', 'between', 'but', 'by', 'besides',
+        'can', 'cannot', 'could',
+        'did', 'do', 'does', 'during', 
+        'either',
+        'for', 'from', 
+        'have', 'has', 'had', 'however', 'how',
+        'in', 'into', 'is', 'it', 'its', 
+        'just',
+        'less', 'lot', 'lots',
+        'more','most','may', 'much',
+        'not', 'no', 'nor', 'neither',
+        'on', 'or', 'of', 'our', 'off',
+        'put',
+        'should', 'still',
+        'to', 'that', 'than', 'the', 'this', 'these', 'those','there', 'their',
+        'use', 'used', 'using',
+        'very',
+        'was', 'we', 'were', 'which', 'with', 'who', 'where', 'while', 'would'
     }
 
     return custom_stop_words
@@ -264,7 +283,6 @@ def singularize_word(word):
         ('is', 'is'),
         ("'s", "'s"),
         ('ies', 'y'),
-        ('ies', 'y'),
         ('es', 'e'),
         ('s', '')
     ]
@@ -274,32 +292,31 @@ def singularize_word(word):
             return word[:-len(suffix)] + singular_suffix
     return word
 
-def spacy_tokenizer(sentence,nlp,p,stopwords,punctuations):
+def spacy_tokenizer(sentence,nlp,p,stopwords):
     mytokens = nlp(sentence)
     mytokens = [word.lemma_.lower().strip() if word.lemma != '-PORN-' else word.lower_ for word in mytokens]
     mytokens = [word for word in mytokens if len(word) > 2 
                 and p.match(word)
                 and word.isalpha() 
-                and word not in stopwords 
-                and word not in punctuations 
+                and word not in stopwords #  included punctuations
                 and word in nlp.vocab]
     #mytokens = [word for word in mytokens if detect(word) == 'en' and word.isalpha()]
     mytokens = " ".join([i for i in mytokens])
     return mytokens
     
-def clean_test(df):    
+def clean_text(df):    
     # Parser
     # Only tokenization and lemmation are performed, POS tagging, NER and syntactic parsing are skipped.
     nlp = spacy.load('en_core_web_sm',disable=["tagger","parser","ner"])
     nlp.max_length = 7000000
 
     stopwords = load_stopword()
-    punctuations = set(string.punctuation)
+    
     p = re.compile('[a-zA-Z]+')
     
-    df['processed_title'] = df['title'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords,punctuations))
-    df['processed_abstract'] = df['abstract'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords,punctuations))
-    df['processed_text'] = df['body_text'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords,punctuations))
+    df['processed_title'] = df['title'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords))
+    df['processed_abstract'] = df['abstract'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords))
+    df['processed_text'] = df['body_text'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords))
 
     df['processed_title_list'] = df['processed_title'].str.split()
     df['processed_abstract_list'] = df['processed_abstract'].str.split()

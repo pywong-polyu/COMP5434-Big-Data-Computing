@@ -15,6 +15,7 @@ from data_preprocessing import *
 def get_target_document_index(X,token_list,target_word_list,model_name='glove-wiki-gigaword-100',top_feature=20,top_document=100):
     
     '''
+    Get most relateed document with given target word.
     Compare each target word to all token used as feature and find the top related document index.
     Using gensim model for semantic analysis by default using glove-wiki-gigaword-100.
     Return a dictionary of most related documents index for each target word.
@@ -43,6 +44,7 @@ def get_target_document_index(X,token_list,target_word_list,model_name='glove-wi
     An integer number of most related documents compare with the target word.
     '''
     
+    print('Looking for most related documents...')
     print(f'Using Model: {model_name}\n')
     
     model = api.load(model_name)
@@ -67,8 +69,8 @@ def get_target_document_index(X,token_list,target_word_list,model_name='glove-wi
     
 
     # Create a result dictionary for all target words
-    
     result_dict = {}
+    
     for i in range(0,len(target_word_list)):
         
         target_word = target_word_list[i]
@@ -78,6 +80,8 @@ def get_target_document_index(X,token_list,target_word_list,model_name='glove-wi
         doc_to_keep = get_most_similar_document(X,token_score_df,token_list,top_feature=top_feature,top_document=top_document)
         result_dict[target_word] = doc_to_keep
         
+    print('\n')
+    
     return result_dict
 
         
