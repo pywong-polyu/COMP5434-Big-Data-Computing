@@ -2,6 +2,15 @@ import pandas as pd
 import numpy as np
 import scipy.stats as ss
 import gensim.downloader as api
+import networkx as nx
+import matplotlib.pyplot as plt
+
+from mlxtend.frequent_patterns import apriori, association_rules 
+from mlxtend.preprocessing import TransactionEncoder
+
+from data_preprocessing import *
+
+
 
 def get_target_document_index(X,token_list,target_word_list,model_name='glove-wiki-gigaword-100',top_feature=20,top_document=100):
     
@@ -63,7 +72,7 @@ def get_target_document_index(X,token_list,target_word_list,model_name='glove-wi
     for i in range(0,len(target_word_list)):
         
         target_word = target_word_list[i]
-        print(f'Comparing target word {i}/{len(target_word_list)}: {target_word}')
+        print(f'Comparing target word {i+1}/{len(target_word_list)}: {target_word}')
         
         token_score_df = get_target_word_similarity(model,token_list,target_word)
         doc_to_keep = get_most_similar_document(X,token_score_df,token_list,top_feature=top_feature,top_document=top_document)
@@ -165,3 +174,65 @@ def get_most_similar_document(X,token_score_df,token_list,top_feature=20,top_doc
                     break
 
     return doc_to_keep
+
+
+
+
+def find_association_rules(frq_items):
+    # Collecting the inferred rules in a dataframe 
+    rules = association_rules(frq_items, metric ="lift", min_threshold = 1)
+    rules["antecedent_len"] = rules["antecedents"].apply(lambda x: len(x)) 
+    rules["consequents_len"] = rules["consequents"].apply(lambda x: len(x)) 
+    rules = rules.sort_values(['lift', 'antecedent_len', 'consequents_len', 'confidence'], ascending=[False, False, False, False]) 
+    return rules 
+
+
+def draw_graph(rules, rules_to_show, topics, title):
+    
+    G1 = nx.DiGraph()
+    color_map=[]
+    strs = []
+    for i in range(len(topics)):
+        strs += dict(topics[i][1])
+
+    for z in range(rules_to_show):
+        rand_index = np.random.randint(0, len(rules) - 1)
+        for a in rules.iloc[rand_index]['antecedents']:
+            G1.add_nodes_from([a])
+            G1.add_edge(a, rules.iloc[rand_index]['antecedents'], weight = 2)
+
+        for c in rules.iloc[i]['consequents']:
+            G1.add_nodes_from([c])
+            G1.add_edge(rules.iloc[rand_index]['consequents'], c, weight=2)
+
+        for node in G1:
+            found_a_string = False
+            for item in strs:
+                if node==item:
+                        found_a_string = True
+
+                if found_a_string:
+                        color_map.append('yellow')
+                else:
+                        color_map.append('green')       
+
+
+    edges = G1.edges()
+    pos = nx.spring_layout(G1, k=16, scale=1)
+    plt.figure(figsize=(13,7))
+    nx.draw_networkx(G1, pos, arrows=True, with_labels=True, node_color='lightblue', node_size=2500)            
+    plt.title(title)
+    plt.show()
+    
+    
+def draw_catgraph(rules, rules_to_show, topics, title):
+    N = 50
+    x = rules["antecedents"]
+    y = rules["consequents"]
+
+    colors = np.random.rand(N)
+    area = (30 * np.random.rand(N))**2  # 0 to 15 point radii
+    plt.figure(figsize=(13,7))
+    plt.scatter(x, y, s=area, c=colors, alpha=0.5)
+    plt.title(title)
+    plt.show()

@@ -108,6 +108,11 @@ def get_minhash_signature(X,p):
         for doc in X.T:
             sig_set = set(np.multiply(doc,perm))
             sig_set.discard(0)
+            
+            # If an entire column is zero, set the minimum hash value as 1.
+            if len(sig_set) == 0:
+                sig_set.add(1)
+            
             sig = min(sig_set)
             doc_sig = np.append(doc_sig,sig)
             
@@ -457,5 +462,7 @@ def get_performance_rank_diff(df,benchmark='tfidf_doc_cosine'):
     for col in df:
         if col not in ['doc_num',benchmark]:
             df[col] = df[col] - df[benchmark]
+    
+    df = df.drop(columns=[benchmark])
     
     return df

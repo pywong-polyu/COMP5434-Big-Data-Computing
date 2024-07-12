@@ -216,7 +216,7 @@ def load_data_from_local(data_root):
     df = filter_languages_by_eng(df,languages)
     
     # Text processing
-    df = remove_stopwords(df)
+    df = clean_test(df)
     
     df = df.reset_index(drop=True)
     df = df.reset_index().rename(columns={'index':'doc_num'})
@@ -228,23 +228,27 @@ def load_stopword():
     
     stopwords = set(STOP_WORDS)
 
-    custom_stop_words = {
-        'doi','preprint','copyright','peer','reviewed','org','https','et','al','author','figure',
-        'rights','reserved','permission','used','using','biorxiv','medrxiv','license','fig','fig.',
-        'al.','Elsevier','PMC','CZI', 'are', 'their', 'be',
-        'a', 'after', 'also', 'an', 'and', 'as', 'at', 'base', 'between', 'but', 'by', 'did', 'do', 'does', 'during', 'for', 'from', 
-        'have', 'has', 'had', 'however',
-        'in', 'is', 'it', 'its', 'new', 'of', 'on', 'or', 
-        'that', 'the', 'to', 'use', 'using', 'was', 'we', 'were', 'which', 'with', '=', 'br',
-        'drug', 'this', 'our', 'may', 'among', 'can', 'these' ,'there', 'been',
-    }
+    custom_stop_words = load_custom_stopword()
 
     stopwords = stopwords | custom_stop_words
 
     return stopwords
             
     
+def load_custom_stopword():
+    
+    custom_stop_words = {
+        'doi','preprint','copyright','peer','reviewed','org','https','et','al','author','figure',
+        'rights','reserved','permission','used','using','biorxiv','medrxiv','license','fig','fig.',
+        'al.','elsevier','pmc','czi', 'are', 'their', 'be',
+        'a', 'after', 'also', 'an', 'and', 'as', 'at', 'base', 'between', 'but', 'by', 'did', 'do', 'does', 'during', 'for', 'from', 
+        'have', 'has', 'had', 'however',
+        'in', 'is', 'it', 'its', 'new', 'of', 'on', 'or', 
+        'that', 'the', 'to', 'use', 'using', 'was', 'we', 'were', 'which', 'with',
+        'drug', 'this', 'our', 'may', 'among', 'can', 'these' ,'there', 'been',
+    }
 
+    return custom_stop_words
 
 
 
@@ -270,7 +274,7 @@ def singularize_word(word):
             return word[:-len(suffix)] + singular_suffix
     return word
 
-def spacy_tokenizer(sentence):
+def spacy_tokenizer(sentence,nlp,p,stopwords,punctuations):
     mytokens = nlp(sentence)
     mytokens = [word.lemma_.lower().strip() if word.lemma != '-PORN-' else word.lower_ for word in mytokens]
     mytokens = [word for word in mytokens if len(word) > 2 
@@ -293,16 +297,16 @@ def clean_test(df):
     punctuations = set(string.punctuation)
     p = re.compile('[a-zA-Z]+')
     
-    df['procesed_title'] = df['title'].progress_apply(spacy_tokenizer)
-    df['procesed_abstract'] = df['abstract'].progress_apply(spacy_tokenizer)
-    df['procesed_text'] = df['body_text'].progress_apply(spacy_tokenizer)
+    df['processed_title'] = df['title'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords,punctuations))
+    df['processed_abstract'] = df['abstract'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords,punctuations))
+    df['processed_text'] = df['body_text'].apply(lambda x: spacy_tokenizer(x,nlp,p,stopwords,punctuations))
 
-    df['procesed_title_list'] = df['procesed_title'].str.split()
-    df['procesed_abstract_list'] = df['procesed_abstract'].str.split()
-    df['procesed_text_list'] = df['procesed_text'].str.split()
+    df['processed_title_list'] = df['processed_title'].str.split()
+    df['processed_abstract_list'] = df['processed_abstract'].str.split()
+    df['processed_text_list'] = df['processed_text'].str.split()
 
 
-    df['all_text_list'] = df['procesed_title_list'] + df['procesed_abstract_list'] + df['procesed_text_list']
+    df['all_text_list'] = df['processed_title_list'] + df['processed_abstract_list'] + df['processed_text_list']
 
     return df
 
@@ -322,7 +326,7 @@ def clean_test(df):
 #     return mytokens
 
 
-# df['procesed_text'] = df['body_text'].progress_apply(spacy_tokenizer)
+# df['processed_text'] = df['body_text'].progress_apply(spacy_tokenizer)
 
 # def remove_stopwords(df):
 #     # Remove stopwords
