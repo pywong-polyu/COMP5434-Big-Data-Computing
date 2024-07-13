@@ -63,7 +63,8 @@ def get_document_zero_shot_classifiaction(
         # Get the score from the columns name as the value in the label field
         for label in labels:
             sub_df_label = sub_df[sub_df['label']==label]
-            sub_df_label['score'] = sub_df_label.loc[sub_df_label['label'] == label, label]
+            sub_df_label['score'] = sub_df_label[label]
+            # sub_df_label['score'] = sub_df_label.loc[sub_df_label['label'] == label, label]
         
             sub_df_label = sub_df_label[['doc_num','topic','label','score']]
         
